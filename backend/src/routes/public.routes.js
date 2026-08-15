@@ -1,9 +1,9 @@
 import { Router } from "express";
 import { config } from "../config.js";
 import { supabase } from "../supabase.js";
-import { chooseRuleOutcome } from "../rule-engine.js";
 import { requireParticipant } from "../middleware.js";
 import { assertPreviewAuthAllowed, createParticipantSession, resolveZaloPhone } from "../participant-auth.js";
+import { spinOnce } from "../spin-service.js";
 import { asyncRoute, isValidVietnamesePhone, mapAssignment, mapBanner, mapCustomer, mapReward, normalizePhone, publicError } from "../utils.js";
 
 const router = Router();
@@ -203,7 +203,21 @@ router.get("/customers/:id/spins", asyncRoute(async (req, res) => {
   res.json({ items: data || [] });
 }));
 
-router.post("/spins", asyncRoute(async (req, res) => {
+router.post("/spins", requireParticipant, asyncRoute(async (req, res) => {
+  const idempotencyKey = String(req.headers["idempotency-key"] || "").trim();
+  // OA follow status is server-owned until a verified OA adapter is enabled.
+  const result = await spinOnce({
+    db: supabase,
+    participant: req.participant,
+    idempotencyKey,
+    oaFollowed: false,
+    source: "participant",
+  });
+  res.json(result);
+}));
+
+router.post("/spins-legacy-disabled", asyncRoute(async (req, res) => {
+  throw publicError("This endpoint was replaced by participant sessions", 410);
   const customerId = String(req.body?.customerId || "").trim();
   if (!customerId) throw publicError("Thiếu customerId");
 
