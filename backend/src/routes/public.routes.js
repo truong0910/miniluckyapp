@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { config } from "../config.js";
 import { supabase } from "../supabase.js";
-import { requireParticipant } from "../middleware.js";
+import { requireAdmin, requireParticipant } from "../middleware.js";
 import { assertPreviewAuthAllowed, createParticipantSession, resolveZaloPhone } from "../participant-auth.js";
 import { spinOnce } from "../spin-service.js";
 import { asyncRoute, isValidVietnamesePhone, mapAssignment, mapBanner, mapCustomer, mapReward, normalizePhone, publicError } from "../utils.js";
@@ -262,8 +262,24 @@ router.post("/spins-legacy-disabled", asyncRoute(async (req, res) => {
   });
 }));
 
-router.post("/delivery/zbs", asyncRoute(async (req, res) => {
-  const { spinId, phone, reward, customerName } = req.body || {};
+router.post("/delivery/zbs", requireParticipant, asyncRoute(async (req, res) => {
+  const spinId = String(req.body?.spinId || "").trim();
+  if (!spinId) throw publicError("Missing spin id");
+  const { data: delivery, error } = await supabase
+    .from("deliveries")
+    .select("id,spin_event_id,customer_id,status,provider_message_id")
+    .eq("spin_event_id", spinId)
+    .eq("customer_id", req.participant.customerId)
+    .eq("channel", "zbs")
+    .maybeSingle();
+  if (error) throw error;
+  if (!delivery) throw publicError("Delivery is not available", 404);
+  res.status(202).json({ spinId, deliveryId: delivery.id, status: delivery.status, messageId: delivery.provider_message_id || undefined });
+}));
+
+router.post("/delivery/zbs-legacy-disabled", asyncRoute(async (req, res) => {
+  throw publicError("This endpoint was replaced by the delivery outbox", 410);
+  const spinId = String(req.body?.spinId || "");
   if (!spinId || !phone || !reward?.code) throw publicError("Thiếu thông tin gửi Voucher");
   if (!config.zbsApiKey || !config.zbsTemplateId) throw publicError("Backend chưa cấu hình ZBS WIFIM", 503);
 
@@ -289,7 +305,7 @@ router.post("/delivery/zbs", asyncRoute(async (req, res) => {
   res.json({ spinId, status: "sent", message: body.message, messageId: body.msg_id });
 }));
 
-router.get("/delivery/zbs/templates", asyncRoute(async (_req, res) => {
+router.get("/delivery/zbs/templates", requireAdmin, asyncRoute(async (_req, res) => {
   if (!config.zbsApiKey) throw publicError("Backend chưa cấu hình ZBS WIFIM", 503);
   const response = await fetch(`${config.zbsBaseUrl.replace(/\/$/, "")}/v1/templates`, { headers: { Accept: "application/json", "X-API-Key": config.zbsApiKey } });
   const body = await response.json().catch(() => ({}));
