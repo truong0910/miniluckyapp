@@ -1,6 +1,7 @@
 import { supabase } from "./supabase.js";
 import { config } from "./config.js";
 import { verifyDevelopmentAdminToken } from "./auth/admin-session.js";
+import { findParticipantSession } from "./participant-auth.js";
 import { asyncRoute, publicError } from "./utils.js";
 
 export const requireAdmin = asyncRoute(async (req, _res, next) => {
@@ -30,5 +31,15 @@ export const requireAdmin = asyncRoute(async (req, _res, next) => {
   if (profileError || !profile) throw publicError("Tài khoản không có quyền quản trị", 403);
 
   req.admin = { user: data.user, profile };
+  next();
+});
+
+export const requireParticipant = asyncRoute(async (req, _res, next) => {
+  const header = String(req.headers.authorization || "");
+  const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  if (!token) throw publicError("Thiếu participant token", 401);
+  const session = await findParticipantSession({ db: supabase, token });
+  if (!session) throw publicError("Participant session không hợp lệ hoặc đã hết hạn", 401);
+  req.participant = session;
   next();
 });
