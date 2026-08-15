@@ -1,0 +1,15 @@
+# Dependencies and generated builds
+**/node_modules/
+**/www/
+**/dist/
+*.log
+
+# Local secrets and environment files
+**/.env
+**/.env.*
+!**/.env.example
+
+# Local tooling files
+.vscode/
+.DS_Store
+Thumbs.db
