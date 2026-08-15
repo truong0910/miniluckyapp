@@ -13,6 +13,8 @@ test("phase 1 migration declares session, idempotency, delivery, and spin_once p
     "create table if not exists public.deliveries",
     "idempotency_key",
     "create or replace function public.spin_once",
+    "create or replace function public.claim_deliveries",
+    "create or replace function public.finish_delivery",
     "security definer",
     "for update",
   ]) {

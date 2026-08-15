@@ -34,6 +34,8 @@ create table if not exists public.deliveries (
   unique (spin_event_id, channel)
 );
 
+alter table public.deliveries add column if not exists locked_by text;
+
 create index if not exists deliveries_pending_idx
   on public.deliveries (status, next_attempt_at, created_at);
 
@@ -318,3 +320,96 @@ $$;
 
 revoke all on function public.spin_once(text, text, boolean, text) from public, anon, authenticated;
 grant execute on function public.spin_once(text, text, boolean, text) to service_role;
+
+create or replace function public.claim_deliveries(
+  p_worker_id text,
+  p_limit integer default 10
+)
+returns setof public.deliveries
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_limit integer := greatest(1, least(coalesce(p_limit, 10), 100));
+begin
+  if nullif(trim(p_worker_id), '') is null then
+    raise exception using errcode = '22023', message = 'worker_id is required';
+  end if;
+
+  -- A crashed worker must not hold a delivery forever. Exhausted attempts are
+  -- terminal and are not claimed again.
+  update public.deliveries
+  set status = 'failed',
+      last_error = coalesce(last_error, 'maximum delivery attempts exceeded'),
+      locked_at = null,
+      locked_by = null
+  where status in ('pending', 'processing')
+    and attempt_count >= 8
+    and (status = 'pending' or locked_at < now() - interval '5 minutes');
+
+  return query
+  with candidates as (
+    select d.id
+    from public.deliveries d
+    where d.attempt_count < 8
+      and (
+        (d.status = 'pending' and d.next_attempt_at <= now())
+        or (d.status = 'processing' and d.locked_at < now() - interval '5 minutes')
+      )
+    order by d.next_attempt_at asc, d.created_at asc
+    for update skip locked
+    limit v_limit
+  )
+  update public.deliveries d
+  set status = 'processing',
+      locked_at = now(),
+      locked_by = p_worker_id,
+      attempt_count = d.attempt_count + 1
+  from candidates c
+  where d.id = c.id
+  returning d.*;
+end;
+$$;
+
+create or replace function public.finish_delivery(
+  p_delivery_id uuid,
+  p_status text,
+  p_message_id text default null,
+  p_error text default null,
+  p_next_attempt_at timestamptz default null
+)
+returns public.deliveries
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_delivery public.deliveries%rowtype;
+begin
+  if p_status not in ('sent', 'pending', 'failed') then
+    raise exception using errcode = '22023', message = 'invalid delivery status';
+  end if;
+
+  update public.deliveries
+  set status = p_status,
+      provider_message_id = coalesce(p_message_id, provider_message_id),
+      last_error = case when p_status = 'sent' then null else p_error end,
+      next_attempt_at = coalesce(p_next_attempt_at, next_attempt_at),
+      locked_at = null,
+      locked_by = null,
+      sent_at = case when p_status = 'sent' then now() else sent_at end
+  where id = p_delivery_id and status = 'processing'
+  returning * into v_delivery;
+
+  if not found then
+    raise exception using errcode = 'P0002', message = 'delivery is not processing';
+  end if;
+  return v_delivery;
+end;
+$$;
+
+revoke all on function public.claim_deliveries(text, integer) from public, anon, authenticated;
+revoke all on function public.finish_delivery(uuid, text, text, text, timestamptz) from public, anon, authenticated;
+grant execute on function public.claim_deliveries(text, integer) to service_role;
+grant execute on function public.finish_delivery(uuid, text, text, text, timestamptz) to service_role;

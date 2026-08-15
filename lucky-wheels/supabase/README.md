@@ -1,0 +1,23 @@
+# Supabase schema
+
+Run `migrations/0001_lucky_wheels.sql` in the Supabase SQL Editor first.
+
+The Backend (`../backend/`) is the only application component that connects
+to Supabase, using the service role key. The Mini App and Admin Web call the
+Backend API instead of connecting directly.
+
+## Phase 1 migration
+
+Apply `migrations/0002_phase1_production_safety.sql` after
+`0001_lucky_wheels.sql`. The migration is additive: it keeps existing
+customers, rewards, rules, and spin events. It adds participant sessions,
+the delivery outbox, idempotent `spin_once`, and claim/finish functions for
+the separate delivery worker.
+
+Run `tests/phase1_spin.sql` only in an isolated Supabase test project. The
+Backend integration test is opt-in and requires
+`SUPABASE_TEST_URL` and `SUPABASE_TEST_SERVICE_ROLE_KEY`; it never reads the
+local app `.env`.
+
+After the base migration, create an Auth user and add its UUID to
+`public.admin_profiles`; see `SUPABASE_ADMIN_SETUP.md`.
