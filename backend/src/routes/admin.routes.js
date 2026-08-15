@@ -1,0 +1,292 @@
+import { Router } from "express";
+import { authClient, supabase } from "../supabase.js";
+import { requireAdmin } from "../middleware.js";
+import { config } from "../config.js";
+import { createDevelopmentAdminToken } from "../auth/admin-session.js";
+import { asyncRoute, mapAssignment, mapBanner, mapCustomer, mapReward, normalizePhone, publicError } from "../utils.js";
+
+const router = Router();
+
+router.post("/auth/login", asyncRoute(async (req, res) => {
+  const email = String(req.body?.email || "").trim();
+  const password = String(req.body?.password || "");
+  if (!email || !password) throw publicError("Vui lòng nhập email và mật khẩu");
+
+  let session;
+  let user;
+  const authResult = await authClient.auth.signInWithPassword({ email, password });
+  if (!authResult.error && authResult.data.session) {
+    session = authResult.data.session;
+    user = authResult.data.user;
+  } else if (config.appEnv === "development" && config.adminAuthMode === "development" && config.adminEmail && config.adminPassword && email === config.adminEmail && password === config.adminPassword) {
+    // Local fallback only for development. Production should use Supabase Auth.
+    const accessToken = createDevelopmentAdminToken({ id: "local-development-admin", email, role: "admin" }, config.devAuthSecret);
+    res.json({ accessToken, refreshToken: "", expiresAt: Date.now() + 30 * 60 * 1000, user: { email }, local: true });
+    return;
+  } else {
+    throw publicError("Email hoặc mật khẩu không đúng", 401);
+  }
+
+  const { data: profile } = await supabase.from("admin_profiles").select("user_id,role").eq("user_id", user.id).maybeSingle();
+  if (!profile) throw publicError("Tài khoản chưa được cấp quyền Admin", 403);
+  res.json({ accessToken: session.access_token, refreshToken: session.refresh_token, expiresAt: session.expires_at, user: { id: user.id, email: user.email }, local: false });
+}));
+
+router.get("/auth/me", requireAdmin, (req, res) => {
+  res.json({ user: req.admin.user, role: req.admin.profile.role });
+});
+
+const storageBucket = "campaign-assets";
+async function resolveImageUrl(imageUrl, imageData) {
+  if (!imageData) return String(imageUrl || "").trim();
+  const match = String(imageData).match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) throw publicError("Ảnh tải lên không hợp lệ");
+  const [, contentType, encoded] = match;
+  const extension = contentType.split("/")[1].replace("jpeg", "jpg");
+  const path = `banners/${crypto.randomUUID()}.${extension}`;
+  const { error } = await supabase.storage.from(storageBucket).upload(path, Buffer.from(encoded, "base64"), { contentType, upsert: true, cacheControl: "31536000" });
+  if (error) throw publicError(`Không thể tải ảnh lên: ${error.message}`, 502);
+  const { data } = supabase.storage.from(storageBucket).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+router.get("/banners", requireAdmin, asyncRoute(async (_req, res) => {
+  const { data, error } = await supabase.from("banners").select("id,title,image_url,link_url,active,display_order,created_at,updated_at").order("display_order", { ascending: true });
+  if (error) throw error;
+  res.json({ items: (data || []).map(mapBanner) });
+}));
+
+router.post("/banners", requireAdmin, asyncRoute(async (req, res) => {
+  const body = req.body || {};
+  const imageUrl = await resolveImageUrl(body.imageUrl, body.imageData);
+  if (!imageUrl) throw publicError("Banner cần có URL hoặc file ảnh");
+  const record = { id: String(body.id || `banner-${crypto.randomUUID()}`), title: String(body.title || "Banner chương trình").trim(), image_url: imageUrl, link_url: String(body.linkUrl || "").trim() || null, active: body.active !== false, display_order: Number(body.order || 0) };
+  const { data, error } = await supabase.from("banners").upsert(record).select("id,title,image_url,link_url,active,display_order").single();
+  if (error) throw error;
+  res.status(201).json(mapBanner(data));
+}));
+
+router.put("/banners/:id", requireAdmin, asyncRoute(async (req, res) => {
+  const body = req.body || {};
+  const patch = { title: String(body.title || "Banner chương trình").trim(), link_url: String(body.linkUrl || "").trim() || null, active: body.active !== false, display_order: Number(body.order || 0) };
+  if (body.imageUrl || body.imageData) patch.image_url = await resolveImageUrl(body.imageUrl, body.imageData);
+  const { data, error } = await supabase.from("banners").update(patch).eq("id", req.params.id).select("id,title,image_url,link_url,active,display_order").single();
+  if (error) throw error;
+  res.json(mapBanner(data));
+}));
+
+router.delete("/banners/:id", requireAdmin, asyncRoute(async (req, res) => {
+  const { error } = await supabase.from("banners").delete().eq("id", req.params.id);
+  if (error) throw error;
+  res.status(204).end();
+}));
+
+router.get("/rewards", requireAdmin, asyncRoute(async (_req, res) => {
+  const { data, error } = await supabase.from("reward_catalog").select("id,code_prefix,title,value,description,wheel_label,symbol,active").order("value", { ascending: false });
+  if (error) throw error;
+  res.json({ items: (data || []).map(mapReward) });
+}));
+
+router.post("/rewards", requireAdmin, asyncRoute(async (req, res) => {
+  const body = req.body || {};
+  const value = Number(body.value || 0);
+  if (!body.title || !body.codePrefix || value <= 0) throw publicError("Tên, mã và giá trị quà là bắt buộc");
+  const record = { id: String(body.id || `reward-${crypto.randomUUID()}`), code_prefix: String(body.codePrefix).trim().toUpperCase(), title: String(body.title).trim(), value, description: String(body.description || ""), wheel_label: String(body.wheelLabel || `${value.toLocaleString("vi-VN")}đ`), symbol: String(body.symbol || "star"), active: body.active !== false };
+  const { data, error } = await supabase.from("reward_catalog").upsert(record).select("id,code_prefix,title,value,description,wheel_label,symbol,active").single();
+  if (error) throw error;
+  res.status(201).json(mapReward(data));
+}));
+
+router.put("/rewards/:id", requireAdmin, asyncRoute(async (req, res) => {
+  const body = req.body || {};
+  const value = Number(body.value || 0);
+  if (!body.title || !body.codePrefix || value <= 0) throw publicError("Tên, mã và giá trị quà là bắt buộc");
+  const record = { code_prefix: String(body.codePrefix).trim().toUpperCase(), title: String(body.title).trim(), value, description: String(body.description || ""), wheel_label: String(body.wheelLabel || `${value.toLocaleString("vi-VN")}đ`), symbol: String(body.symbol || "star"), active: body.active !== false };
+  const { data, error } = await supabase.from("reward_catalog").update(record).eq("id", req.params.id).select("id,code_prefix,title,value,description,wheel_label,symbol,active").single();
+  if (error) throw error;
+  res.json(mapReward(data));
+}));
+
+router.delete("/rewards/:id", requireAdmin, asyncRoute(async (req, res) => {
+  const { error } = await supabase.from("reward_catalog").delete().eq("id", req.params.id);
+  if (error) throw publicError(`Không thể xóa quà: ${error.message}`, 409);
+  res.status(204).end();
+}));
+
+async function loadAdminCustomer(id) {
+  const { data: customer, error } = await supabase.from("customers").select("id,name,phone,sex,job,total_spins,deleted_at").eq("id", id).maybeSingle();
+  if (error) throw error;
+  if (!customer) throw publicError("Không tìm thấy khách hàng", 404);
+  const { data: rewards, error: rewardError } = await supabase.from("customer_rewards").select("code,title,value,description,wheel_label,result,created_at").eq("customer_id", id).order("created_at", { ascending: true });
+  if (rewardError) throw rewardError;
+  return mapCustomer(customer, (rewards || []).map(mapAssignment));
+}
+
+router.get("/customers", requireAdmin, asyncRoute(async (req, res) => {
+  const search = String(req.query.search || "").trim();
+  let query = supabase.from("customers").select("id,name,phone,sex,job,total_spins,deleted_at,created_at").is("deleted_at", null).order("created_at", { ascending: false });
+  if (search) query = query.or(`phone.ilike.%${search}%,name.ilike.%${search}%`);
+  const { data, error } = await query;
+  if (error) throw error;
+  // Pass the customer id explicitly. Array#map otherwise passes the whole row
+  // as the first argument, which makes the follow-up lookup return a false 404.
+  const items = await Promise.all((data || []).map((row) => loadAdminCustomer(row.id)));
+  res.json({ items });
+}));
+
+router.post("/customers", requireAdmin, asyncRoute(async (req, res) => {
+  const body = req.body || {};
+  const phone = normalizePhone(body.phone);
+  if (!/^0(3|5|7|8|9)\d{8}$/.test(phone)) throw publicError("Số điện thoại không hợp lệ");
+  const id = String(body.id || `customer-${phone}`);
+  const record = { id, phone, name: String(body.name || `Khách hàng ${phone}`).trim(), sex: body.sex || "other", job: body.job || "other", total_spins: Math.max(0, Number(body.totalSpins || 0)), deleted_at: null };
+  const { error } = await supabase.from("customers").upsert(record);
+  if (error) throw error;
+  if (Array.isArray(body.rewards)) {
+    await supabase.from("customer_rewards").delete().eq("customer_id", id);
+    const assignments = body.rewards.map((item) => ({ customer_id: id, code: String(item.reward?.code || item.code), title: String(item.reward?.title || item.title), value: Number(item.reward?.value || item.value), description: String(item.reward?.description || item.description || ""), wheel_label: item.reward?.wheelLabel || item.wheelLabel || null, result: item.result || ["star", "star", "star"] })).filter((item) => item.code && item.value > 0);
+    if (assignments.length) await supabase.from("customer_rewards").insert(assignments);
+  }
+  res.status(201).json(await loadAdminCustomer(id));
+}));
+
+router.put("/customers/:id", requireAdmin, asyncRoute(async (req, res) => {
+  const body = req.body || {};
+  const patch = { name: String(body.name || "").trim(), phone: normalizePhone(body.phone), sex: body.sex || "other", job: body.job || "other", total_spins: Math.max(0, Number(body.totalSpins || 0)) };
+  if (!patch.name || !/^0(3|5|7|8|9)\d{8}$/.test(patch.phone)) throw publicError("Tên hoặc số điện thoại không hợp lệ");
+  const { error } = await supabase.from("customers").update(patch).eq("id", req.params.id);
+  if (error) throw error;
+  res.json(await loadAdminCustomer(req.params.id));
+}));
+
+router.delete("/customers/:id", requireAdmin, asyncRoute(async (req, res) => {
+  const { error } = await supabase.from("customers").update({ deleted_at: new Date().toISOString() }).eq("id", req.params.id);
+  if (error) throw error;
+  res.status(204).end();
+}));
+
+router.get("/rules", requireAdmin, asyncRoute(async (_req, res) => {
+  const { data, error } = await supabase.from("program_settings").select("value").eq("key", "program_rules").maybeSingle();
+  if (error) throw error;
+  res.json({ rules: data?.value || null });
+}));
+
+router.put("/rules", requireAdmin, asyncRoute(async (req, res) => {
+  const { data, error } = await supabase.from("program_settings").upsert({ key: "program_rules", value: req.body || {} }).select("key,value").single();
+  if (error) throw error;
+  res.json({ rules: data.value });
+}));
+
+async function loadCampaignRule(id) {
+  const { data: rule, error } = await supabase.from("campaign_rules").select("*").eq("id", id).single();
+  if (error) throw error;
+  const { data: spins, error: spinError } = await supabase.from("rule_spin_configs").select("id,spin_number,spin_count,win_rate,max_wins,special_conditions").eq("rule_id", id).order("spin_number", { ascending: true });
+  if (spinError) throw spinError;
+  const spinIds = (spins || []).map((spin) => spin.id);
+  const rewards = spinIds.length ? await supabase.from("rule_spin_rewards").select("spin_config_id,reward_id,probability,quantity,remaining_quantity").in("spin_config_id", spinIds) : { data: [], error: null };
+  if (rewards.error) throw rewards.error;
+  return { ...rule, spins: (spins || []).map((spin) => ({ ...spin, rewards: (rewards.data || []).filter((item) => item.spin_config_id === spin.id) })) };
+}
+
+async function saveCampaignRule(body, id) {
+  const ruleRecord = {
+    ...(id ? { id } : {}),
+    name: String(body.name || "Rule mới").trim(),
+    code: String(body.code || `RULE_${crypto.randomUUID()}`).trim(),
+    scope: body.scope || "default",
+    priority: Number(body.priority || 0),
+    active: body.active !== false,
+    allow_unlisted: body.allowUnlisted === true,
+    oa_required: body.oaRequired === true,
+    allow_refollow: body.allowRefollow !== false,
+    max_total_wins: body.maxTotalWins == null || body.maxTotalWins === "" ? null : Number(body.maxTotalWins),
+    starts_at: body.startsAt || null,
+    ends_at: body.endsAt || null,
+  };
+  const { data: rule, error } = await supabase.from("campaign_rules").upsert(ruleRecord).select("*").single();
+  if (error) throw error;
+  await supabase.from("rule_spin_configs").delete().eq("rule_id", rule.id);
+  for (const spin of Array.isArray(body.spins) ? body.spins : []) {
+    const { data: configRow, error: configError } = await supabase.from("rule_spin_configs").insert({ rule_id: rule.id, spin_number: Number(spin.spinNumber), spin_count: Number(spin.spinCount || 1), win_rate: Number(spin.winRate || 0), max_wins: spin.maxWins == null || spin.maxWins === "" ? null : Number(spin.maxWins), special_conditions: spin.specialConditions || {} }).select("id").single();
+    if (configError) throw configError;
+    const rows = (Array.isArray(spin.rewards) ? spin.rewards : []).map((reward) => ({ spin_config_id: configRow.id, reward_id: reward.rewardId, probability: Number(reward.probability || 0), quantity: Number(reward.quantity || 0), remaining_quantity: Number(reward.remainingQuantity ?? reward.quantity ?? 0) })).filter((reward) => reward.reward_id && reward.quantity > 0);
+    if (rows.length) { const { error: rewardError } = await supabase.from("rule_spin_rewards").insert(rows); if (rewardError) throw rewardError; }
+  }
+  return loadCampaignRule(rule.id);
+}
+
+router.get("/campaign-rules", requireAdmin, asyncRoute(async (_req, res) => {
+  const { data, error } = await supabase.from("campaign_rules").select("id").order("priority", { ascending: false });
+  if (error) throw error;
+  res.json({ items: await Promise.all((data || []).map((row) => loadCampaignRule(row.id))) });
+}));
+
+router.post("/campaign-rules", requireAdmin, asyncRoute(async (req, res) => {
+  res.status(201).json(await saveCampaignRule(req.body || {}, null));
+}));
+
+router.put("/campaign-rules/:id", requireAdmin, asyncRoute(async (req, res) => {
+  res.json(await saveCampaignRule(req.body || {}, req.params.id));
+}));
+
+router.delete("/campaign-rules/:id", requireAdmin, asyncRoute(async (req, res) => {
+  const { error } = await supabase.from("campaign_rules").delete().eq("id", req.params.id);
+  if (error) throw error;
+  res.status(204).end();
+}));
+
+router.get("/groups", requireAdmin, asyncRoute(async (_req, res) => {
+  const { data, error } = await supabase.from("customer_groups").select("id,name,created_at").order("name");
+  if (error) throw error;
+  res.json({ items: data || [] });
+}));
+
+router.post("/groups", requireAdmin, asyncRoute(async (req, res) => {
+  const name = String(req.body?.name || "").trim();
+  if (!name) throw publicError("Tên nhóm là bắt buộc");
+  const { data, error } = await supabase.from("customer_groups").insert({ name }).select("id,name,created_at").single();
+  if (error) throw error;
+  res.status(201).json(data);
+}));
+
+router.post("/groups/:id/members", requireAdmin, asyncRoute(async (req, res) => {
+  const customerIds = Array.isArray(req.body?.customerIds) ? req.body.customerIds : [];
+  await supabase.from("customer_group_members").delete().eq("group_id", req.params.id);
+  if (customerIds.length) {
+    const { error } = await supabase.from("customer_group_members").insert(customerIds.map((customerId) => ({ group_id: req.params.id, customer_id: customerId })));
+    if (error) throw error;
+  }
+  res.json({ ok: true });
+}));
+
+router.post("/campaign-rules/:id/assign-customers", requireAdmin, asyncRoute(async (req, res) => {
+  const customerIds = Array.isArray(req.body?.customerIds) ? req.body.customerIds : [];
+  await supabase.from("customer_rule_assignments").delete().eq("rule_id", req.params.id);
+  if (customerIds.length) {
+    const { error } = await supabase.from("customer_rule_assignments").insert(customerIds.map((customerId) => ({ customer_id: customerId, rule_id: req.params.id })));
+    if (error) throw error;
+  }
+  res.json({ ok: true });
+}));
+
+router.post("/campaign-rules/:id/assign-groups", requireAdmin, asyncRoute(async (req, res) => {
+  const groupIds = Array.isArray(req.body?.groupIds) ? req.body.groupIds : [];
+  await supabase.from("group_rule_assignments").delete().eq("rule_id", req.params.id);
+  if (groupIds.length) {
+    const { error } = await supabase.from("group_rule_assignments").insert(groupIds.map((groupId) => ({ group_id: groupId, rule_id: req.params.id })));
+    if (error) throw error;
+  }
+  res.json({ ok: true });
+}));
+
+router.get("/analytics", requireAdmin, asyncRoute(async (_req, res) => {
+  const [customers, spins, winners] = await Promise.all([
+    supabase.from("customers").select("id", { count: "exact", head: true }).is("deleted_at", null),
+    supabase.from("spin_events").select("id", { count: "exact", head: true }),
+    supabase.from("spin_events").select("id", { count: "exact", head: true }).eq("outcome", "reward"),
+  ]);
+  for (const result of [customers, spins, winners]) if (result.error) throw result.error;
+  res.json({ customers: customers.count || 0, spins: spins.count || 0, winners: winners.count || 0 });
+}));
+
+export default router;
