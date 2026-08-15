@@ -218,7 +218,7 @@ router.post("/spins", requireParticipant, asyncRoute(async (req, res) => {
 
 router.post("/spins-legacy-disabled", asyncRoute(async (req, res) => {
   throw publicError("This endpoint was replaced by participant sessions", 410);
-  const customerId = String(req.body?.customerId || "").trim();
+  const customerId = "";
   if (!customerId) throw publicError("Thiếu customerId");
 
   const { data: row, error } = await supabase.from("customers").select("id,name,phone,sex,job,total_spins,deleted_at").eq("id", customerId).is("deleted_at", null).maybeSingle();
