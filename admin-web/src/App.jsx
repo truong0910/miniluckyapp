@@ -3,6 +3,7 @@ import { api, auth, fileToDataUrl, login, logout } from "./api.js";
 
 const EMPTY_REWARD = { codePrefix: "", title: "", value: "", description: "", wheelLabel: "", symbol: "star", active: true };
 const EMPTY_BANNER = { title: "", imageUrl: "", linkUrl: "", active: true, order: 0 };
+const EMPTY_CAMPAIGN = { code: "", name: "", startsAt: "", endsAt: "", timezone: "Asia/Ho_Chi_Minh" };
 
 function Login({ onLogin }) {
   const [email, setEmail] = useState("");
@@ -13,7 +14,7 @@ function Login({ onLogin }) {
 }
 
 function Shell({ tab, setTab, onLogout, children }) {
-  return <div className="app-shell"><aside><div className="brand"><span>LW</span><div><strong>Lucky Wheels</strong><small>Admin Console</small></div></div><nav>{[["overview", "Tổng quan"], ["campaigns", "Sự kiện"], ["banners", "Banner"], ["rewards", "Giải thưởng"], ["customers", "Khách hàng"], ["awards", "Kho Voucher"], ["campaign", "Luật quay"], ["rules", "Thể lệ"]].map(([id, label]) => <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>{label}</button>)}</nav><button className="logout" onClick={onLogout}>Đăng xuất</button></aside><main className="content">{children}</main></div>;
+  return <div className="app-shell"><aside><div className="brand"><span>LW</span><div><strong>Lucky Wheels</strong><small>Admin Console</small></div></div><nav>{[["overview", "Tổng quan"], ["campaigns", "Sự kiện"], ["participants", "Khách sự kiện"], ["banners", "Banner"], ["rewards", "Giải thưởng"], ["customers", "Khách hàng"], ["awards", "Kho Voucher"], ["campaign", "Luật quay"], ["rules", "Thể lệ"]].map(([id, label]) => <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>{label}</button>)}</nav><button className="logout" onClick={onLogout}>Đăng xuất</button></aside><main className="content">{children}</main></div>;
 }
 
 function Header({ title, subtitle }) { return <header className="page-header"><div><div className="eyebrow">ADMIN WEB · BACKEND API</div><h1>{title}</h1><p>{subtitle}</p></div></header>; }
@@ -24,12 +25,12 @@ function Overview() {
   return <><Header title="Tổng quan" subtitle="Theo dõi dữ liệu chương trình từ một nguồn Supabase dùng chung." />{error && <div className="error">{error}</div>}<div className="stats">{[["customers", "Khách hàng"], ["spins", "Lượt quay"], ["winners", "Lượt trúng"]].map(([key, label]) => <div className="stat" key={key}><span>{label}</span><strong>{stats ? stats[key] : "—"}</strong></div>)}</div><section className="panel"><h2>Kiến trúc hiện tại</h2><p>Mini App và Admin Web chỉ gọi Backend API. Supabase service role chỉ tồn tại ở Backend, không bị lộ trong bundle trình duyệt.</p><div className="architecture"><span>Mini App</span><b>→</b><span>Backend :8787</span><b>←</b><span>Admin Web :5174</span><i>↕</i><span>Supabase</span></div></section></>;
 }
 
-const EMPTY_CAMPAIGN = { code: "", name: "", startsAt: "", endsAt: "", timezone: "Asia/Ho_Chi_Minh" };
-
 function Campaigns() {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(EMPTY_CAMPAIGN);
   const [editing, setEditing] = useState(null);
+  const [cloning, setCloning] = useState(null);
+  const [cloneForm, setCloneForm] = useState({ code: "", name: "", cloneMode: "config_only" });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -42,9 +43,7 @@ function Campaigns() {
     }
   };
 
-  useEffect(() => {
-    void load();
-  }, []);
+  useEffect(() => { void load(); }, []);
 
   const save = async (event) => {
     event.preventDefault();
@@ -56,6 +55,26 @@ function Campaigns() {
       await api(path, { method: editing ? "PUT" : "POST", body: JSON.stringify(body) });
       setForm(EMPTY_CAMPAIGN);
       setEditing(null);
+      await load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleClone = async (event) => {
+    event.preventDefault();
+    if (!cloning) return;
+    setSaving(true);
+    setError("");
+    try {
+      await api(`/admin/campaigns/${cloning.id}/clone`, {
+        method: "POST",
+        body: JSON.stringify(cloneForm),
+      });
+      setCloning(null);
+      setCloneForm({ code: "", name: "", cloneMode: "config_only" });
       await load();
     } catch (e) {
       setError(e.message);
@@ -81,7 +100,7 @@ function Campaigns() {
 
   return (
     <>
-      <Header title="Quản lý Sự kiện (Campaigns)" subtitle="Tạo mới, thiết lập và chuyển đổi trạng thái vòng đời của từng sự kiện quay thưởng." />
+      <Header title="Quản lý Sự kiện (Campaigns)" subtitle="Tạo mới, nhân bản, thiết lập và chuyển đổi trạng thái vòng đời của từng sự kiện quay thưởng." />
       {error && <div className="error">{error}</div>}
       <div className="split">
         <form className="panel form" onSubmit={save}>
@@ -93,13 +112,30 @@ function Campaigns() {
             <label>Kết thúc<input type="datetime-local" value={form.endsAt ? form.endsAt.slice(0, 16) : ""} onChange={(e) => setForm({ ...form, endsAt: e.target.value })} /></label>
           </div>
           <div className="actions">
-            <button className="primary" disabled={saving}>{saving ? "Đang lưu…" : editing ? "Lưu thay đổi" : "Tạo sự kiện"}</button>
+            <button className="primary" disabled={saving}>{saving ? "Đang lưu…" : editing ? "Lưu thay đổi" : "Thêm sự kiện"}</button>
             {editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY_CAMPAIGN); }}>Hủy</button>}
           </div>
         </form>
 
         <section className="panel">
           <h2>Danh sách Sự kiện ({items.length})</h2>
+          {cloning && (
+            <form className="panel form" onSubmit={handleClone} style={{ border: "2px solid #ef7e3a", marginBottom: "16px" }}>
+              <h2>Nhân bản sự kiện "{cloning.name}"</h2>
+              <label>Mã sự kiện mới<input value={cloneForm.code} onChange={(e) => setCloneForm({ ...cloneForm, code: e.target.value })} placeholder="VD: SUMMER_2026_COPY" required /></label>
+              <label>Tên sự kiện mới<input value={cloneForm.name} onChange={(e) => setCloneForm({ ...cloneForm, name: e.target.value })} placeholder="VD: Chương trình Mùa Hè 2026 (Copy)" required /></label>
+              <label>Chế độ nhân bản
+                <select value={cloneForm.cloneMode} onChange={(e) => setCloneForm({ ...cloneForm, cloneMode: e.target.value })}>
+                  <option value="config_only">Chỉ nhân bản Cấu hình (Banner, Luật, Giải thưởng)</option>
+                  <option value="config_and_audience">Cấu hình + Danh sách khách hàng & Voucher (Lượt quay = 0)</option>
+                </select>
+              </label>
+              <div className="actions">
+                <button className="primary" disabled={saving}>{saving ? "Đang nhân bản…" : "Xác nhận nhân bản"}</button>
+                <button type="button" onClick={() => setCloning(null)}>Hủy</button>
+              </div>
+            </form>
+          )}
           <div className="items">
             {items.map((item) => (
               <article className="item reward-item" key={item.id}>
@@ -114,6 +150,7 @@ function Campaigns() {
                   )}
                 </div>
                 <div className="actions" style={{ flexWrap: "wrap" }}>
+                  <button onClick={() => { setCloning(item); setCloneForm({ code: `${item.code}_COPY`, name: `${item.name} (Copy)`, cloneMode: "config_only" }); }}>Nhân bản</button>
                   {item.status === "draft" && (
                     <>
                       <button onClick={() => { setEditing(item.id); setForm(item); }}>Sửa</button>
@@ -143,6 +180,155 @@ function Campaigns() {
           </div>
         </section>
       </div>
+    </>
+  );
+}
+
+function CampaignParticipants() {
+  const [campaigns, setCampaigns] = useState([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState("");
+  const [participants, setParticipants] = useState([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importRowsJson, setImportRowsJson] = useState("");
+  const [importMode, setImportMode] = useState("voucher");
+  const [importResult, setImportResult] = useState(null);
+
+  useEffect(() => {
+    api("/admin/campaigns").then((r) => {
+      setCampaigns(r.items || []);
+      if (r.items?.[0]) setSelectedCampaignId(r.items[0].id);
+    }).catch((e) => setError(e.message));
+  }, []);
+
+  const load = async () => {
+    if (!selectedCampaignId) return;
+    setLoading(true);
+    setError("");
+    try {
+      const result = await api(`/admin/campaigns/${selectedCampaignId}/participants`);
+      setParticipants(result.items || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void load(); }, [selectedCampaignId]);
+
+  const handleImport = async (e) => {
+    e.preventDefault();
+    setImportResult(null);
+    setError("");
+    try {
+      let rows = [];
+      try {
+        rows = JSON.parse(importRowsJson);
+      } catch (err) {
+        throw new Error("Dữ liệu JSON nhập vào không đúng định dạng array objects [{ \"Tên KH\": \"...\", \"SĐT\": \"...\", \"Số voucher tặng\": \"...\", \"Ghi chú\": \"...\" }]");
+      }
+
+      if (!Array.isArray(rows) || rows.length === 0) throw new Error("Danh sách nhập không được để trống");
+
+      const result = await api(`/admin/campaigns/${selectedCampaignId}/participants/import`, {
+        method: "POST",
+        body: JSON.stringify({ rows, importMode }),
+      });
+
+      setImportResult(result);
+      if (result.importedCount > 0) {
+        await load();
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  return (
+    <>
+      <Header title="Khách hàng sự kiện & Import Excel" subtitle="Quản lý danh sách thành viên tham gia sự kiện và cấp voucher / lượt quay từ file Excel." />
+      {error && <div className="error">{error}</div>}
+      <section className="panel">
+        <div className="panel-heading">
+          <h2>Chọn sự kiện:</h2>
+          <select value={selectedCampaignId} onChange={(e) => setSelectedCampaignId(e.target.value)} style={{ padding: "8px 12px" }}>
+            {campaigns.map((c) => (
+              <option key={c.id} value={c.id}>{c.name} ({c.code}) — {c.status}</option>
+            ))}
+          </select>
+          <button className="primary" onClick={() => setImporting(!importing)}>
+            {importing ? "Đóng Import" : "Nhập danh sách Excel / CSV"}
+          </button>
+        </div>
+
+        {importing && (
+          <div className="panel inline-form" style={{ border: "2px solid #ef7e3a", marginTop: "16px" }}>
+            <h2>Nhập danh sách Khách hàng từ Excel / JSON</h2>
+            <p style={{ fontSize: "13px", color: "#666" }}>Dán mảng dữ liệu rows từ file Excel chứa các cột: <code>Tên KH</code>, <code>SĐT</code>, <code>Số voucher tặng</code>, <code>Ghi chú</code>.</p>
+            <form onSubmit={handleImport} style={{ display: "grid", gap: "12px" }}>
+              <label>Chế độ cấp:
+                <select value={importMode} onChange={(e) => setImportMode(e.target.value)}>
+                  <option value="voucher">Cấp Voucher cụ thể từ cột Ghi chú (VD: '5 triệu, 3 triệu')</option>
+                  <option value="quota">Cấp Lượt quay từ cột Số voucher tặng</option>
+                </select>
+              </label>
+              <textarea
+                rows="6"
+                placeholder='[{"Tên KH": "Nguyễn Văn A", "SĐT": "0912345678", "Số voucher tặng": "2", "Ghi chú": "5 triệu, 3 triệu"}]'
+                value={importRowsJson}
+                onChange={(e) => setImportRowsJson(e.target.value)}
+                required
+              />
+              <button className="primary">Tiến hành Import</button>
+            </form>
+            {importResult && (
+              <div style={{ marginTop: "12px", padding: "12px", background: importResult.success ? "#e6f4ea" : "#fff1f1", borderRadius: "8px" }}>
+                <strong>Kết quả Import:</strong> Đã nhập thành công {importResult.importedCount}/{importResult.totalRows} dòng.
+                {importResult.errors?.length > 0 && (
+                  <ul style={{ color: "#c14848", margin: "8px 0 0", paddingLeft: "20px" }}>
+                    {importResult.errors.map((err, i) => <li key={i}>{err}</li>)}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="table-wrap" style={{ marginTop: "16px" }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Tên Khách hàng</th>
+                <th>Số điện thoại</th>
+                <th>Lượt quay sự kiện</th>
+                <th>Ghi chú / Nhóm</th>
+                <th>Trạng thái</th>
+                <th>Ngày tạo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan="6" style={{ textAlign: "center", padding: "24px" }}>Đang tải...</td></tr>
+              ) : participants.length === 0 ? (
+                <tr><td colSpan="6" style={{ textAlign: "center", padding: "24px" }}>Sự kiện chưa có khách hàng nào. Bấm "Nhập danh sách Excel" để thêm.</td></tr>
+              ) : (
+                participants.map((item) => (
+                  <tr key={item.id}>
+                    <td><strong>{item.customerName}</strong></td>
+                    <td>{item.customerPhone || item.customerId}</td>
+                    <td>{item.spinQuota} lượt</td>
+                    <td>{item.importedGroup || "—"}</td>
+                    <td><span className={`badge status-${item.status}`}>{item.status}</span></td>
+                    <td>{new Date(item.createdAt).toLocaleString("vi-VN")}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </>
   );
 }
@@ -200,8 +386,21 @@ function CampaignRules() {
 }
 
 export default function App() {
-  const [loggedIn, setLoggedIn] = useState(Boolean(auth.token)); const [tab, setTab] = useState("overview");
-  const page = useMemo(() => ({ overview: <Overview />, campaigns: <Campaigns />, banners: <Banners />, rewards: <Rewards />, customers: <Customers />, awards: <Awards />, rules: <Rules />, campaign: <CampaignRules /> }[tab]), [tab]);
+  const [loggedIn, setLoggedIn] = useState(Boolean(auth.token));
+  const [tab, setTab] = useState("overview");
+
+  const page = useMemo(() => ({
+    overview: <Overview />,
+    campaigns: <Campaigns />,
+    participants: <CampaignParticipants />,
+    banners: <Banners />,
+    rewards: <Rewards />,
+    customers: <Customers />,
+    awards: <Awards />,
+    rules: <Rules />,
+    campaign: <CampaignRules />,
+  }[tab]), [tab]);
+
   if (!loggedIn) return <Login onLogin={() => setLoggedIn(true)} />;
   return <Shell tab={tab} setTab={setTab} onLogout={() => { logout(); setLoggedIn(false); }}>{page}</Shell>;
 }
