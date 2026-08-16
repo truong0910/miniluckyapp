@@ -4,7 +4,7 @@
 create table if not exists public.campaign_participants (
   id uuid primary key default gen_random_uuid(),
   campaign_id uuid not null references public.campaigns(id) on delete restrict,
-  customer_id uuid not null references public.customers(id) on delete restrict,
+  customer_id text not null references public.customers(id) on delete restrict,
   status text not null default 'active' check (status in ('active', 'paused', 'removed')),
   spin_quota integer not null default 0 check (spin_quota >= 0),
   imported_group text,
