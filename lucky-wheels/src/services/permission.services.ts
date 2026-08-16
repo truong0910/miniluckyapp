@@ -1,7 +1,6 @@
 import * as zmp from "zmp-sdk/apis";
 
 export interface PhoneResult {
-  number?: string;
   token?: string;
   error?: string;
 }
@@ -106,19 +105,11 @@ export const permissionService = {
         scopes: ["scope.userPhonenumber"],
       });
 
-      // 2. Gọi API lấy SĐT từ SDK Zalo
+      // 2. Gọi SDK lấy phone token; số điện thoại thật chỉ được giải mã ở backend.
       const response = (await zmp.getPhoneNumber({})) as {
-        number?: string;
         token?: string;
-        phone?: string;
       };
 
-      console.log("Zalo getPhoneNumber SDK response:", response);
-
-      const rawNumber = response.number || response.phone;
-      if (rawNumber) {
-        return { number: rawNumber };
-      }
       if (response.token) {
         return { token: response.token };
       }
