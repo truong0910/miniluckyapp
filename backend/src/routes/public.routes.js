@@ -3,6 +3,7 @@ import { config } from "../config.js";
 import { supabase } from "../supabase.js";
 import { requireAdmin, requireParticipant } from "../middleware.js";
 import { assertPreviewAuthAllowed, createParticipantSession, resolveZaloPhone } from "../participant-auth.js";
+import { parseAwardsPagination, listParticipantAwards } from "../award-service.js";
 import { spinOnce } from "../spin-service.js";
 import { asyncRoute, isValidVietnamesePhone, mapAssignment, mapBanner, mapCustomer, mapReward, normalizePhone, publicError } from "../utils.js";
 
@@ -130,6 +131,12 @@ router.get("/participant/me", requireParticipant, asyncRoute(async (req, res) =>
   if (error) throw error;
   if (!row) throw publicError("Participant is not available", 404);
   res.json(await loadParticipantResponse(row));
+}));
+
+router.get("/participant/me/awards", requireParticipant, asyncRoute(async (req, res) => {
+  const { page, limit } = parseAwardsPagination(req.query);
+  const customerId = req.participant.customerId;
+  res.json(await listParticipantAwards({ db: supabase, customerId, page, limit }));
 }));
 
 router.get("/participant/me/spins", requireParticipant, asyncRoute(async (req, res) => {
