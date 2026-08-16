@@ -13,7 +13,7 @@ function Login({ onLogin }) {
 }
 
 function Shell({ tab, setTab, onLogout, children }) {
-  return <div className="app-shell"><aside><div className="brand"><span>LW</span><div><strong>Lucky Wheels</strong><small>Admin Console</small></div></div><nav>{[["overview", "Tổng quan"], ["banners", "Banner"], ["rewards", "Giải thưởng"], ["customers", "Khách hàng"], ["awards", "Kho Voucher"], ["campaign", "Luật quay"], ["rules", "Thể lệ"]].map(([id, label]) => <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>{label}</button>)}</nav><button className="logout" onClick={onLogout}>Đăng xuất</button></aside><main className="content">{children}</main></div>;
+  return <div className="app-shell"><aside><div className="brand"><span>LW</span><div><strong>Lucky Wheels</strong><small>Admin Console</small></div></div><nav>{[["overview", "Tổng quan"], ["campaigns", "Sự kiện"], ["banners", "Banner"], ["rewards", "Giải thưởng"], ["customers", "Khách hàng"], ["awards", "Kho Voucher"], ["campaign", "Luật quay"], ["rules", "Thể lệ"]].map(([id, label]) => <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>{label}</button>)}</nav><button className="logout" onClick={onLogout}>Đăng xuất</button></aside><main className="content">{children}</main></div>;
 }
 
 function Header({ title, subtitle }) { return <header className="page-header"><div><div className="eyebrow">ADMIN WEB · BACKEND API</div><h1>{title}</h1><p>{subtitle}</p></div></header>; }
@@ -22,6 +22,129 @@ function Overview() {
   const [stats, setStats] = useState(null); const [error, setError] = useState("");
   useEffect(() => { api("/admin/analytics").then(setStats).catch((e) => setError(e.message)); }, []);
   return <><Header title="Tổng quan" subtitle="Theo dõi dữ liệu chương trình từ một nguồn Supabase dùng chung." />{error && <div className="error">{error}</div>}<div className="stats">{[["customers", "Khách hàng"], ["spins", "Lượt quay"], ["winners", "Lượt trúng"]].map(([key, label]) => <div className="stat" key={key}><span>{label}</span><strong>{stats ? stats[key] : "—"}</strong></div>)}</div><section className="panel"><h2>Kiến trúc hiện tại</h2><p>Mini App và Admin Web chỉ gọi Backend API. Supabase service role chỉ tồn tại ở Backend, không bị lộ trong bundle trình duyệt.</p><div className="architecture"><span>Mini App</span><b>→</b><span>Backend :8787</span><b>←</b><span>Admin Web :5174</span><i>↕</i><span>Supabase</span></div></section></>;
+}
+
+const EMPTY_CAMPAIGN = { code: "", name: "", startsAt: "", endsAt: "", timezone: "Asia/Ho_Chi_Minh" };
+
+function Campaigns() {
+  const [items, setItems] = useState([]);
+  const [form, setForm] = useState(EMPTY_CAMPAIGN);
+  const [editing, setEditing] = useState(null);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    try {
+      const result = await api("/admin/campaigns?includeArchived=true");
+      setItems(result.items || []);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const save = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      const body = { ...form };
+      const path = editing ? `/admin/campaigns/${editing}` : "/admin/campaigns";
+      await api(path, { method: editing ? "PUT" : "POST", body: JSON.stringify(body) });
+      setForm(EMPTY_CAMPAIGN);
+      setEditing(null);
+      await load();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setStatus = async (id, newStatus) => {
+    if (newStatus === "active") {
+      if (!confirm("Bạn có chắc chắn muốn KÍCH HOẠT sự kiện này?\nLưu ý: Nếu có sự kiện khác đang diễn ra, hệ thống sẽ báo lỗi và yêu cầu tạm dừng sự kiện đó trước.")) return;
+    } else if (newStatus === "ended") {
+      if (!confirm("Bạn có chắc chắn muốn KẾT THÚC sự kiện này?\nLưu ý: Thao tác này sẽ khóa nhận lượt quay mới.")) return;
+    }
+    setError("");
+    try {
+      await api(`/admin/campaigns/${id}/status`, { method: "POST", body: JSON.stringify({ status: newStatus }) });
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  return (
+    <>
+      <Header title="Quản lý Sự kiện (Campaigns)" subtitle="Tạo mới, thiết lập và chuyển đổi trạng thái vòng đời của từng sự kiện quay thưởng." />
+      {error && <div className="error">{error}</div>}
+      <div className="split">
+        <form className="panel form" onSubmit={save}>
+          <h2>{editing ? "Sửa thông tin sự kiện" : "Tạo sự kiện mới"}</h2>
+          <label>Mã sự kiện<input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="VD: SUMMER_2026" required disabled={Boolean(editing && form.status !== "draft")} /></label>
+          <label>Tên sự kiện<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="VD: Chương trình Vòng quay Mùa Hè 2026" required /></label>
+          <div className="two">
+            <label>Bắt đầu<input type="datetime-local" value={form.startsAt ? form.startsAt.slice(0, 16) : ""} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} /></label>
+            <label>Kết thúc<input type="datetime-local" value={form.endsAt ? form.endsAt.slice(0, 16) : ""} onChange={(e) => setForm({ ...form, endsAt: e.target.value })} /></label>
+          </div>
+          <div className="actions">
+            <button className="primary" disabled={saving}>{saving ? "Đang lưu…" : editing ? "Lưu thay đổi" : "Tạo sự kiện"}</button>
+            {editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY_CAMPAIGN); }}>Hủy</button>}
+          </div>
+        </form>
+
+        <section className="panel">
+          <h2>Danh sách Sự kiện ({items.length})</h2>
+          <div className="items">
+            {items.map((item) => (
+              <article className="item reward-item" key={item.id}>
+                <div>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <strong>{item.name}</strong>
+                    <span className={`badge status-${item.status}`}>{item.status}</span>
+                  </div>
+                  <small>Mã: <code>{item.code}</code> · Múi giờ: {item.timezone}</small>
+                  {(item.startsAt || item.endsAt) && (
+                    <small>Thời gian: {item.startsAt ? new Date(item.startsAt).toLocaleString("vi-VN") : "Bắt đầu mở"} → {item.endsAt ? new Date(item.endsAt).toLocaleString("vi-VN") : "Không giới hạn"}</small>
+                  )}
+                </div>
+                <div className="actions" style={{ flexWrap: "wrap" }}>
+                  {item.status === "draft" && (
+                    <>
+                      <button onClick={() => { setEditing(item.id); setForm(item); }}>Sửa</button>
+                      <button className="primary" onClick={() => setStatus(item.id, "active")}>Kích hoạt</button>
+                      <button className="danger" onClick={() => setStatus(item.id, "archived")}>Lưu trữ</button>
+                    </>
+                  )}
+                  {item.status === "active" && (
+                    <>
+                      <button onClick={() => setStatus(item.id, "paused")}>Tạm dừng</button>
+                      <button className="danger" onClick={() => setStatus(item.id, "ended")}>Kết thúc</button>
+                    </>
+                  )}
+                  {item.status === "paused" && (
+                    <>
+                      <button className="primary" onClick={() => setStatus(item.id, "active")}>Kích hoạt lại</button>
+                      <button className="danger" onClick={() => setStatus(item.id, "ended")}>Kết thúc</button>
+                      <button onClick={() => setStatus(item.id, "archived")}>Lưu trữ</button>
+                    </>
+                  )}
+                  {item.status === "ended" && (
+                    <button onClick={() => setStatus(item.id, "archived")}>Lưu trữ</button>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
+    </>
+  );
 }
 
 function Banners() {
@@ -78,7 +201,7 @@ function CampaignRules() {
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(Boolean(auth.token)); const [tab, setTab] = useState("overview");
-  const page = useMemo(() => ({ overview: <Overview />, banners: <Banners />, rewards: <Rewards />, customers: <Customers />, awards: <Awards />, rules: <Rules />, campaign: <CampaignRules /> }[tab]), [tab]);
+  const page = useMemo(() => ({ overview: <Overview />, campaigns: <Campaigns />, banners: <Banners />, rewards: <Rewards />, customers: <Customers />, awards: <Awards />, rules: <Rules />, campaign: <CampaignRules /> }[tab]), [tab]);
   if (!loggedIn) return <Login onLogin={() => setLoggedIn(true)} />;
   return <Shell tab={tab} setTab={setTab} onLogout={() => { logout(); setLoggedIn(false); }}>{page}</Shell>;
 }
