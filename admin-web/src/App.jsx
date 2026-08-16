@@ -349,7 +349,7 @@ function Rewards() {
   useEffect(() => { void load(); }, []);
   const save = async (event) => { event.preventDefault(); setError(""); try { const body = { ...form, value: Number(form.value) }; await api(editing ? `/admin/rewards/${editing}` : "/admin/rewards", { method: editing ? "PUT" : "POST", body: JSON.stringify(body) }); setForm(EMPTY_REWARD); setEditing(null); await load(); } catch (e) { setError(e.message); } };
   const remove = async (id) => { if (!confirm("Xóa giải thưởng này?")) return; try { await api(`/admin/rewards/${id}`, { method: "DELETE" }); await load(); } catch (e) { setError(e.message); } };
-  return <><Header title="Giải thưởng" subtitle="Mọi nơi hiển thị giải thưởng đều đọc từ danh mục này." />{error && <div className="error">{error}</div>}<div className="split"><form className="panel form" onSubmit={save}><h2>{editing ? "Sửa quà" : "Thêm quà"}</h2><label>Tên giải thưởng<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></label><label>Mã quà<input value={form.codePrefix} onChange={(e) => setForm({ ...form, codePrefix: e.target.value })} required /></label><div className="two"><label>Giá trị<input type="number" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} required /></label><label>Nhãn vòng quay<input value={form.wheelLabel} onChange={(e) => setForm({ ...form, wheelLabel: e.target.value })} /></label></div><label>Mô tả<textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label><label>Biểu tượng<select value={form.symbol} onChange={(e) => setForm({ ...form, symbol: e.target.value })}><option value="star">Ngôi sao</option><option value="bell">Chuông</option><option value="red_envelope">Phong bao</option><option value="cherry">Cherry</option><option value="lemon">Lemon</option></select></label><label className="check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Hiển thị trên vòng quay</label><div className="actions"><button className="primary">{editing ? "Lưu thay đổi" : "Thêm quà"}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY_REWARD); }}>Hủy</button>}</div></form><section className="panel"><h2>Danh mục ({items.length})</h2><div className="items">{items.map((item) => <article className="item reward-item" key={item.id}><div><strong>{item.title}</strong><small>{item.value.toLocaleString("vi-VN")}đ · {item.codePrefix} · {item.active ? "Đang bật" : "Đang tắt"}</small></div><div className="actions"><button onClick={() => { setEditing(item.id); setForm(item); }}>Sửa</button><button className="danger" onClick={() => remove(item.id)}>Xóa</button></div></article>)}</div></section></div></>;
+  return <><Header title="Giải thưởng & Tồn kho" subtitle="Mọi nơi hiển thị giải thưởng đều đọc từ danh mục này." />{error && <div className="error">{error}</div>}<div className="split"><form className="panel form" onSubmit={save}><h2>{editing ? "Sửa quà" : "Thêm quà"}</h2><label>Tên giải thưởng<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></label><label>Mã quà<input value={form.codePrefix} onChange={(e) => setForm({ ...form, codePrefix: e.target.value })} required /></label><div className="two"><label>Giá trị<input type="number" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} required /></label><label>Nhãn vòng quay<input value={form.wheelLabel} onChange={(e) => setForm({ ...form, wheelLabel: e.target.value })} /></label></div><label>Mô tả<textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label><label>Biểu tượng<select value={form.symbol} onChange={(e) => setForm({ ...form, symbol: e.target.value })}><option value="star">Ngôi sao</option><option value="bell">Chuông</option><option value="red_envelope">Phong bao</option><option value="cherry">Cherry</option><option value="lemon">Lemon</option></select></label><label className="check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Hiển thị trên vòng quay</label><div className="actions"><button className="primary">{editing ? "Lưu thay đổi" : "Thêm quà"}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY_REWARD); }}>Hủy</button>}</div></form><section className="panel"><h2>Danh mục ({items.length})</h2><div className="items">{items.map((item) => <article className="item reward-item" key={item.id}><div><strong>{item.title}</strong><small>{item.value.toLocaleString("vi-VN")}đ · {item.codePrefix} · {item.active ? "Đang bật" : "Đang tắt"}</small></div><div className="actions"><button onClick={() => { setEditing(item.id); setForm(item); }}>Sửa</button><button className="danger" onClick={() => remove(item.id)}>Xóa</button></div></article>)}</div></section></div></>;
 }
 
 function Customers() {
@@ -361,10 +361,146 @@ function Customers() {
 }
 
 function Awards() {
-  const [items, setItems] = useState([]); const [page, setPage] = useState(1); const [total, setTotal] = useState(0); const [hasMore, setHasMore] = useState(false); const [status, setStatus] = useState(""); const [search, setSearch] = useState(""); const [error, setError] = useState(""); const [loading, setLoading] = useState(false);
-  const load = async () => { setLoading(true); setError(""); try { const result = await api(`/admin/awards?page=${page}&limit=20&status=${encodeURIComponent(status)}&search=${encodeURIComponent(search)}`); setItems(result.items || []); setTotal(result.total || 0); setHasMore(result.hasMore || false); } catch (e) { setError(e.message); } finally { setLoading(false); } };
+  const [items, setItems] = useState([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [status, setStatus] = useState("");
+  const [search, setSearch] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const result = await api(`/admin/awards?page=${page}&limit=20&status=${encodeURIComponent(status)}&search=${encodeURIComponent(search)}`);
+      setItems(result.items || []);
+      setTotal(result.total || 0);
+      setHasMore(result.hasMore || false);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => { const timer = setTimeout(load, 250); return () => clearTimeout(timer); }, [page, status, search]);
-  return <><Header title="Kho Voucher & Awards" subtitle="Tra cứu và quản lý danh sách voucher trúng thưởng của khách hàng." />{error && <div className="error">{error}</div>}<section className="panel"><div className="panel-heading"><h2>Danh sách Voucher ({total})</h2><div className="filters" style={{ display: "flex", gap: "8px", alignItems: "center" }}><select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}><option value="">Tất cả trạng thái</option><option value="issued">Đã cấp (Issued)</option><option value="delivering">Đang gửi (Delivering)</option><option value="delivered">Đã gửi ZNS (Delivered)</option><option value="redeemed">Đã đổi (Redeemed)</option><option value="expired">Đã hết hạn (Expired)</option></select><input placeholder="Tìm theo mã voucher hoặc tên quà" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} /></div></div><div className="table-wrap"><table><thead><tr><th>Mã Voucher</th><th>Tên Khách hàng</th><th>Số điện thoại</th><th>Phần thưởng</th><th>Giá trị</th><th>Trạng thái</th><th>Ngày cấp</th></tr></thead><tbody>{loading ? <tr><td colSpan="7" style={{ textAlign: "center", padding: "24px" }}>Đang tải dữ liệu...</td></tr> : items.length === 0 ? <tr><td colSpan="7" style={{ textAlign: "center", padding: "24px" }}>Không tìm thấy voucher nào.</td></tr> : items.map((item) => <tr key={item.id}><td><strong style={{ fontFamily: "monospace" }}>{item.code}</strong></td><td>{item.customerName}</td><td>{item.customerPhone || item.customerId}</td><td>{item.title}</td><td>{item.value ? `${item.value.toLocaleString("vi-VN")}đ` : "—"}</td><td><span className={`badge status-${item.status}`}>{item.status}</span></td><td>{item.issuedAt ? new Date(item.issuedAt).toLocaleString("vi-VN") : "—"}</td></tr>)}</tbody></table></div><div className="pagination" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px" }}><span>Trang {page} ({items.length}/{total})</span><div style={{ display: "flex", gap: "8px" }}><button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Trang trước</button><button disabled={!hasMore} onClick={() => setPage((p) => p + 1)}>Trang sau</button></div></div></section></>;
+
+  const redeem = async (id) => {
+    if (!confirm("Xác nhận đổi thưởng cho Voucher này?")) return;
+    setError("");
+    try {
+      await api(`/admin/awards/${id}/redeem`, { method: "POST" });
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const resend = async (id) => {
+    if (!confirm("Gửi lại tin nhắn ZNS cho Voucher này?")) return;
+    setError("");
+    try {
+      await api(`/admin/awards/${id}/resend`, { method: "POST" });
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const changeStatus = async (id, targetStatus) => {
+    const reason = prompt(`Nhập lý do chuyển trạng thái sang ${targetStatus.toUpperCase()}:`);
+    if (!reason || !reason.trim()) {
+      alert("Cần nhập lý do hợp lệ.");
+      return;
+    }
+    setError("");
+    try {
+      await api(`/admin/awards/${id}/status`, {
+        method: "POST",
+        body: JSON.stringify({ status: targetStatus, reason: reason.trim() }),
+      });
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  return (
+    <>
+      <Header title="Kho Voucher & Vận hành Awards" subtitle="Tra cứu, đổi thưởng, gửi lại ZNS và hủy/chuyển hết hạn voucher của khách hàng." />
+      {error && <div className="error">{error}</div>}
+      <section className="panel">
+        <div className="panel-heading">
+          <h2>Danh sách Voucher ({total})</h2>
+          <div className="filters" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
+              <option value="">Tất cả trạng thái</option>
+              <option value="issued">Đã cấp (Issued)</option>
+              <option value="delivering">Đang gửi (Delivering)</option>
+              <option value="delivered">Đã gửi ZNS (Delivered)</option>
+              <option value="redeemed">Đã đổi (Redeemed)</option>
+              <option value="expired">Đã hết hạn (Expired)</option>
+              <option value="void">Đã hủy (Void)</option>
+            </select>
+            <input placeholder="Tìm theo mã voucher hoặc tên quà" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
+          </div>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Mã Voucher</th>
+                <th>Tên Khách hàng</th>
+                <th>Số điện thoại</th>
+                <th>Phần thưởng</th>
+                <th>Giá trị</th>
+                <th>Trạng thái</th>
+                <th>Ngày cấp</th>
+                <th>Vận hành</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan="8" style={{ textAlign: "center", padding: "24px" }}>Đang tải dữ liệu...</td></tr>
+              ) : items.length === 0 ? (
+                <tr><td colSpan="8" style={{ textAlign: "center", padding: "24px" }}>Không tìm thấy voucher nào.</td></tr>
+              ) : items.map((item) => (
+                <tr key={item.id}>
+                  <td><strong style={{ fontFamily: "monospace" }}>{item.code}</strong></td>
+                  <td>{item.customerName}</td>
+                  <td>{item.customerPhone || item.customerId}</td>
+                  <td>{item.title}</td>
+                  <td>{item.value ? `${item.value.toLocaleString("vi-VN")}đ` : "—"}</td>
+                  <td><span className={`badge status-${item.status}`}>{item.status}</span></td>
+                  <td>{item.issuedAt ? new Date(item.issuedAt).toLocaleString("vi-VN") : "—"}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    {item.status !== "redeemed" && (item.status === "issued" || item.status === "delivered") && (
+                      <button className="primary" style={{ padding: "4px 8px", fontSize: "11px", marginRight: "4px" }} onClick={() => redeem(item.id)}>Đổi thưởng</button>
+                    )}
+                    {item.status !== "redeemed" && (
+                      <button style={{ padding: "4px 8px", fontSize: "11px", marginRight: "4px" }} onClick={() => resend(item.id)}>Gửi lại ZNS</button>
+                    )}
+                    {item.status !== "redeemed" && item.status !== "void" && item.status !== "expired" && (
+                      <button className="danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => changeStatus(item.id, "void")}>Hủy</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="pagination" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px" }}>
+          <span>Trang {page} ({items.length}/{total})</span>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Trang trước</button>
+            <button disabled={!hasMore} onClick={() => setPage((p) => p + 1)}>Trang sau</button>
+          </div>
+        </div>
+      </section>
+    </>
+  );
 }
 
 function Rules() {
