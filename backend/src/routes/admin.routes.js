@@ -11,6 +11,11 @@ import {
   transitionCampaign,
   updateCampaign,
 } from "../campaign-service.js";
+import {
+  cloneCampaign,
+  importCampaignParticipants,
+  listCampaignParticipants,
+} from "../campaign-reuse-service.js";
 
 const router = Router();
 
@@ -211,6 +216,38 @@ router.put("/campaigns/:id", requireAdmin, asyncRoute(async (req, res) => {
 router.post("/campaigns/:id/status", requireAdmin, asyncRoute(async (req, res) => {
   const item = await transitionCampaign({ db: supabase, id: req.params.id, status: req.body?.status });
   res.json(item);
+}));
+
+router.post("/campaigns/:id/clone", requireAdmin, asyncRoute(async (req, res) => {
+  const item = await cloneCampaign({
+    db: supabase,
+    sourceCampaignId: req.params.id,
+    newCode: req.body?.code,
+    newName: req.body?.name,
+    cloneMode: req.body?.cloneMode || "config_only",
+  });
+  res.status(201).json(item);
+}));
+
+router.get("/campaigns/:id/participants", requireAdmin, asyncRoute(async (req, res) => {
+  const result = await listCampaignParticipants({
+    db: supabase,
+    campaignId: req.params.id,
+    page: Number(req.query.page) || 1,
+    limit: Number(req.query.limit) || 20,
+    search: String(req.query.search || ""),
+  });
+  res.json(result);
+}));
+
+router.post("/campaigns/:id/participants/import", requireAdmin, asyncRoute(async (req, res) => {
+  const result = await importCampaignParticipants({
+    db: supabase,
+    campaignId: req.params.id,
+    rows: Array.isArray(req.body?.rows) ? req.body.rows : [],
+    importMode: req.body?.importMode || "voucher",
+  });
+  res.json(result);
 }));
 
 async function loadCampaignRule(id) {
