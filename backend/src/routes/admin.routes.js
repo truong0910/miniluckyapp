@@ -22,6 +22,10 @@ import {
   resendAwardDelivery,
   updateAwardStatus,
 } from "../award-operations-service.js";
+import {
+  generateCampaignExportCsv,
+  getCampaignAnalytics,
+} from "../campaign-reporting-service.js";
 
 const router = Router();
 
@@ -279,6 +283,18 @@ router.post("/awards/:id/status", requireAdmin, asyncRoute(async (req, res) => {
 router.get("/campaigns/:id/inventory", requireAdmin, asyncRoute(async (req, res) => {
   const summary = await getCampaignInventorySummary({ db: supabase, campaignId: req.params.id });
   res.json({ items: summary });
+}));
+
+router.get("/campaigns/:id/analytics", requireAdmin, asyncRoute(async (req, res) => {
+  const result = await getCampaignAnalytics({ db: supabase, campaignId: req.params.id });
+  res.json(result);
+}));
+
+router.get("/campaigns/:id/export", requireAdmin, asyncRoute(async (req, res) => {
+  const csv = await generateCampaignExportCsv({ db: supabase, campaignId: req.params.id });
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="campaign-${req.params.id}-export.csv"`);
+  res.send(csv);
 }));
 
 async function loadCampaignRule(id) {

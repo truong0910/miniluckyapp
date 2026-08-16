@@ -12,11 +12,14 @@ test("buildGoogleSheetsPayload matches the Apps Script doPost contract", () => {
     },
     customer: { name: "Nguyễn Văn A", phone: "0900000000" },
     award: { id: "award-1", status: "issued", delivered_at: null, redeemed_at: null },
+    campaign: { id: "camp-1", name: "Sự kiện Hè 2026" },
   });
 
   assert.deepEqual(payload, {
     spinId: "spin-1",
     awardId: "award-1",
+    campaignId: "camp-1",
+    campaignName: "Sự kiện Hè 2026",
     timestamp: "2026-08-16T07:00:00.000Z",
     customerName: "Nguyễn Văn A",
     phone: "0900000000",
@@ -76,4 +79,3 @@ test("syncSpinToGoogleSheets loads server-owned customer and award fields", asyn
   assert.equal(calls[0].phone, "0912345678");
   assert.equal(calls[0].awardId, "award-1");
 });
-

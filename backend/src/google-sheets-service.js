@@ -15,13 +15,15 @@ function parseResponseBody(response) {
   });
 }
 
-export function buildGoogleSheetsPayload({ spin, customer, award }) {
+export function buildGoogleSheetsPayload({ spin, customer, award, campaign }) {
   const reward = spin?.reward && typeof spin.reward === "object" ? spin.reward : null;
   const outcome = String(spin?.outcome || "better_luck");
 
   return {
     spinId: String(spin?.spinId || ""),
     awardId: award?.id ? String(award.id) : "",
+    campaignId: campaign?.id ? String(campaign.id) : (spin?.campaignId ? String(spin.campaignId) : ""),
+    campaignName: campaign?.name ? String(campaign.name) : (spin?.campaignName ? String(spin.campaignName) : ""),
     timestamp: spin?.timestamp || new Date().toISOString(),
     customerName: String(customer?.name || "Khách hàng"),
     phone: String(customer?.phone || ""),
