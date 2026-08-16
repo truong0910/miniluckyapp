@@ -1,0 +1,98 @@
+function syncError(message, status = 502) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
+
+function parseResponseBody(response) {
+  return response.text().then((text) => {
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { raw: text };
+    }
+  });
+}
+
+export function buildGoogleSheetsPayload({ spin, customer, award }) {
+  const reward = spin?.reward && typeof spin.reward === "object" ? spin.reward : null;
+  const outcome = String(spin?.outcome || "better_luck");
+
+  return {
+    spinId: String(spin?.spinId || ""),
+    awardId: award?.id ? String(award.id) : "",
+    timestamp: spin?.timestamp || new Date().toISOString(),
+    customerName: String(customer?.name || "Khách hàng"),
+    phone: String(customer?.phone || ""),
+    outcome,
+    rewardValue: reward ? Number(reward.value || 0) : 0,
+    rewardTitle: String(reward?.title || "May Mắn Lần Sau"),
+    rewardCode: String(reward?.code || "N/A"),
+    status: String(award?.status || (outcome === "reward" ? "issued" : "")),
+    deliveredAt: award?.delivered_at || null,
+    redeemedAt: award?.redeemed_at || null,
+  };
+}
+
+export async function loadGoogleSheetsSyncContext({ db, spin, customerId }) {
+  const customerResult = await db
+    .from("customers")
+    .select("name,phone")
+    .eq("id", customerId)
+    .maybeSingle();
+  if (customerResult.error) throw customerResult.error;
+
+  const awardResult = await db
+    .from("awards")
+    .select("id,status,delivered_at,redeemed_at")
+    .eq("spin_event_id", spin.spinId)
+    .maybeSingle();
+  if (awardResult.error) throw awardResult.error;
+
+  return { customer: customerResult.data, award: awardResult.data };
+}
+
+export async function postSpinToGoogleSheets({ payload, webhookUrl, fetchImpl = fetch, timeoutMs = 5000 }) {
+  const url = String(webhookUrl || "").trim();
+  if (!url) return { status: "disabled" };
+  if (!payload?.spinId) throw syncError("Google Sheets sync requires spinId", 422);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), Math.max(250, Number(timeoutMs) || 5000));
+  try {
+    const response = await fetchImpl(url, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Idempotency-Key": payload.spinId,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    const body = await parseResponseBody(response);
+    if (!response.ok || body.status === "error" || body.success === false) {
+      throw syncError(body.message || `Google Sheets webhook returned ${response.status}`);
+    }
+    return { status: "sent", body };
+  } catch (error) {
+    if (error?.name === "AbortError") throw syncError("Google Sheets webhook timed out", 504);
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function syncSpinToGoogleSheets({ db, spin, customerId, config, fetchImpl = fetch }) {
+  if (!String(config?.googleSheetsWebhookUrl || "").trim()) return { status: "disabled" };
+  const { customer, award } = await loadGoogleSheetsSyncContext({ db, spin, customerId });
+  const payload = buildGoogleSheetsPayload({ spin, customer, award });
+  return postSpinToGoogleSheets({
+    payload,
+    webhookUrl: config.googleSheetsWebhookUrl,
+    fetchImpl,
+    timeoutMs: config.googleSheetsWebhookTimeoutMs,
+  });
+}
+

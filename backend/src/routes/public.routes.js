@@ -4,6 +4,7 @@ import { supabase } from "../supabase.js";
 import { requireAdmin, requireParticipant } from "../middleware.js";
 import { assertPreviewAuthAllowed, createParticipantSession, resolveZaloPhone } from "../participant-auth.js";
 import { parseAwardsPagination, listParticipantAwards } from "../award-service.js";
+import { syncSpinToGoogleSheets } from "../google-sheets-service.js";
 import { spinOnce } from "../spin-service.js";
 import { asyncRoute, isValidVietnamesePhone, mapAssignment, mapBanner, mapCustomer, mapReward, normalizePhone, publicError } from "../utils.js";
 
@@ -220,6 +221,13 @@ router.post("/spins", requireParticipant, asyncRoute(async (req, res) => {
     oaFollowed: false,
     source: "participant",
   });
+  // Google Sheets is a reporting sink: a webhook failure must never undo a committed spin.
+  void syncSpinToGoogleSheets({
+    db: supabase,
+    spin: result,
+    customerId: req.participant.customerId,
+    config,
+  }).catch((error) => console.error("Google Sheets sync failed", error));
   res.json(result);
 }));
 
