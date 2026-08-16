@@ -31,19 +31,39 @@ function normalizeZbsPhone(value) {
 
 export async function loadDeliveryContext({ db, delivery }) {
   const customer = await selectSingle(db, "customers", "phone,name", { id: delivery.customer_id });
-  const event = await selectSingle(db, "spin_events", "reward_code,reward_id", { id: delivery.spin_event_id });
-  if (!event?.reward_code && !event?.reward_id) throw deliveryError("Spin has no reward snapshot", 422);
+
+  // 1. Prefer loading reward metadata directly from public.awards
+  const { data: awardRow } = await db
+    .from("awards")
+    .select("code,title_snapshot,value_snapshot,description_snapshot,expires_at")
+    .eq("spin_event_id", delivery.spin_event_id)
+    .maybeSingle();
 
   let reward = null;
-  if (event.reward_code) {
-    reward = await selectSingle(db, "customer_rewards", "code,title,value,description", {
-      customer_id: delivery.customer_id,
-      code: event.reward_code,
-    }, "maybeSingle");
+  if (awardRow) {
+    reward = {
+      code: awardRow.code,
+      title: awardRow.title_snapshot,
+      value: Number(awardRow.value_snapshot),
+      description: awardRow.description_snapshot || "",
+      expiresAt: awardRow.expires_at || "",
+    };
+  } else {
+    // 2. Fallback to legacy spin_events + customer_rewards / reward_catalog
+    const event = await selectSingle(db, "spin_events", "reward_code,reward_id", { id: delivery.spin_event_id });
+    if (!event?.reward_code && !event?.reward_id) throw deliveryError("Spin has no reward snapshot", 422);
+
+    if (event.reward_code) {
+      reward = await selectSingle(db, "customer_rewards", "code,title,value,description", {
+        customer_id: delivery.customer_id,
+        code: event.reward_code,
+      }, "maybeSingle");
+    }
+    if (!reward && event.reward_id) {
+      reward = await selectSingle(db, "reward_catalog", "id,code_prefix,title,value,description", { id: event.reward_id });
+    }
   }
-  if (!reward && event.reward_id) {
-    reward = await selectSingle(db, "reward_catalog", "id,code_prefix,title,value,description", { id: event.reward_id });
-  }
+
   if (!customer?.phone || !reward) throw deliveryError("Delivery data is not available", 422);
   return { customer, reward, phone: normalizeZbsPhone(customer.phone) };
 }
@@ -70,7 +90,7 @@ export async function sendDelivery({ delivery, db, fetchImpl = fetch, config }) 
         voucher_name: reward.title,
         voucher_code: reward.code,
         voucher_value: String(reward.value),
-        expiry_date: "",
+        expiry_date: reward.expiresAt || "",
       },
     }),
   });
@@ -90,6 +110,14 @@ export async function finishDelivery({ db, deliveryId, status, messageId, error,
     p_next_attempt_at: nextAttemptAt || null,
   });
   if (rpcError) throw rpcError;
+
+  if (status === "sent" && data?.spin_event_id) {
+    await db
+      .from("awards")
+      .update({ status: "delivered", delivered_at: new Date().toISOString() })
+      .eq("spin_event_id", data.spin_event_id);
+  }
+
   return data;
 }
 

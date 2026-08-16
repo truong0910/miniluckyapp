@@ -7,7 +7,7 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "test": "node --test",
-    "test:db": "node --test --test-concurrency=1 test/db/phase1.integration.test.js test/db/phase2a.integration.test.js test/db/phase2b1.integration.test.js test/db/phase2b2.integration.test.js test/db/phase2b4.integration.test.js",
+    "test:db": "node --test --test-concurrency=1 test/db/phase1.integration.test.js test/db/phase2a.integration.test.js test/db/phase2b1.integration.test.js test/db/phase2b2.integration.test.js test/db/phase2b4.integration.test.js test/db/phase2c.integration.test.js",
     "worker:delivery": "node src/delivery-worker.js"
   },
   "dependencies": {
