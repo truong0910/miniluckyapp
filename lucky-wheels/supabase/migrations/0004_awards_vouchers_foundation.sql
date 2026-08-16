@@ -36,7 +36,6 @@ insert into public.awards (
   result,
   status,
   issued_at,
-  redeemed_at,
   created_at,
   updated_at
 )
@@ -56,9 +55,8 @@ select
       else '["star", "star", "star"]'::jsonb
     end
   ),
-  case when cr.redeemed_at is not null then 'redeemed' else 'issued' end,
+  'issued',
   se.created_at,
-  cr.redeemed_at,
   se.created_at,
   se.created_at
 from public.spin_events se
