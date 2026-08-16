@@ -20,9 +20,63 @@ function Shell({ tab, setTab, onLogout, children }) {
 function Header({ title, subtitle }) { return <header className="page-header"><div><div className="eyebrow">ADMIN WEB · BACKEND API</div><h1>{title}</h1><p>{subtitle}</p></div></header>; }
 
 function Overview() {
-  const [stats, setStats] = useState(null); const [error, setError] = useState("");
-  useEffect(() => { api("/admin/analytics").then(setStats).catch((e) => setError(e.message)); }, []);
-  return <><Header title="Tổng quan" subtitle="Theo dõi dữ liệu chương trình từ một nguồn Supabase dùng chung." />{error && <div className="error">{error}</div>}<div className="stats">{[["customers", "Khách hàng"], ["spins", "Lượt quay"], ["winners", "Lượt trúng"]].map(([key, label]) => <div className="stat" key={key}><span>{label}</span><strong>{stats ? stats[key] : "—"}</strong></div>)}</div><section className="panel"><h2>Kiến trúc hiện tại</h2><p>Mini App và Admin Web chỉ gọi Backend API. Supabase service role chỉ tồn tại ở Backend, không bị lộ trong bundle trình duyệt.</p><div className="architecture"><span>Mini App</span><b>→</b><span>Backend :8787</span><b>←</b><span>Admin Web :5174</span><i>↕</i><span>Supabase</span></div></section></>;
+  const [campaigns, setCampaigns] = useState([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState("");
+  const [analytics, setAnalytics] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api("/admin/campaigns").then((r) => {
+      setCampaigns(r.items || []);
+      if (r.items?.[0]) setSelectedCampaignId(r.items[0].id);
+    }).catch((e) => setError(e.message));
+  }, []);
+
+  useEffect(() => {
+    if (!selectedCampaignId) return;
+    api(`/admin/campaigns/${selectedCampaignId}/analytics`)
+      .then(setAnalytics)
+      .catch((e) => setError(e.message));
+  }, [selectedCampaignId]);
+
+  const exportCsv = () => {
+    if (!selectedCampaignId) return;
+    window.open(`/api/v1/admin/campaigns/${selectedCampaignId}/export`, "_blank");
+  };
+
+  const m = analytics?.metrics || {};
+
+  return (
+    <>
+      <Header title="Tổng quan Báo cáo (Dashboard)" subtitle="Theo dõi số liệu thực tế theo từng sự kiện và đồng bộ Google Sheets." />
+      {error && <div className="error">{error}</div>}
+      <section className="panel">
+        <div className="panel-heading">
+          <h2>Chọn sự kiện báo cáo:</h2>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <select value={selectedCampaignId} onChange={(e) => setSelectedCampaignId(e.target.value)} style={{ padding: "8px 12px" }}>
+              {campaigns.map((c) => (
+                <option key={c.id} value={c.id}>{c.name} ({c.code}) — {c.status}</option>
+              ))}
+            </select>
+            <button className="primary" onClick={exportCsv}>Xuất Báo cáo CSV</button>
+          </div>
+        </div>
+        <div className="stats" style={{ marginTop: "16px" }}>
+          <div className="stat"><span>Thành viên sự kiện</span><strong>{m.totalParticipants ?? "—"}</strong></div>
+          <div className="stat"><span>Lượt quay đã cấp</span><strong>{m.totalAllocatedSpins ?? "—"}</strong></div>
+          <div className="stat"><span>Lượt đã sử dụng</span><strong>{m.totalSpinsUsed ?? "—"}</strong></div>
+          <div className="stat"><span>Voucher trúng</span><strong>{m.awardsTotal ?? "—"}</strong></div>
+          <div className="stat"><span>Voucher đã đổi</span><strong>{m.awardsRedeemed ?? "—"}</strong></div>
+        </div>
+      </section>
+      <section className="panel">
+        <h2>Kiến trúc vận hành đa sự kiện</h2>
+        <p>Hệ thống tự động đồng bộ kết quả từng lượt quay và voucher sang Google Sheets kèm <code>campaign_id</code> và <code>campaign_name</code> mà không xóa lịch sử cũ.</p>
+        <div className="architecture"><span>Mini App</span><b>→</b><span>Backend :8787</span><b>←</b><span>Admin Web :5174</span><i>↕</i><span>Supabase & Google Sheets</span></div>
+      </section>
+    </>
+  );
 }
 
 function Campaigns() {
