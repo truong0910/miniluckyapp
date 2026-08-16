@@ -35,3 +35,8 @@ After the base migration, create an Auth user and add its UUID to
 
 Apply `migrations/0006_campaign_control.sql` after `0005_award_creation_spin_once.sql`.
 The migration is additive: it extends `campaigns.status` to support `'draft'`, `'active'`, `'paused'`, `'ended'`, and `'archived'`, enforces a single-active unique index constraint in the database, and adds `transition_campaign(uuid, text)` RPC function. Re-running the migration is safe; do not use it to delete or reset historical production data.
+
+## Phase 2E migration (Campaign Reuse & Participants)
+
+Apply `migrations/0007_campaign_participants.sql` after `0006_campaign_control.sql`.
+The migration is additive: it adds `public.campaign_participants` for campaign-scoped spin quota allocations, imported group metadata, and customer membership. Re-running the migration is safe.
