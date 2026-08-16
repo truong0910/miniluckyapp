@@ -1,5 +1,9 @@
 // Deploy as a Web App and set access to anyone who has the URL.
 // The backend sends the JSON payload built in backend/src/google-sheets-service.js.
+function doGet() {
+  return jsonResponse({ status: "ok", version: "v2-12-columns" });
+}
+
 function doPost(e) {
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -56,4 +60,3 @@ function jsonResponse(value) {
   return ContentService.createTextOutput(JSON.stringify(value))
     .setMimeType(ContentService.MimeType.JSON);
 }
-
