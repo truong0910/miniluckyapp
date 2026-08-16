@@ -16,6 +16,12 @@ import {
   importCampaignParticipants,
   listCampaignParticipants,
 } from "../campaign-reuse-service.js";
+import {
+  getCampaignInventorySummary,
+  redeemAward,
+  resendAwardDelivery,
+  updateAwardStatus,
+} from "../award-operations-service.js";
 
 const router = Router();
 
@@ -248,6 +254,31 @@ router.post("/campaigns/:id/participants/import", requireAdmin, asyncRoute(async
     importMode: req.body?.importMode || "voucher",
   });
   res.json(result);
+}));
+
+router.post("/awards/:id/redeem", requireAdmin, asyncRoute(async (req, res) => {
+  const item = await redeemAward({ db: supabase, awardId: req.params.id, redeemedBy: req.admin?.email || "admin" });
+  res.json(item);
+}));
+
+router.post("/awards/:id/resend", requireAdmin, asyncRoute(async (req, res) => {
+  const item = await resendAwardDelivery({ db: supabase, awardId: req.params.id });
+  res.json(item);
+}));
+
+router.post("/awards/:id/status", requireAdmin, asyncRoute(async (req, res) => {
+  const item = await updateAwardStatus({
+    db: supabase,
+    awardId: req.params.id,
+    status: req.body?.status,
+    reason: req.body?.reason,
+  });
+  res.json(item);
+}));
+
+router.get("/campaigns/:id/inventory", requireAdmin, asyncRoute(async (req, res) => {
+  const summary = await getCampaignInventorySummary({ db: supabase, campaignId: req.params.id });
+  res.json({ items: summary });
 }));
 
 async function loadCampaignRule(id) {
