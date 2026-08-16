@@ -10,6 +10,8 @@ test("parseAwardsPagination rejects non-integers and out-of-range values", () =>
   for (const query of [
     { page: "1.5" },
     { limit: "2.5" },
+    { page: 1.5 },
+    { limit: 2.5 },
     { page: "0" },
     { limit: "0" },
     { page: "-1" },
@@ -136,13 +138,24 @@ test("listParticipantAwards scopes, orders, pages, trims, and maps awards", asyn
 });
 
 test("listParticipantAwards requests the second page and reports no more rows", async () => {
-  const db = fakeDb([awardRow({ id: "award-3", code: "VOUCHER-3" }), awardRow({ id: "award-4", code: "VOUCHER-4" })]);
+  const db = fakeDb([
+    awardRow({ id: "award-3", code: "VOUCHER-3", reward_id: null }),
+    awardRow({ id: "award-4", code: "VOUCHER-4" }),
+  ]);
 
   const result = await listParticipantAwards({ db, customerId: "customer-a", page: 2, limit: 2 });
 
-  assert.deepEqual(db.query.calls.at(-1), ["range", 2, 4]);
+  assert.deepEqual(db.query.calls, [
+    ["from", "awards"],
+    ["select", "id,campaign_id,spin_event_id,reward_id,code,title_snapshot,value_snapshot,description_snapshot,result,status,issued_at,delivered_at,redeemed_at,expires_at"],
+    ["eq", "customer_id", "customer-a"],
+    ["order", "issued_at", { ascending: false }],
+    ["order", "id", { ascending: false }],
+    ["range", 2, 4],
+  ]);
   assert.equal(result.page, 2);
   assert.equal(result.limit, 2);
   assert.equal(result.hasMore, false);
   assert.deepEqual(result.items.map((item) => item.code), ["VOUCHER-3", "VOUCHER-4"]);
+  assert.deepEqual(result.items.map((item) => item.rewardId), [null, "reward-1"]);
 });
