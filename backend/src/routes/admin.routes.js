@@ -289,4 +289,74 @@ router.get("/analytics", requireAdmin, asyncRoute(async (_req, res) => {
   res.json({ customers: customers.count || 0, spins: spins.count || 0, winners: winners.count || 0 });
 }));
 
+router.get("/awards", requireAdmin, asyncRoute(async (req, res) => {
+  const page = Math.max(1, Math.min(Number(req.query.page) || 1, 100));
+  const limit = Math.max(1, Math.min(Number(req.query.limit) || 20, 100));
+  const status = String(req.query.status || "").trim();
+  const search = String(req.query.search || "").trim();
+
+  let query = supabase
+    .from("awards")
+    .select("id,campaign_id,spin_event_id,customer_id,reward_id,code,title_snapshot,value_snapshot,description_snapshot,result,status,issued_at,delivered_at,redeemed_at,expires_at,created_at", { count: "exact" });
+
+  if (status) {
+    query = query.eq("status", status);
+  }
+  if (search) {
+    query = query.or(`code.ilike.%${search}%,title_snapshot.ilike.%${search}%`);
+  }
+
+  const start = (page - 1) * limit;
+  query = query
+    .order("created_at", { ascending: false })
+    .range(start, start + limit - 1);
+
+  const { data: rows, count, error } = await query;
+  if (error) throw error;
+
+  const customerIds = [...new Set((rows || []).map((row) => row.customer_id))];
+  const customersMap = new Map();
+  if (customerIds.length > 0) {
+    const { data: custRows } = await supabase
+      .from("customers")
+      .select("id,name,phone")
+      .in("id", customerIds);
+    for (const c of custRows || []) {
+      customersMap.set(c.id, c);
+    }
+  }
+
+  const items = (rows || []).map((row) => {
+    const cust = customersMap.get(row.customer_id);
+    return {
+      id: row.id,
+      campaignId: row.campaign_id,
+      spinEventId: row.spin_event_id,
+      customerId: row.customer_id,
+      customerName: cust?.name || row.customer_id,
+      customerPhone: cust?.phone || "",
+      rewardId: row.reward_id ?? null,
+      code: row.code,
+      title: row.title_snapshot,
+      value: Number(row.value_snapshot),
+      description: row.description_snapshot || "",
+      result: row.result,
+      status: row.status,
+      issuedAt: row.issued_at ?? null,
+      deliveredAt: row.delivered_at ?? null,
+      redeemedAt: row.redeemed_at ?? null,
+      expiresAt: row.expires_at ?? null,
+      createdAt: row.created_at,
+    };
+  });
+
+  res.json({
+    items,
+    page,
+    limit,
+    total: count || 0,
+    hasMore: start + items.length < (count || 0),
+  });
+}));
+
 export default router;
