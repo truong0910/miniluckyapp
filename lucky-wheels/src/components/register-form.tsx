@@ -1,18 +1,13 @@
 import { PATHS } from "@/constants/path";
 import {
-  registerSchema,
-  type TRegisterValues,
-} from "@/schemas/register.schema";
-import {
   participantService,
   type Participant,
 } from "@/services/participant.services";
 import { oaService } from "@/services/oa.services";
 import { permissionService } from "@/services/permission.services";
-import { useForm } from "@tanstack/react-form";
 import { useEffect, useState } from "react";
 import { getAccessToken, showOAWidget } from "zmp-sdk/apis";
-import { Button, Input, useNavigate, useSnackbar } from "zmp-ui";
+import { Button, useNavigate, useSnackbar } from "zmp-ui";
 import Divider from "./divider";
 
 export default function RegisterForm() {
@@ -20,88 +15,12 @@ export default function RegisterForm() {
   const { openSnackbar } = useSnackbar();
   const [customer, setCustomer] = useState<Participant | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
   const [hasFollowedOA, setHasFollowedOA] = useState(oaService.isFollowed());
   const [oaWidgetError, setOaWidgetError] = useState<string | null>(null);
   const [showMockButton, setShowMockButton] = useState(false);
   const [isFetchingPhone, setIsFetchingPhone] = useState(false);
   const [zaloAvatar, setZaloAvatar] = useState<string | null>(null);
-  const [zaloPhoneToken, setZaloPhoneToken] = useState<string | undefined>();
 
-  const form = useForm({
-    defaultValues: {
-      phone: "",
-    } as TRegisterValues,
-    validators: {
-      onChange: registerSchema,
-    },
-    onSubmit: async ({ value }) => {
-      setIsSaving(true);
-
-      try {
-        if (!hasFollowedOA) {
-          openSnackbar({
-            icon: true,
-            type: "warning",
-            text: "Vui lòng bấm Theo dõi Official Account trước khi tiếp tục.",
-            duration: 3500,
-          });
-          return;
-        }
-
-        let foundCustomer = customer;
-        if (!foundCustomer || foundCustomer.phone !== value.phone) {
-          try {
-            foundCustomer = await participantService.authenticate(value.phone, {
-              phoneToken: zaloPhoneToken,
-            });
-          } catch (error) {
-            if ((error as Error & { status?: number }).status === 404) {
-              foundCustomer = null;
-            } else {
-              throw error;
-            }
-          }
-        }
-        if (!foundCustomer) {
-          openSnackbar({
-            icon: true,
-            type: "error",
-            text: "Số điện thoại không nằm trong danh sách khách hàng được cấp lượt quay.",
-            duration: 4000,
-          });
-          return;
-        }
-
-        const displayName =
-          !foundCustomer.name ||
-          foundCustomer.name.toLowerCase() === "user name" ||
-          foundCustomer.name.toLowerCase() === "username" ||
-          foundCustomer.name.startsWith("Khách mới")
-            ? `khách hàng ${foundCustomer.phone}`
-            : foundCustomer.name;
-
-        openSnackbar({
-          icon: true,
-          type: "success",
-          text: `Xin chào ${displayName}! Bạn có ${foundCustomer.spinsRemaining} lượt quay.`,
-          duration: 3500,
-        });
-
-        navigate(PATHS.WHEEL);
-      } catch (error) {
-        console.error("Unable to submit registration", error);
-        openSnackbar({
-          icon: true,
-          type: "error",
-          text: "Không thể lưu thông tin. Vui lòng thử lại.",
-          duration: 3000,
-        });
-      } finally {
-        setIsSaving(false);
-      }
-    },
-  });
 
   useEffect(() => {
     let cancelled = false;
@@ -120,7 +39,6 @@ export default function RegisterForm() {
         if (cancelled) return;
         if (currentCustomer) {
           setCustomer(currentCustomer);
-          form.setFieldValue("phone", currentCustomer.phone);
         }
       } catch (error) {
         console.error("Unable to load profile", error);
@@ -134,7 +52,7 @@ export default function RegisterForm() {
     return () => {
       cancelled = true;
     };
-  }, [form]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -178,71 +96,70 @@ export default function RegisterForm() {
   };
 
   const handleGetZaloPhone = async () => {
+    if (!hasFollowedOA) {
+      openSnackbar({
+        icon: true,
+        type: "warning",
+        text: "Vui lĂ²ng theo dĂµi Official Account trÆ°á»›c khi tiáº¿p tá»¥c.",
+        duration: 3500,
+      });
+      return;
+    }
+
+    if (!participantService.isZaloMode()) {
+      openSnackbar({
+        icon: true,
+        type: "warning",
+        text: "Luá»“ng xĂ¡c minh Zalo chÆ°a Ä‘Æ°á»£c báº­t trong mĂ´i trÆ°á»ng nĂ y.",
+        duration: 4500,
+      });
+      return;
+    }
+
     setIsFetchingPhone(true);
     try {
       const res = await permissionService.getPhoneNumber();
-
-      // Determine target phone number from response (direct number or Zalo token resolution)
-      let resolvedPhone = res.number?.trim() || "";
-
-      if (!resolvedPhone && res.token) {
-        // Automatically process Zalo Phone Token to customer phone number
-        resolvedPhone = "";
-      }
-
-      if (resolvedPhone) {
-        setCustomer(null);
-        form.setFieldValue("phone", resolvedPhone);
-        setZaloPhoneToken(res.token);
-
-        if (res.token && participantService.isZaloMode()) {
-          const found = await participantService.startWithZalo(
-            await getAccessToken(),
-            res.token,
-          );
-          setCustomer(found);
-          setZaloPhoneToken(undefined);
-          form.setFieldValue("phone", found.phone);
-        } else if (!participantService.isZaloMode() && resolvedPhone) {
-          const found = await participantService.lookupCustomerByPhone(resolvedPhone);
-          if (found) setCustomer(found);
-        }
-
-        openSnackbar({
-          icon: true,
-          type: "success",
-          text: `✅ Đã xử lý Token & tự động điền SĐT Zalo: ${resolvedPhone}`,
-          duration: 3500,
-        });
-      } else {
+      if (!res.token) {
         openSnackbar({
           icon: true,
           type: "warning",
-          text: res.error || "Bật quyền 'Số điện thoại' trên mini.zalo.me -> Cài đặt!",
+          text: res.error || "Zalo chÆ°a tráº£ vá» token sá»‘ Ä‘iá»‡n thoáº¡i.",
           duration: 5000,
         });
+        return;
       }
+
+      setCustomer(null);
+      const profile = await permissionService.getUserProfile();
+      const found = await participantService.startWithZalo(
+        await getAccessToken(),
+        res.token,
+        profile?.name,
+      );
+      setCustomer(found);
+
+      const displayName = found.name?.trim() || `khĂ¡ch hĂ ng ${found.phone}`;
+      openSnackbar({
+        icon: true,
+        type: "success",
+        text: `Xin chĂ o ${displayName}! Báº¡n cĂ³ ${found.spinsRemaining} lÆ°á»£t quay.`,
+        duration: 3500,
+      });
+      navigate(PATHS.WHEEL);
     } catch (error) {
       console.error("Error getting Zalo phone", error);
       openSnackbar({
         icon: true,
         type: "error",
-        text: "Không thể lấy SĐT Zalo lúc này.",
+        text:
+          error instanceof Error
+            ? error.message
+            : "KhĂ´ng thá»ƒ xĂ¡c minh sá»‘ Ä‘iá»‡n thoáº¡i Zalo lĂºc nĂ y.",
         duration: 3000,
       });
     } finally {
       setIsFetchingPhone(false);
     }
-  };
-
-  const renderError = (errors: Array<{ message?: string } | undefined>) => {
-    const firstError = errors.find((e) => e?.message);
-    if (!firstError?.message) return null;
-    return (
-      <span className="text-xs text-red-500 mt-1.5 block font-semibold">
-        ⚠️ {firstError.message}
-      </span>
-    );
   };
 
   if (isLoadingProfile) {
@@ -254,12 +171,7 @@ export default function RegisterForm() {
   }
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        void form.handleSubmit();
-      }}
+    <div
       className="bg-white/95 p-6 rounded-3xl border border-amber-200/60 shadow-2xl space-y-5 relative overflow-hidden text-slate-900"
     >
       {/* Top Amber Accent Strip */}
@@ -335,40 +247,23 @@ export default function RegisterForm() {
             </div>
           </div>
 
-          {/* PHONE INPUT FIELD & AUTO-FILL BUTTON */}
-          <form.Field name="phone">
-            {(field) => (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between px-0.5">
-                  <span className="text-xs font-bold text-slate-700">
-                    Số điện thoại tham gia <span className="text-red-500">*</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleGetZaloPhone}
-                    disabled={isFetchingPhone}
-                    className="text-[11px] font-bold text-amber-600 hover:text-amber-700 underline flex items-center gap-1 active:scale-95 transition-transform"
-                  >
-                    <span>📱</span>
-                    <span>
-                      {isFetchingPhone ? "Đang lấy..." : "Tự động điền SĐT Zalo"}
-                    </span>
-                  </button>
-                </div>
-
-                <Input
-                  size="medium"
-                  value={field.state.value}
-                  onChange={(event) => {
-                    setCustomer(null);
-                    field.handleChange(event.target.value);
-                  }}
-                  placeholder="Nhập số điện thoại "
-                />
-                {renderError(field.state.meta.errors)}
-              </div>
-            )}
-          </form.Field>
+          {/* ZALO PHONE PERMISSION */}
+          <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200 space-y-3">
+            <p className="text-xs text-slate-600 font-medium">
+              Số điện thoại chỉ được lấy từ quyền xác minh của Zalo, không nhập thủ công.
+            </p>
+            <Button
+              htmlType="button"
+              fullWidth
+              onClick={handleGetZaloPhone}
+              disabled={isFetchingPhone || !hasFollowedOA}
+              className="!h-12 !rounded-2xl !bg-gradient-to-r !from-red-500 !via-red-600 !to-amber-600 !text-white !font-black !shadow-lg active:scale-95 transition-transform"
+            >
+              {isFetchingPhone
+                ? "ĐANG XÁC MINH ZALO..."
+                : "CHO PHÉP ZALO & THAM GIA QUAY"}
+            </Button>
+          </div>
 
           {/* CUSTOMER FOUND PREVIEW CARD WITH REAL ZALO AVATAR */}
           {customer && (
@@ -406,22 +301,10 @@ export default function RegisterForm() {
           )}
         </div>
 
-        {/* SUBMIT ACTION BUTTON */}
-        <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
-          {([canSubmit, isSubmitting]) => (
-            <Button
-              htmlType="submit"
-              disabled={!canSubmit || isSubmitting || isSaving}
-              fullWidth
-              className="!w-full !h-13 !bg-gradient-to-r !from-red-500 !via-red-600 !to-amber-600 hover:!from-red-600 hover:!to-amber-500 !text-white !font-black !text-base !rounded-2xl !shadow-xl !shadow-red-600/30 active:scale-95 transition-transform shine-sweep-container mt-2"
-            >
-              {isSubmitting || isSaving
-                ? "ĐANG KIỂM TRA..."
-                : "XÁC NHẬN & THAM GIA QUAY 🎁"}
-            </Button>
-          )}
-        </form.Subscribe>
+        <p className="text-center text-[11px] text-slate-500 font-medium">
+          Zalo sẽ xác minh số điện thoại và tạo phiên tham gia tự động.
+        </p>
       </div>
-    </form>
+    </div>
   );
 }

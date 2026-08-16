@@ -19,5 +19,14 @@ Backend integration test is opt-in and requires
 `SUPABASE_TEST_URL` and `SUPABASE_TEST_SERVICE_ROLE_KEY`; it never reads the
 local app `.env`.
 
+## Phase 2A migration
+
+Apply `migrations/0003_campaign_foundation.sql` after the Phase 1 migration
+in the isolated Supabase test project first. It creates the `campaigns`
+foundation, assigns existing data to the active `legacy` campaign, and keeps
+current spin/API behavior compatible through a database default. Re-running
+the migration is safe; do not apply it to the production project until the
+campaign-aware Admin/API slices are completed.
+
 After the base migration, create an Auth user and add its UUID to
 `public.admin_profiles`; see `SUPABASE_ADMIN_SETUP.md`.
