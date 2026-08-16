@@ -81,6 +81,9 @@ test(
         .eq("outcome", "reward")
         .not("customer_id", "is", null)
         .not("reward_code", "is", null)
+        // Phase 1/2A create post-migration synthetic fixtures that intentionally have no award.
+        .not("customer_id", "like", "phase1-test-%")
+        .not("customer_id", "like", "phase2a-test-%")
         .lt("created_at", testStartedAt)
         .order("created_at", { ascending: true })
         .order("id", { ascending: true })
