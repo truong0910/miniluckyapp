@@ -4,6 +4,13 @@ import { requireAdmin } from "../middleware.js";
 import { config } from "../config.js";
 import { createDevelopmentAdminToken } from "../auth/admin-session.js";
 import { asyncRoute, mapAssignment, mapBanner, mapCustomer, mapReward, normalizePhone, publicError } from "../utils.js";
+import {
+  createCampaign,
+  getCampaign,
+  listCampaigns,
+  transitionCampaign,
+  updateCampaign,
+} from "../campaign-service.js";
 
 const router = Router();
 
@@ -175,6 +182,35 @@ router.put("/rules", requireAdmin, asyncRoute(async (req, res) => {
   const { data, error } = await supabase.from("program_settings").upsert({ key: "program_rules", value: req.body || {} }).select("key,value").single();
   if (error) throw error;
   res.json({ rules: data.value });
+}));
+
+router.get("/campaigns", requireAdmin, asyncRoute(async (req, res) => {
+  const items = await listCampaigns({
+    db: supabase,
+    status: req.query.status,
+    includeArchived: req.query.includeArchived === "true",
+  });
+  res.json({ items });
+}));
+
+router.post("/campaigns", requireAdmin, asyncRoute(async (req, res) => {
+  const item = await createCampaign({ db: supabase, input: req.body || {} });
+  res.status(201).json(item);
+}));
+
+router.get("/campaigns/:id", requireAdmin, asyncRoute(async (req, res) => {
+  const item = await getCampaign({ db: supabase, id: req.params.id });
+  res.json(item);
+}));
+
+router.put("/campaigns/:id", requireAdmin, asyncRoute(async (req, res) => {
+  const item = await updateCampaign({ db: supabase, id: req.params.id, input: req.body || {} });
+  res.json(item);
+}));
+
+router.post("/campaigns/:id/status", requireAdmin, asyncRoute(async (req, res) => {
+  const item = await transitionCampaign({ db: supabase, id: req.params.id, status: req.body?.status });
+  res.json(item);
 }));
 
 async function loadCampaignRule(id) {

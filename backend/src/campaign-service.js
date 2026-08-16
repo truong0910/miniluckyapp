@@ -1,0 +1,151 @@
+import { publicError } from "./utils.js";
+
+const CAMPAIGN_COLUMNS = "id,code,name,status,starts_at,ends_at,timezone,created_at,updated_at";
+
+export function parseCampaignInput(body = {}, { partial = false } = {}) {
+  const codeRaw = String(body.code ?? "").trim().toUpperCase();
+  const nameRaw = String(body.name ?? "").trim();
+
+  if (!partial || body.code !== undefined) {
+    if (!codeRaw || !/^[A-Z0-9_-]{2,50}$/.test(codeRaw)) {
+      throw publicError("Mã sự kiện không hợp lệ (chỉ gồm chữ cái, số, gạch ngang, 2-50 ký tự)");
+    }
+  }
+
+  if (!partial || body.name !== undefined) {
+    if (!nameRaw) {
+      throw publicError("Tên sự kiện không được để trống");
+    }
+  }
+
+  let startsAt = null;
+  if (body.startsAt) {
+    const d = new Date(body.startsAt);
+    if (isNaN(d.getTime())) throw publicError("Thời gian bắt đầu không hợp lệ");
+    startsAt = d.toISOString();
+  }
+
+  let endsAt = null;
+  if (body.endsAt) {
+    const d = new Date(body.endsAt);
+    if (isNaN(d.getTime())) throw publicError("Thời gian kết thúc không hợp lệ");
+    endsAt = d.toISOString();
+  }
+
+  if (startsAt && endsAt && new Date(startsAt) >= new Date(endsAt)) {
+    throw publicError("Thời gian kết thúc phải sau thời gian bắt đầu");
+  }
+
+  const timezone = String(body.timezone || "Asia/Ho_Chi_Minh").trim();
+
+  return {
+    code: codeRaw,
+    name: nameRaw,
+    startsAt,
+    endsAt,
+    timezone,
+  };
+}
+
+export function mapCampaignRow(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    status: row.status,
+    startsAt: row.starts_at ?? null,
+    endsAt: row.ends_at ?? null,
+    timezone: row.timezone || "Asia/Ho_Chi_Minh",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export async function listCampaigns({ db, status, includeArchived = false }) {
+  let query = db.from("campaigns").select(CAMPAIGN_COLUMNS).order("created_at", { ascending: false });
+
+  if (status) {
+    query = query.eq("status", status);
+  } else if (!includeArchived) {
+    query = query.neq("status", "archived");
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []).map(mapCampaignRow);
+}
+
+export async function getCampaign({ db, id }) {
+  const { data, error } = await db.from("campaigns").select(CAMPAIGN_COLUMNS).eq("id", id).maybeSingle();
+  if (error) throw error;
+  if (!data) throw publicError("Không tìm thấy sự kiện", 404);
+  return mapCampaignRow(data);
+}
+
+export async function getActiveCampaign({ db }) {
+  const { data, error } = await db.from("campaigns").select(CAMPAIGN_COLUMNS).eq("status", "active").maybeSingle();
+  if (error) throw error;
+  return mapCampaignRow(data);
+}
+
+export async function createCampaign({ db, input }) {
+  const parsed = parseCampaignInput(input);
+  const record = {
+    code: parsed.code,
+    name: parsed.name,
+    starts_at: parsed.startsAt,
+    ends_at: parsed.endsAt,
+    timezone: parsed.timezone,
+    status: "draft",
+  };
+
+  const { data, error } = await db.from("campaigns").insert(record).select(CAMPAIGN_COLUMNS).single();
+  if (error) throw error;
+  return mapCampaignRow(data);
+}
+
+export async function updateCampaign({ db, id, input }) {
+  const current = await getCampaign({ db, id });
+  const parsed = parseCampaignInput(input, { partial: true });
+
+  if (current.status !== "draft" && parsed.code && parsed.code !== current.code) {
+    throw publicError("Không thể thay đổi mã sự kiện khi sự kiện không ở trạng thái nháp");
+  }
+
+  const patch = {
+    code: parsed.code || current.code,
+    name: parsed.name || current.name,
+    starts_at: parsed.startsAt !== undefined ? parsed.startsAt : current.startsAt,
+    ends_at: parsed.endsAt !== undefined ? parsed.endsAt : current.endsAt,
+    timezone: parsed.timezone || current.timezone,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await db.from("campaigns").update(patch).eq("id", id).select(CAMPAIGN_COLUMNS).single();
+  if (error) throw error;
+  return mapCampaignRow(data);
+}
+
+export async function transitionCampaign({ db, id, status }) {
+  if (!["draft", "active", "paused", "ended", "archived"].includes(status)) {
+    throw publicError("Trạng thái chuyển đổi không hợp lệ");
+  }
+
+  const { data, error } = await db.rpc("transition_campaign", {
+    p_campaign_id: id,
+    p_status: status,
+  });
+
+  if (error) {
+    if (error.code === "P0004") {
+      throw publicError("Đã có một sự kiện khác đang diễn ra. Vui lòng tạm dừng sự kiện đó trước khi kích hoạt sự kiện mới.", 409);
+    }
+    if (error.code === "P0002") {
+      throw publicError("Không tìm thấy sự kiện", 404);
+    }
+    throw error;
+  }
+
+  return mapCampaignRow(data);
+}
