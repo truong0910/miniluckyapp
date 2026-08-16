@@ -60,20 +60,18 @@ test(
       : false,
   },
   async () => {
+    const testStartedAt = new Date().toISOString();
     const db = createClient(testUrl, testKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
     const { data: awards, error: awardsError } = await db
       .from("awards")
-      .select("created_at")
-      .order("created_at", { ascending: false })
+      .select("id")
       .limit(1);
     assert.ifError(awardsError);
     assert.ok(Array.isArray(awards));
-    if (awards.length === 0) return;
 
-    const cutoff = awards[0].created_at;
     const pageSize = 100;
 
     for (let pageStart = 0; ; pageStart += pageSize) {
@@ -83,7 +81,7 @@ test(
         .eq("outcome", "reward")
         .not("customer_id", "is", null)
         .not("reward_code", "is", null)
-        .lte("created_at", cutoff)
+        .lt("created_at", testStartedAt)
         .order("created_at", { ascending: true })
         .order("id", { ascending: true })
         .range(pageStart, pageStart + pageSize - 1);
