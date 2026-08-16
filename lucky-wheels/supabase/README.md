@@ -40,3 +40,7 @@ The migration is additive: it extends `campaigns.status` to support `'draft'`, `
 
 Apply `migrations/0007_campaign_participants.sql` after `0006_campaign_control.sql`.
 The migration is additive: it adds `public.campaign_participants` for campaign-scoped spin quota allocations, imported group metadata, and customer membership. Re-running the migration is safe.
+
+## Phase 4 (Reporting & Sync)
+
+The Google Sheets sync payload (`buildGoogleSheetsPayload`) is enriched with `campaignId` and `campaignName` top-level fields while keeping existing spin and award columns backward compatible with Apps Script `doPost` handlers.
