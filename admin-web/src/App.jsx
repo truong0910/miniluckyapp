@@ -238,15 +238,54 @@ function Campaigns() {
   );
 }
 
+function parseCsvToRows(text) {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length < 2) return [];
+
+  const parseLine = (line) => {
+    const result = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') {
+        if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
+        else { inQuotes = !inQuotes; }
+      } else if (c === ',' || c === '\t' || c === ';') {
+        if (inQuotes) { cur += c; }
+        else { result.push(cur.trim()); cur = ""; }
+      } else {
+        cur += c;
+      }
+    }
+    result.push(cur.trim());
+    return result;
+  };
+
+  const headers = parseLine(lines[0]);
+  const rows = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const vals = parseLine(lines[i]);
+    const obj = {};
+    headers.forEach((h, idx) => {
+      obj[h] = vals[idx] || "";
+    });
+    rows.push(obj);
+  }
+
+  return rows;
+}
+
 function CampaignParticipants() {
   const [campaigns, setCampaigns] = useState([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [participants, setParticipants] = useState([]);
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
-  const [importRowsJson, setImportRowsJson] = useState("");
   const [importMode, setImportMode] = useState("voucher");
+  const [importRowsJson, setImportRowsJson] = useState("");
   const [importResult, setImportResult] = useState(null);
 
   useEffect(() => {
@@ -271,6 +310,22 @@ function CampaignParticipants() {
   };
 
   useEffect(() => { void load(); }, [selectedCampaignId]);
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const content = evt.target?.result || "";
+      if (file.name.endsWith(".json")) {
+        setImportRowsJson(content);
+      } else {
+        const rows = parseCsvToRows(content);
+        setImportRowsJson(JSON.stringify(rows, null, 2));
+      }
+    };
+    reader.readAsText(file, "UTF-8");
+  };
 
   const handleImport = async (e) => {
     e.preventDefault();
@@ -319,23 +374,35 @@ function CampaignParticipants() {
 
         {importing && (
           <div className="panel inline-form" style={{ border: "2px solid #ef7e3a", marginTop: "16px" }}>
-            <h2>Nhập danh sách Khách hàng từ Excel / JSON</h2>
-            <p style={{ fontSize: "13px", color: "#666" }}>Dán mảng dữ liệu rows từ file Excel chứa các cột: <code>Tên KH</code>, <code>SĐT</code>, <code>Số voucher tặng</code>, <code>Ghi chú</code>.</p>
+            <h2>Nhập danh sách Khách hàng từ Excel / CSV</h2>
+            <p style={{ fontSize: "13px", color: "#666" }}>Tải lên file Excel CSV (.csv) chứa các cột: <code>Tên KH</code>, <code>SĐT</code>, <code>Số voucher tặng</code>, <code>Ghi chú</code>.</p>
             <form onSubmit={handleImport} style={{ display: "grid", gap: "12px" }}>
-              <label>Chế độ cấp:
+              <div style={{ background: "#f8f9fa", padding: "12px", borderRadius: "8px", border: "1px dashed #ccc" }}>
+                <label style={{ display: "block", marginBottom: "6px", fontWeight: "bold" }}>
+                  1. Chọn file CSV / Excel từ máy tính:
+                </label>
+                <input
+                  type="file"
+                  accept=".csv,.txt,.json,.xlsx,.xls"
+                  onChange={handleFileUpload}
+                  style={{ padding: "6px" }}
+                />
+              </div>
+              <label>2. Chế độ cấp:
                 <select value={importMode} onChange={(e) => setImportMode(e.target.value)}>
                   <option value="voucher">Cấp Voucher cụ thể từ cột Ghi chú (VD: '5 triệu, 3 triệu')</option>
                   <option value="quota">Cấp Lượt quay từ cột Số voucher tặng</option>
                 </select>
               </label>
+              <label style={{ fontSize: "12px", color: "#666" }}>Xem trước dữ liệu hàng (Rows Preview JSON):</label>
               <textarea
-                rows="6"
-                placeholder='[{"Tên KH": "Nguyễn Văn A", "SĐT": "0912345678", "Số voucher tặng": "2", "Ghi chú": "5 triệu, 3 triệu"}]'
+                rows="5"
+                placeholder='Tự động điền khi chọn file CSV/Excel ở trên...'
                 value={importRowsJson}
                 onChange={(e) => setImportRowsJson(e.target.value)}
                 required
               />
-              <button className="primary">Tiến hành Import</button>
+              <button className="primary">Tiến hành Import dữ liệu</button>
             </form>
             {importResult && (
               <div style={{ marginTop: "12px", padding: "12px", background: importResult.success ? "#e6f4ea" : "#fff1f1", borderRadius: "8px" }}>

@@ -86,15 +86,17 @@ export async function redeemAward({ db, awardId, redeemedBy = "admin" }) {
 export async function resendAwardDelivery({ db, awardId }) {
   const { data: award, error: fetchErr } = await db
     .from("awards")
-    .select("id,status")
+    .select("id,status,spin_event_id")
     .eq("id", awardId)
     .single();
 
   if (fetchErr || !award) throw publicError("Voucher không tồn tại");
   if (award.status === "redeemed") throw publicError("Không thể resend voucher đã đổi");
 
-  // Update outbox delivery record to pending if present
-  await db.from("deliveries").update({ status: "pending", attempt_count: 0 }).eq("award_id", awardId);
+  // Update outbox delivery record using spin_event_id
+  if (award.spin_event_id) {
+    await db.from("deliveries").update({ status: "pending", attempt_count: 0 }).eq("spin_event_id", award.spin_event_id);
+  }
 
   // Update award status to delivering
   const { data: updated, error: updateErr } = await db
@@ -131,8 +133,30 @@ export async function updateAwardStatus({ db, awardId, status, reason = "" }) {
 }
 
 export async function getCampaignInventorySummary({ db, campaignId }) {
-  const { data: rewards } = await db.from("reward_catalog").select("id,title,code_prefix,value,quantity");
+  const { data: rewards } = await db.from("reward_catalog").select("id,title,code_prefix,value");
+
+  // Calculate planned quantities per reward for campaign rules
+  const { data: rules } = await db.from("campaign_rules").select("id").eq("campaign_id", campaignId);
+  const ruleIds = (rules || []).map((r) => r.id);
+
+  let plannedQuantities = {};
+  if (ruleIds.length > 0) {
+    const { data: configs } = await db.from("rule_spin_configs").select("id").in("rule_id", ruleIds);
+    const configIds = (configs || []).map((c) => c.id);
+    if (configIds.length > 0) {
+      const { data: spinRewards } = await db.from("rule_spin_rewards").select("reward_id,quantity").in("spin_config_id", configIds);
+      for (const sr of spinRewards || []) {
+        plannedQuantities[sr.reward_id] = (plannedQuantities[sr.reward_id] || 0) + (Number(sr.quantity) || 0);
+      }
+    }
+  }
+
   const { data: awards } = await db.from("awards").select("reward_id,status").eq("campaign_id", campaignId);
 
-  return calculateInventorySummary(rewards || [], awards || []);
+  const rewardsWithQuantity = (rewards || []).map((r) => ({
+    ...r,
+    quantity: plannedQuantities[r.id] || 0,
+  }));
+
+  return calculateInventorySummary(rewardsWithQuantity, awards || []);
 }

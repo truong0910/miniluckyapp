@@ -47,12 +47,23 @@ export async function loadGoogleSheetsSyncContext({ db, spin, customerId }) {
 
   const awardResult = await db
     .from("awards")
-    .select("id,status,delivered_at,redeemed_at")
+    .select("id,status,delivered_at,redeemed_at,campaign_id")
     .eq("spin_event_id", spin.spinId)
     .maybeSingle();
   if (awardResult.error) throw awardResult.error;
 
-  return { customer: customerResult.data, award: awardResult.data };
+  let campaign = null;
+  const campaignId = awardResult.data?.campaign_id || spin?.campaignId || spin?.campaign_id;
+  if (campaignId) {
+    const campaignResult = await db
+      .from("campaigns")
+      .select("id,code,name")
+      .eq("id", campaignId)
+      .maybeSingle();
+    if (!campaignResult.error) campaign = campaignResult.data;
+  }
+
+  return { customer: customerResult.data, award: awardResult.data, campaign };
 }
 
 export async function postSpinToGoogleSheets({ payload, webhookUrl, fetchImpl = fetch, timeoutMs = 5000 }) {
@@ -88,8 +99,8 @@ export async function postSpinToGoogleSheets({ payload, webhookUrl, fetchImpl = 
 
 export async function syncSpinToGoogleSheets({ db, spin, customerId, config, fetchImpl = fetch }) {
   if (!String(config?.googleSheetsWebhookUrl || "").trim()) return { status: "disabled" };
-  const { customer, award } = await loadGoogleSheetsSyncContext({ db, spin, customerId });
-  const payload = buildGoogleSheetsPayload({ spin, customer, award });
+  const { customer, award, campaign } = await loadGoogleSheetsSyncContext({ db, spin, customerId });
+  const payload = buildGoogleSheetsPayload({ spin, customer, award, campaign });
   return postSpinToGoogleSheets({
     payload,
     webhookUrl: config.googleSheetsWebhookUrl,

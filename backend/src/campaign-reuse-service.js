@@ -89,18 +89,56 @@ export async function cloneCampaign({ db, sourceCampaignId, newCode, newName, cl
   const newCampaign = await createCampaign({ db, input: { code: newCode, name: newName, timezone: source.timezone } });
 
   // Clone rules and spin configs if present
-  const { data: rules } = await db.from("campaign_rules").select("*").eq("scope", source.code);
+  const { data: rules } = await db.from("campaign_rules").select("*").eq("campaign_id", sourceCampaignId);
   if (rules && rules.length > 0) {
     for (const rule of rules) {
-      await db.from("campaign_rules").insert({
-        name: `${rule.name} (Cloned)`,
-        code: `${rule.code}_CLONED_${Date.now().toString(36).toUpperCase()}`,
-        scope: newCampaign.code,
-        priority: rule.priority,
-        active: rule.active,
-        max_total_wins: rule.max_total_wins,
-        oa_required: rule.oa_required,
-      });
+      const { data: newRule } = await db
+        .from("campaign_rules")
+        .insert({
+          campaign_id: newCampaign.id,
+          name: `${rule.name} (Cloned)`,
+          code: `${rule.code}_CLONED_${Date.now().toString(36).toUpperCase()}_${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+          scope: rule.scope,
+          priority: rule.priority,
+          active: rule.active,
+          allow_unlisted: rule.allow_unlisted,
+          oa_required: rule.oa_required,
+          allow_refollow: rule.allow_refollow,
+          max_total_wins: rule.max_total_wins,
+        })
+        .select("id")
+        .single();
+
+      if (newRule?.id) {
+        const { data: configs } = await db.from("rule_spin_configs").select("*").eq("rule_id", rule.id);
+        for (const cfg of configs || []) {
+          const { data: newCfg } = await db
+            .from("rule_spin_configs")
+            .insert({
+              rule_id: newRule.id,
+              spin_number: cfg.spin_number,
+              spin_count: cfg.spin_count,
+              win_rate: cfg.win_rate,
+              max_wins: cfg.max_wins,
+              special_conditions: cfg.special_conditions,
+            })
+            .select("id")
+            .single();
+
+          if (newCfg?.id) {
+            const { data: spinRewards } = await db.from("rule_spin_rewards").select("*").eq("spin_config_id", cfg.id);
+            for (const rw of spinRewards || []) {
+              await db.from("rule_spin_rewards").insert({
+                spin_config_id: newCfg.id,
+                reward_id: rw.reward_id,
+                probability: rw.probability,
+                quantity: rw.quantity,
+                remaining_quantity: rw.quantity,
+              });
+            }
+          }
+        }
+      }
     }
   }
 
@@ -177,6 +215,7 @@ export async function importCampaignParticipants({ db, campaignId, rows = [], im
         const assignments = row.denominations.map((denom) => {
           const reward = matchDenominationToReward(denom, rewards || []);
           return {
+            campaign_id: campaign.id,
             customer_id: custId,
             code: `${reward.code_prefix}_${Date.now().toString(36).toUpperCase()}_${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
             title: reward.title,

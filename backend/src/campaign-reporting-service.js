@@ -88,14 +88,14 @@ export async function getCampaignAnalytics({ db, campaignId }) {
 export async function generateCampaignExportCsv({ db, campaignId }) {
   const { data: rows } = await db
     .from("awards")
-    .select("code,title,value,status,issued_at,customers(name,phone)")
+    .select("code,title_snapshot,value_snapshot,status,issued_at,customers(name,phone)")
     .eq("campaign_id", campaignId)
     .order("issued_at", { ascending: false });
 
   const mapped = (rows || []).map((r) => ({
     code: r.code,
-    title: r.title,
-    value: r.value,
+    title: r.title_snapshot,
+    value: r.value_snapshot,
     status: r.status,
     issuedAt: r.issued_at,
     customerName: r.customers?.name || "",
