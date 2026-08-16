@@ -4,6 +4,7 @@ import { supabase } from "../supabase.js";
 import { requireAdmin, requireParticipant } from "../middleware.js";
 import { assertPreviewAuthAllowed, createParticipantSession, resolveZaloPhone } from "../participant-auth.js";
 import { parseAwardsPagination, listParticipantAwards } from "../award-service.js";
+import { getActiveCampaign } from "../campaign-service.js";
 import { syncSpinToGoogleSheets } from "../google-sheets-service.js";
 import { spinOnce } from "../spin-service.js";
 import { asyncRoute, isValidVietnamesePhone, mapAssignment, mapBanner, mapCustomer, mapReward, normalizePhone, publicError } from "../utils.js";
@@ -67,16 +68,26 @@ async function loadParticipantResponse(row, session) {
 }
 
 router.get("/content", asyncRoute(async (_req, res) => {
-  const [banners, rewards, settings] = await Promise.all([
+  const [banners, rewards, settings, activeCampaign] = await Promise.all([
     supabase.from("banners").select("id,title,image_url,link_url,active,display_order").eq("active", true).order("display_order", { ascending: true }),
     supabase.from("reward_catalog").select("id,code_prefix,title,value,description,wheel_label,symbol,active").eq("active", true).order("value", { ascending: false }),
     supabase.from("program_settings").select("key,value").eq("key", "program_rules").maybeSingle(),
+    getActiveCampaign({ db: supabase }),
   ]);
   for (const result of [banners, rewards, settings]) if (result.error) throw result.error;
   res.json({
     banners: (banners.data || []).map(mapBanner),
     rewards: (rewards.data || []).map(mapReward),
     rules: settings.data?.value || null,
+    campaign: activeCampaign ? {
+      id: activeCampaign.id,
+      code: activeCampaign.code,
+      name: activeCampaign.name,
+      status: activeCampaign.status,
+      startsAt: activeCampaign.startsAt,
+      endsAt: activeCampaign.endsAt,
+      timezone: activeCampaign.timezone,
+    } : null,
     // Only expose a boolean; never expose the ZBS credentials to the Mini App.
     zbsConfigured: Boolean(config.zbsApiKey && config.zbsTemplateId),
   });
