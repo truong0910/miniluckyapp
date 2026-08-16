@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { createClient } from "@supabase/supabase-js";
 
 const migrationPath = path.resolve(
   process.cwd(),
@@ -47,3 +48,65 @@ test("phase 2B.1 migration declares awards and voucher snapshots", async () => {
     assert.ok(sql.includes(declaration), `missing migration declaration: ${declaration}`);
   }
 });
+
+const testUrl = process.env.SUPABASE_TEST_URL;
+const testKey = process.env.SUPABASE_TEST_SERVICE_ROLE_KEY;
+
+test(
+  "awards backfill creates one issued snapshot for every resolvable reward spin event",
+  {
+    skip: !testUrl || !testKey
+      ? "set SUPABASE_TEST_URL and SUPABASE_TEST_SERVICE_ROLE_KEY for opt-in DB integration"
+      : false,
+  },
+  async () => {
+    const db = createClient(testUrl, testKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { data: awards, error: awardsError } = await db.from("awards").select("id").limit(1);
+    assert.ifError(awardsError);
+    assert.ok(Array.isArray(awards));
+
+    const { data: events, error: eventsError } = await db
+      .from("spin_events")
+      .select("id,campaign_id,customer_id,reward_id,reward_code")
+      .eq("outcome", "reward")
+      .not("customer_id", "is", null)
+      .not("reward_code", "is", null);
+    assert.ifError(eventsError);
+
+    for (const event of (events ?? []).filter((item) => item.reward_code.trim() !== "")) {
+      const [{ data: customerReward, error: customerRewardError }, { data: catalogReward, error: catalogRewardError }] = await Promise.all([
+        db
+          .from("customer_rewards")
+          .select("title,value")
+          .eq("customer_id", event.customer_id)
+          .eq("code", event.reward_code)
+          .maybeSingle(),
+        event.reward_id
+          ? db.from("reward_catalog").select("title,value").eq("id", event.reward_id).maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
+      ]);
+      assert.ifError(customerRewardError);
+      assert.ifError(catalogRewardError);
+
+      const title = customerReward?.title ?? catalogReward?.title;
+      const value = customerReward?.value ?? catalogReward?.value;
+      if (!title?.trim() || !value || value <= 0) continue;
+
+      const { data: matchingAwards, error: matchingAwardsError } = await db
+        .from("awards")
+        .select("campaign_id,code,value_snapshot,status")
+        .eq("spin_event_id", event.id);
+      assert.ifError(matchingAwardsError);
+      assert.equal(matchingAwards?.length, 1, `expected one award for spin event ${event.id}`);
+
+      const [award] = matchingAwards;
+      assert.equal(award.campaign_id, event.campaign_id);
+      assert.equal(award.code, event.reward_code);
+      assert.equal(award.value_snapshot, value);
+      assert.equal(award.status, "issued");
+    }
+  },
+);
