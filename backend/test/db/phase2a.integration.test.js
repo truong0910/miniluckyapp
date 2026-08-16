@@ -1,6 +1,7 @@
 import "dotenv/config";
 import test from "node:test";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
@@ -44,7 +45,7 @@ test("legacy campaign defaults are applied to fixture rewards and spin events", 
   try {
     const { error: customerError } = await db.from("customers").insert({
       id: fixtureId,
-      phone: `090${String(Date.now()).slice(-7)}`,
+      phone: `090${randomUUID().replace(/\D/g, "").slice(0, 7)}`,
       name: "Phase 2A Integration Test",
       sex: "other",
       job: "other",
