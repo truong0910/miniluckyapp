@@ -1,4 +1,4 @@
--- Migration 0008: Unlisted Customer Access Policy & Registration Source
+-- Migration 0010: Unlisted Customer Access Policy & Registration Source
 
 alter table public.campaigns
   add column if not exists allow_unlisted boolean not null default false,
@@ -28,4 +28,3 @@ alter table public.campaign_rules
 alter table public.campaign_rules
   add constraint campaign_rules_scope_check
   check (scope in ('default', 'group', 'user', 'guest'));
-

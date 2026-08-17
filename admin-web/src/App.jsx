@@ -3,6 +3,7 @@ import { api, auth, downloadFile, fileToDataUrl, login, logout, setUnauthorizedH
 import { parseCsvToRows, parseWorkbookToRows } from "./import-parser.js";
 import EventWorkspace from "./features/operator/EventWorkspace.jsx";
 import EventWizard from "./features/operator/EventWizard.jsx";
+import LogoImg from "./assets/logo.png";
 
 const EMPTY_REWARD = { codePrefix: "", title: "", value: "", description: "", wheelLabel: "", symbol: "star", active: true };
 const EMPTY_BANNER = { title: "", imageUrl: "", linkUrl: "", active: true, order: 0 };
@@ -12,15 +13,91 @@ function Login({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const submit = async (event) => { event.preventDefault(); setError(""); try { await login(email, password); onLogin(); } catch (e) { setError(e.message); } };
-  return <main className="login-shell"><form className="login-card" onSubmit={submit}><div className="eyebrow">LUCKY WHEELS</div><h1>Đăng nhập quản trị</h1><p>Backend riêng bảo vệ dữ liệu Supabase.</p><label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label><label>Mật khẩu<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>{error && <div className="error">{error}</div>}<button className="primary">Đăng nhập</button></form></main>;
+  const submit = async (event) => {
+    event.preventDefault();
+    setError("");
+    try {
+      await login(email, password);
+      onLogin();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+  return (
+    <main className="login-shell">
+      <form className="login-card" onSubmit={submit}>
+        <div style={{ textAlign: "center", marginBottom: "8px" }}>
+          <img src={LogoImg} alt="Hồng Phúc Glass Logo" style={{ height: "48px", objectFit: "contain" }} />
+        </div>
+        <div className="eyebrow" style={{ textAlign: "center" }}>HỒNG PHÚC GLASS</div>
+        <h1 style={{ textAlign: "center", fontSize: "22px" }}>Đăng nhập Quản trị</h1>
+        <p style={{ textAlign: "center" }}>Cổng thông tin quản lý sự kiện tri ân khách hàng Hồng Phúc Glass.</p>
+        <label>
+          Email
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </label>
+        <label>
+          Mật khẩu
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        </label>
+        {error && <div className="error">{error}</div>}
+        <button className="primary">Đăng nhập</button>
+      </form>
+    </main>
+  );
 }
 
 function Shell({ tab, setTab, onLogout, children }) {
-  return <div className="app-shell"><aside><div className="brand"><span>LW</span><div><strong>Lucky Wheels</strong><small>Admin Console</small></div></div><nav>{[["overview", "Tổng quan"], ["campaigns", "Sự kiện"], ["participants", "Khách sự kiện"], ["groups", "Nhóm khách"], ["banners", "Banner"], ["rewards", "Giải thưởng"], ["customers", "Khách hàng"], ["awards", "Kho Voucher"], ["campaign", "Luật quay"], ["rules", "Thể lệ"]].map(([id, label]) => <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>{label}</button>)}</nav><button className="logout" onClick={onLogout}>Đăng xuất</button></aside><main className="content">{children}</main></div>;
+  return (
+    <div className="app-shell">
+      <aside>
+        <div className="brand">
+          <div style={{ width: "42px", height: "42px", borderRadius: "10px", background: "#fff", display: "grid", placeItems: "center", padding: "4px" }}>
+            <img src={LogoImg} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+          </div>
+          <div>
+            <strong>Hồng Phúc Glass</strong>
+            <small>Hệ thống Quản trị</small>
+          </div>
+        </div>
+        <nav>
+          {[
+            ["overview", "Tổng quan"],
+            ["campaigns", "Sự kiện"],
+            ["participants", "Khách sự kiện"],
+            ["groups", "Nhóm khách"],
+            ["banners", "Banner"],
+            ["rewards", "Giải thưởng"],
+            ["customers", "Khách hàng"],
+            ["awards", "Kho Voucher"],
+            ["campaign", "Luật quay"],
+            ["rules", "Thể lệ"],
+          ].map(([id, label]) => (
+            <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>
+              {label}
+            </button>
+          ))}
+        </nav>
+        <button className="logout" onClick={onLogout}>
+          Đăng xuất
+        </button>
+      </aside>
+      <main className="content">{children}</main>
+    </div>
+  );
 }
 
-function Header({ title, subtitle }) { return <header className="page-header"><div><div className="eyebrow">ADMIN WEB · BACKEND API</div><h1>{title}</h1><p>{subtitle}</p></div></header>; }
+function Header({ title, subtitle }) {
+  return (
+    <header className="page-header">
+      <div>
+        <div className="eyebrow">HỒNG PHÚC GLASS · HỆ THỐNG QUẢN TRỊ</div>
+        <h1>{title}</h1>
+        <p>{subtitle}</p>
+      </div>
+    </header>
+  );
+}
 
 function Overview() {
   const [campaigns, setCampaigns] = useState([]);
@@ -29,10 +106,12 @@ function Overview() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api("/admin/campaigns").then((r) => {
-      setCampaigns(r.items || []);
-      if (r.items?.[0]) setSelectedCampaignId(r.items[0].id);
-    }).catch((e) => setError(e.message));
+    api("/admin/campaigns")
+      .then((r) => {
+        setCampaigns(r.items || []);
+        if (r.items?.[0]) setSelectedCampaignId(r.items[0].id);
+      })
+      .catch((e) => setError(e.message));
   }, []);
 
   useEffect(() => {
@@ -55,7 +134,7 @@ function Overview() {
 
   return (
     <>
-      <Header title="Tổng quan Báo cáo (Dashboard)" subtitle="Theo dõi số liệu thực tế theo từng sự kiện và đồng bộ Google Sheets." />
+      <Header title="Tổng quan Báo cáo (Dashboard)" subtitle="Theo dõi chỉ số hiệu quả sự kiện và thống kê phát thưởng real-time." />
       {error && <div className="error">{error}</div>}
       <section className="panel">
         <div className="panel-heading">
@@ -63,24 +142,55 @@ function Overview() {
           <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
             <select value={selectedCampaignId} onChange={(e) => setSelectedCampaignId(e.target.value)} style={{ padding: "8px 12px" }}>
               {campaigns.map((c) => (
-                <option key={c.id} value={c.id}>{c.name} ({c.code}) — {c.status}</option>
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.code}) — {c.status}
+                </option>
               ))}
             </select>
-            <button className="primary" onClick={exportCsv}>Xuất Báo cáo CSV</button>
+            <button className="primary" onClick={exportCsv}>
+              Xuất Báo cáo CSV
+            </button>
           </div>
         </div>
         <div className="stats" style={{ marginTop: "16px" }}>
-          <div className="stat"><span>Thành viên sự kiện</span><strong>{m.totalParticipants ?? "—"}</strong></div>
-          <div className="stat"><span>Lượt quay đã cấp</span><strong>{m.totalAllocatedSpins ?? "—"}</strong></div>
-          <div className="stat"><span>Lượt đã sử dụng</span><strong>{m.totalSpinsUsed ?? "—"}</strong></div>
-          <div className="stat"><span>Voucher trúng</span><strong>{m.awardsTotal ?? "—"}</strong></div>
-          <div className="stat"><span>Voucher đã đổi</span><strong>{m.awardsRedeemed ?? "—"}</strong></div>
+          <div className="stat">
+            <span>Thành viên sự kiện</span>
+            <strong>{m.totalParticipants ?? "—"}</strong>
+          </div>
+          <div className="stat">
+            <span>Lượt quay đã cấp</span>
+            <strong>{m.totalAllocatedSpins ?? "—"}</strong>
+          </div>
+          <div className="stat">
+            <span>Lượt đã sử dụng</span>
+            <strong>{m.totalSpinsUsed ?? "—"}</strong>
+          </div>
+          <div className="stat">
+            <span>Voucher trúng</span>
+            <strong>{m.awardsTotal ?? "—"}</strong>
+          </div>
+          <div className="stat">
+            <span>Voucher đã đổi</span>
+            <strong>{m.awardsRedeemed ?? "—"}</strong>
+          </div>
         </div>
       </section>
       <section className="panel">
-        <h2>Kiến trúc vận hành đa sự kiện</h2>
-        <p>Hệ thống tự động đồng bộ kết quả từng lượt quay và voucher sang Google Sheets kèm <code>campaign_id</code> và <code>campaign_name</code> mà không xóa lịch sử cũ.</p>
-        <div className="architecture"><span>Mini App</span><b>→</b><span>Backend :8787</span><b>←</b><span>Admin Web :5174</span><i>↕</i><span>Supabase & Google Sheets</span></div>
+        <h2>Trạng thái Vận hành Hệ thống</h2>
+        <div className="status-overview-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "16px", marginTop: "12px" }}>
+          <div style={{ padding: "16px", borderRadius: "12px", background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+            <span style={{ fontSize: "12px", color: "#64748b", fontWeight: "700" }}>SỰ KIỆN KHÁCH HÀNG</span>
+            <strong style={{ display: "block", fontSize: "16px", color: "#1e293b", marginTop: "4px" }}>Hồng Phúc Glass</strong>
+          </div>
+          <div style={{ padding: "16px", borderRadius: "12px", background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+            <span style={{ fontSize: "12px", color: "#64748b", fontWeight: "700" }}>BÁO CÁO REALTIME</span>
+            <strong style={{ display: "block", fontSize: "16px", color: "#166534", marginTop: "4px" }}>Tự động đồng bộ</strong>
+          </div>
+          <div style={{ padding: "16px", borderRadius: "12px", background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+            <span style={{ fontSize: "12px", color: "#64748b", fontWeight: "700" }}>BẢO MẬT DỮ LIỆU</span>
+            <strong style={{ display: "block", fontSize: "16px", color: "#1e293b", marginTop: "4px" }}>Xác minh Zalo OA</strong>
+          </div>
+        </div>
       </section>
     </>
   );

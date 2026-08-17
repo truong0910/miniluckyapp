@@ -138,7 +138,7 @@ export default function LaunchChecklist({ campaign, onTransitionStatus, onNextSt
           <h3>Chế độ Quay thử (Dry-Run Simulation)</h3>
           <p className="text-xs text-slate-300">
             Mô phỏng lượt quay của một số điện thoại bất kỳ. Chế độ này <strong>không ghi dữ liệu</strong>, không trừ
-            tồn kho và không gửi ZNS/Google Sheets.
+            tồn kho và không phát hành voucher thật.
           </p>
 
           <form onSubmit={handleDryRun} className="dry-run-form mt-4">

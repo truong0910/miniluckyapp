@@ -89,15 +89,13 @@ export default function EventDashboard({ campaign, onNavigateStep }) {
           </div>
 
           <div className="operator-card-section">
-            <h3>Tự động đồng bộ Google Sheets</h3>
+            <h3>Trạng thái Báo cáo Realtime</h3>
             <p>
-              Mỗi lượt quay trúng quà được tự động ghi nhận trực tiếp vào cơ sở dữ liệu Supabase và đồng bộ sang
-              Google Sheets theo mã sự kiện <code>{campaign?.code}</code>.
+              Mỗi lượt quay trúng quà được tự động ghi nhận trực tiếp theo mã sự kiện <code>{campaign?.code}</code> và bảo lưu lịch sử thống kê thương hiệu Hồng Phúc Glass.
             </p>
             <div className="sheets-sync-status">
               <span className="dot-active"></span>
-              <strong>Google Sheets Sync Agent: Active</strong>
-              <small>(Không làm mất dữ liệu lịch sử các sự kiện trước)</small>
+              <strong>Hệ thống Báo cáo Realtime: Đang hoạt động</strong>
             </div>
           </div>
         </>
