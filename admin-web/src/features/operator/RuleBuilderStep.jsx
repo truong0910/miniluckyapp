@@ -157,8 +157,10 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
                 value={form.scope}
                 onChange={(e) => setForm({ ...form, scope: e.target.value })}
               >
-                <option value="default">Tất cả khách hàng sự kiện</option>
-                <option value="group">Nhóm khách hàng đặc biệt</option>
+                <option value="default">Tất cả khách hàng trong sự kiện (Mặc định)</option>
+                <option value="guest">Khách ngoài danh sách (Tự đăng ký Zalo/preview)</option>
+                <option value="group">Nhóm khách hàng cụ thể</option>
+                <option value="user">Khách hàng chỉ định riêng (Override)</option>
               </select>
             </div>
 

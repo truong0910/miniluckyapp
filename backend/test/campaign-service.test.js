@@ -19,6 +19,8 @@ test("parseCampaignInput normalizes code and defaults timezone", () => {
       startsAt: null,
       endsAt: null,
       timezone: "Asia/Ho_Chi_Minh",
+      allowUnlisted: false,
+      unlistedSpinQuota: 1,
     },
   );
 });

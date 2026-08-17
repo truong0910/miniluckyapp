@@ -15,8 +15,14 @@ import {
 } from "../campaign-service.js";
 import {
   cloneCampaign,
+  ensureCampaignParticipant,
+  getParticipantDetail,
+  getParticipantPlannedRewards,
   importCampaignParticipants,
+  issueManualAward,
   listCampaignParticipants,
+  updateParticipantPlannedRewards,
+  updateParticipantQuotaStatus,
 } from "../campaign-reuse-service.js";
 import {
   getCampaignInventorySummary,
@@ -284,6 +290,58 @@ router.post("/campaigns/:id/participants/import", requireAdmin, asyncRoute(async
     importMode: req.body?.importMode || "voucher",
   });
   res.json(result);
+}));
+
+router.get("/campaigns/:campaignId/participants/:customerId", requireAdmin, asyncRoute(async (req, res) => {
+  const item = await getParticipantDetail({
+    db: supabase,
+    campaignId: req.params.campaignId,
+    customerId: req.params.customerId,
+  });
+  res.json(item);
+}));
+
+router.put("/campaigns/:campaignId/participants/:customerId", requireAdmin, asyncRoute(async (req, res) => {
+  const item = await updateParticipantQuotaStatus({
+    db: supabase,
+    campaignId: req.params.campaignId,
+    customerId: req.params.customerId,
+    status: req.body?.status,
+    spinQuota: req.body?.spinQuota,
+  });
+  res.json(item);
+}));
+
+router.get("/campaigns/:campaignId/participants/:customerId/rewards", requireAdmin, asyncRoute(async (req, res) => {
+  const items = await getParticipantPlannedRewards({
+    db: supabase,
+    campaignId: req.params.campaignId,
+    customerId: req.params.customerId,
+  });
+  res.json({ items });
+}));
+
+router.put("/campaigns/:campaignId/participants/:customerId/rewards", requireAdmin, asyncRoute(async (req, res) => {
+  const items = await updateParticipantPlannedRewards({
+    db: supabase,
+    campaignId: req.params.campaignId,
+    customerId: req.params.customerId,
+    assignments: Array.isArray(req.body?.assignments) ? req.body.assignments : [],
+  });
+  res.json({ items });
+}));
+
+router.post("/campaigns/:campaignId/participants/:customerId/manual-awards", requireAdmin, asyncRoute(async (req, res) => {
+  const item = await issueManualAward({
+    db: supabase,
+    campaignId: req.params.campaignId,
+    customerId: req.params.customerId,
+    rewardId: req.body?.rewardId,
+    code: req.body?.code,
+    reason: req.body?.reason,
+    issuedBy: req.admin?.email || "admin",
+  });
+  res.status(201).json(item);
 }));
 
 router.post("/awards/:id/redeem", requireAdmin, asyncRoute(async (req, res) => {

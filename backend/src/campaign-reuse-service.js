@@ -333,7 +333,7 @@ export async function listCampaignParticipants({ db, campaignId, page = 1, limit
     customerPhone: row.customers?.phone || "",
     status: row.status,
     spinQuota: row.spin_quota,
-    importedGroup: row.imported_group || "",
+    registrationSource: row.registration_source || "admin",
     createdAt: row.created_at,
   }));
 
@@ -342,6 +342,198 @@ export async function listCampaignParticipants({ db, campaignId, page = 1, limit
     page,
     limit,
     total: count || 0,
+    totalPages: Math.ceil((count || 0) / limit),
     hasMore: start + items.length < (count || 0),
   };
 }
+
+export async function ensureCampaignParticipant({ db, campaignId, customerId, registrationSource = "zalo_guest" }) {
+  if (!campaignId || !customerId) return null;
+
+  const { data: existing, error: findError } = await db
+    .from("campaign_participants")
+    .select("id,campaign_id,customer_id,status,spin_quota,imported_group,registration_source,created_at")
+    .eq("campaign_id", campaignId)
+    .eq("customer_id", customerId)
+    .maybeSingle();
+
+  if (findError) throw findError;
+  if (existing) return existing;
+
+  const { data: campaign, error: cmpError } = await db
+    .from("campaigns")
+    .select("id,allow_unlisted,unlisted_spin_quota,status")
+    .eq("id", campaignId)
+    .maybeSingle();
+
+  if (cmpError) throw cmpError;
+  if (!campaign) throw publicError("Không tìm thấy sự kiện", 404);
+
+  if (!campaign.allow_unlisted) {
+    throw publicError("Khách chưa được đăng ký trong sự kiện này", 403, "P0003");
+  }
+
+  const quota = Math.max(0, Number(campaign.unlisted_spin_quota ?? 1));
+  const record = {
+    campaign_id: campaignId,
+    customer_id: customerId,
+    status: "active",
+    spin_quota: quota,
+    registration_source: registrationSource,
+  };
+
+  const { data: created, error: insertError } = await db
+    .from("campaign_participants")
+    .upsert(record, { onConflict: "campaign_id,customer_id" })
+    .select("id,campaign_id,customer_id,status,spin_quota,imported_group,registration_source,created_at")
+    .single();
+
+  if (insertError) throw insertError;
+  return created;
+}
+
+export async function getParticipantDetail({ db, campaignId, customerId }) {
+  const { data: participant, error: pErr } = await db
+    .from("campaign_participants")
+    .select("id,campaign_id,customer_id,status,spin_quota,imported_group,registration_source,created_at,customers(name,phone,sex,job)")
+    .eq("campaign_id", campaignId)
+    .eq("customer_id", customerId)
+    .maybeSingle();
+
+  if (pErr) throw pErr;
+
+  const { data: customer } = await db
+    .from("customers")
+    .select("id,name,phone,sex,job")
+    .eq("id", customerId)
+    .maybeSingle();
+
+  // Count spins used in this campaign
+  const { count: spinsUsed } = await db
+    .from("spin_events")
+    .select("id", { count: "exact", head: true })
+    .eq("campaign_id", campaignId)
+    .eq("customer_id", customerId);
+
+  return {
+    campaignId,
+    customerId,
+    customerName: customer?.name || participant?.customers?.name || customerId,
+    customerPhone: customer?.phone || participant?.customers?.phone || "",
+    sex: customer?.sex || "other",
+    job: customer?.job || "other",
+    status: participant?.status || "none",
+    spinQuota: participant?.spin_quota || 0,
+    spinsUsed: spinsUsed || 0,
+    spinsRemaining: Math.max(0, (participant?.spin_quota || 0) - (spinsUsed || 0)),
+    importedGroup: participant?.imported_group || "",
+    registrationSource: participant?.registration_source || "none",
+    hasParticipant: Boolean(participant),
+  };
+}
+
+export async function updateParticipantQuotaStatus({ db, campaignId, customerId, status, spinQuota }) {
+  let participant = await ensureCampaignParticipant({ db, campaignId, customerId, registrationSource: "admin" });
+
+  const patch = {};
+  if (status && ["active", "paused", "removed"].includes(status)) patch.status = status;
+  if (spinQuota !== undefined) patch.spin_quota = Math.max(0, Number(spinQuota));
+
+  const { data, error } = await db
+    .from("campaign_participants")
+    .update(patch)
+    .eq("campaign_id", campaignId)
+    .eq("customer_id", customerId)
+    .select("id,campaign_id,customer_id,status,spin_quota,imported_group,registration_source,created_at")
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getParticipantPlannedRewards({ db, campaignId, customerId }) {
+  const { data, error } = await db
+    .from("customer_rewards")
+    .select("id,code,title,value,description,wheel_label,result,created_at")
+    .eq("campaign_id", campaignId)
+    .eq("customer_id", customerId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  return data || [];
+}
+
+export async function updateParticipantPlannedRewards({ db, campaignId, customerId, assignments = [] }) {
+  // Check if customer has executed any spin in this campaign
+  const { count: spinCount } = await db
+    .from("spin_events")
+    .select("id", { count: "exact", head: true })
+    .eq("campaign_id", campaignId)
+    .eq("customer_id", customerId);
+
+  if (spinCount > 0) {
+    throw publicError("Khách đã quay, không thể sửa voucher cấp sẵn. Vui lòng sử dụng tính năng Cấp quà bổ sung.", 400);
+  }
+
+  // Delete current campaign planned rewards
+  await db.from("customer_rewards").delete().eq("campaign_id", campaignId).eq("customer_id", customerId);
+
+  if (Array.isArray(assignments) && assignments.length > 0) {
+    const records = assignments.map((item) => ({
+      campaign_id: campaignId,
+      customer_id: customerId,
+      code: String(item.code || "").trim(),
+      title: String(item.title || "").trim(),
+      value: Number(item.value || 0),
+      description: String(item.description || ""),
+      wheel_label: item.wheelLabel || item.wheel_label || `${Number(item.value || 0).toLocaleString("vi-VN")}đ`,
+      result: item.result || ["star", "star", "star"],
+    })).filter((item) => item.code && item.value > 0);
+
+    if (records.length > 0) {
+      const { error: insErr } = await db.from("customer_rewards").insert(records);
+      if (insErr) throw insErr;
+    }
+  }
+
+  return getParticipantPlannedRewards({ db, campaignId, customerId });
+}
+
+export async function issueManualAward({ db, campaignId, customerId, rewardId, code, reason, issuedBy = "admin" }) {
+  if (!reason || !reason.trim()) {
+    throw publicError("Lý do cấp quà bổ sung là bắt buộc", 400);
+  }
+
+  const { data: reward, error: rErr } = await db
+    .from("reward_catalog")
+    .select("id,code_prefix,title,value,description,wheel_label,symbol")
+    .eq("id", rewardId)
+    .single();
+
+  if (rErr || !reward) throw publicError("Giải thưởng không hợp lệ", 404);
+
+  const awardCode = String(code || `${reward.code_prefix || "AWD"}-${Date.now()}`).trim();
+
+  const record = {
+    campaign_id: campaignId,
+    customer_id: customerId,
+    reward_id: reward.id,
+    status: "issued",
+    code: awardCode,
+    title_snapshot: reward.title,
+    value_snapshot: reward.value,
+    description_snapshot: reward.description || "",
+    result: [reward.symbol || "star", reward.symbol || "star", reward.symbol || "star"],
+    issued_at: new Date().toISOString(),
+  };
+
+  const { data: created, error: insErr } = await db
+    .from("awards")
+    .insert(record)
+    .select()
+    .single();
+
+  if (insErr) throw insErr;
+  return created;
+}
+

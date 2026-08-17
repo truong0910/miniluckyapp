@@ -32,6 +32,8 @@ export default function EventSetupStep({ campaign, campaigns = [], onSelectCampa
               startsAt: form.startsAt || null,
               endsAt: form.endsAt || null,
               timezone: form.timezone || "Asia/Ho_Chi_Minh",
+              allowUnlisted: Boolean(form.allowUnlisted),
+              unlistedSpinQuota: Number(form.unlistedSpinQuota ?? 1),
               cloneMode,
             }),
           });
@@ -47,6 +49,8 @@ export default function EventSetupStep({ campaign, campaigns = [], onSelectCampa
               startsAt: form.startsAt || null,
               endsAt: form.endsAt || null,
               timezone: form.timezone || "Asia/Ho_Chi_Minh",
+              allowUnlisted: Boolean(form.allowUnlisted),
+              unlistedSpinQuota: Number(form.unlistedSpinQuota ?? 1),
             }),
           });
           setSuccessMsg(`Đã tạo sự kiện mới thành công! (Mã: ${result.code})`);
@@ -62,6 +66,8 @@ export default function EventSetupStep({ campaign, campaigns = [], onSelectCampa
             startsAt: form.startsAt || null,
             endsAt: form.endsAt || null,
             timezone: form.timezone || "Asia/Ho_Chi_Minh",
+            allowUnlisted: Boolean(form.allowUnlisted),
+            unlistedSpinQuota: Number(form.unlistedSpinQuota ?? 1),
           }),
         });
         setSuccessMsg("Đã cập nhật thông tin sự kiện!");
@@ -212,6 +218,43 @@ export default function EventSetupStep({ campaign, campaigns = [], onSelectCampa
               value={form.endsAt ? new Date(form.endsAt).toISOString().slice(0, 16) : ""}
               onChange={(e) => setForm({ ...form, endsAt: e.target.value })}
             />
+          </div>
+        </div>
+
+        {/* UNLISTED CUSTOMER ACCESS POLICY SECTION */}
+        <div className="operator-card-section highlight-box" style={{ marginTop: "16px", marginBottom: "16px" }}>
+          <h4 style={{ margin: "0 0 12px 0", fontSize: "15px", color: "#1e293b" }}>Chính sách Khách ngoài danh sách (Zalo Auto-Enroll)</h4>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <label className="radio-label" style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={Boolean(form.allowUnlisted)}
+                onChange={(e) => setForm({ ...form, allowUnlisted: e.target.checked })}
+                style={{ width: "18px", height: "18px" }}
+              />
+              <div>
+                <strong>Cho phép khách chưa có trong danh sách tự đăng ký tham gia</strong>
+                <p style={{ margin: "2px 0 0 0", fontSize: "12px", color: "#64748b" }}>
+                  Khi bật, khách mới truy cập Mini App xác minh số Zalo sẽ tự động được cấp quyền tham gia sự kiện.
+                </p>
+              </div>
+            </label>
+
+            {form.allowUnlisted && (
+              <div className="form-group" style={{ marginTop: "8px", maxWidth: "280px" }}>
+                <label className="form-label">Số lượt quay mặc định cho khách tự đăng ký *</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  className="form-control"
+                  value={form.unlistedSpinQuota ?? 1}
+                  onChange={(e) => setForm({ ...form, unlistedSpinQuota: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                  required
+                />
+                <small className="form-help">Mặc định 1 lượt (Admin có thể chỉnh sửa riêng từng khách sau).</small>
+              </div>
+            )}
           </div>
         </div>
 

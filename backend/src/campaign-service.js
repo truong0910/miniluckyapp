@@ -1,6 +1,6 @@
 import { publicError } from "./utils.js";
 
-const CAMPAIGN_COLUMNS = "id,code,name,status,starts_at,ends_at,timezone,created_at,updated_at";
+const CAMPAIGN_COLUMNS = "id,code,name,status,starts_at,ends_at,timezone,allow_unlisted,unlisted_spin_quota,created_at,updated_at";
 
 export function parseCampaignInput(body = {}, { partial = false } = {}) {
   const codeRaw = String(body.code ?? "").trim().toUpperCase();
@@ -37,6 +37,8 @@ export function parseCampaignInput(body = {}, { partial = false } = {}) {
   }
 
   const timezone = String(body.timezone || "Asia/Ho_Chi_Minh").trim();
+  const allowUnlisted = body.allowUnlisted !== undefined ? Boolean(body.allowUnlisted) : false;
+  const unlistedSpinQuota = Math.max(0, Number(body.unlistedSpinQuota ?? 1));
 
   return {
     code: codeRaw,
@@ -44,6 +46,8 @@ export function parseCampaignInput(body = {}, { partial = false } = {}) {
     startsAt,
     endsAt,
     timezone,
+    allowUnlisted,
+    unlistedSpinQuota,
   };
 }
 
@@ -57,6 +61,8 @@ export function mapCampaignRow(row) {
     startsAt: row.starts_at ?? null,
     endsAt: row.ends_at ?? null,
     timezone: row.timezone || "Asia/Ho_Chi_Minh",
+    allowUnlisted: Boolean(row.allow_unlisted),
+    unlistedSpinQuota: Number(row.unlisted_spin_quota ?? 1),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -97,6 +103,8 @@ export async function createCampaign({ db, input }) {
     starts_at: parsed.startsAt,
     ends_at: parsed.endsAt,
     timezone: parsed.timezone,
+    allow_unlisted: parsed.allowUnlisted,
+    unlisted_spin_quota: parsed.unlistedSpinQuota,
     status: "draft",
   };
 
@@ -119,6 +127,8 @@ export async function updateCampaign({ db, id, input }) {
     starts_at: parsed.startsAt !== undefined ? parsed.startsAt : current.startsAt,
     ends_at: parsed.endsAt !== undefined ? parsed.endsAt : current.endsAt,
     timezone: parsed.timezone || current.timezone,
+    allow_unlisted: input.allowUnlisted !== undefined ? Boolean(input.allowUnlisted) : current.allowUnlisted,
+    unlisted_spin_quota: input.unlistedSpinQuota !== undefined ? Math.max(0, Number(input.unlistedSpinQuota)) : current.unlistedSpinQuota,
     updated_at: new Date().toISOString(),
   };
 

@@ -9,6 +9,8 @@ import { syncSpinToGoogleSheets } from "../google-sheets-service.js";
 import { spinOnce } from "../spin-service.js";
 import { asyncRoute, isValidVietnamesePhone, mapAssignment, mapBanner, mapCustomer, mapReward, normalizePhone, publicError } from "../utils.js";
 
+import { ensureCampaignParticipant } from "../campaign-reuse-service.js";
+
 const router = Router();
 
 async function loadCustomer(customer) {
@@ -124,23 +126,61 @@ router.get("/content", asyncRoute(async (_req, res) => {
   });
 }));
 
-async function findParticipantCustomer(phone) {
+async function findParticipantCustomer(phone, registrationSource = "zalo_guest") {
   const normalizedPhone = normalizePhone(phone);
-  if (!isValidVietnamesePhone(normalizedPhone)) throw publicError("Invalid phone number");
-  const { data: row, error } = await supabase
+  if (!isValidVietnamesePhone(normalizedPhone)) throw publicError("Số điện thoại không hợp lệ");
+
+  let { data: row, error } = await supabase
     .from("customers")
     .select("id,name,phone,sex,job,total_spins,deleted_at")
     .eq("phone", normalizedPhone)
     .is("deleted_at", null)
     .maybeSingle();
+
   if (error) throw error;
-  if (!row) throw publicError("Phone number is not eligible", 404);
+
+  const activeCampaign = await getActiveCampaign({ db: supabase });
+
+  if (!row) {
+    if (!activeCampaign || !activeCampaign.allowUnlisted) {
+      throw publicError("Khách chưa được đăng ký trong sự kiện này", 403, "P0003");
+    }
+
+    const id = `customer-${normalizedPhone}`;
+    const newRecord = {
+      id,
+      phone: normalizedPhone,
+      name: `Khách hàng ${normalizedPhone}`,
+      sex: "other",
+      job: "other",
+      total_spins: 0,
+    };
+
+    const { data: created, error: createError } = await supabase
+      .from("customers")
+      .upsert(newRecord)
+      .select("id,name,phone,sex,job,total_spins,deleted_at")
+      .single();
+
+    if (createError) throw createError;
+    row = created;
+  }
+
+  if (activeCampaign?.id) {
+    await ensureCampaignParticipant({
+      db: supabase,
+      campaignId: activeCampaign.id,
+      customerId: row.id,
+      registrationSource,
+    });
+  }
+
   return row;
 }
 
 router.post("/participant/sessions/preview", asyncRoute(async (req, res) => {
   assertPreviewAuthAllowed(config);
-  const row = await findParticipantCustomer(req.body?.phone);
+  const row = await findParticipantCustomer(req.body?.phone, "zalo_guest");
   const session = await createParticipantSession({ db: supabase, customerId: row.id, authMethod: "preview", ttlSeconds: config.participantSessionTtlSeconds });
   res.status(201).json(await loadParticipantResponse(row, session));
 }));
@@ -153,7 +193,7 @@ router.post("/participant/sessions/zalo", asyncRoute(async (req, res) => {
     appSecret: config.zaloAppSecret,
     baseUrl: config.zaloGraphBaseUrl,
   });
-  const row = await findParticipantCustomer(phone);
+  const row = await findParticipantCustomer(phone, "zalo_guest");
   const zaloName = String(req.body?.zaloName || "").trim();
   if (zaloName && /^(khach hang|khach moi|customer|new customer)\s/i.test(String(row.name || ""))) {
     const { error } = await supabase.from("customers").update({ name: zaloName }).eq("id", row.id);

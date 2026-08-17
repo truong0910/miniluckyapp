@@ -5,6 +5,7 @@ import { parseCsvToRows, parseWorkbookToRows } from "../../import-parser.js";
 import UiAlert from "../../components/common/UiAlert.jsx";
 import ConfirmModal from "../../components/common/ConfirmModal.jsx";
 import UiButton from "../../components/common/UiButton.jsx";
+import ParticipantEditModal from "./ParticipantEditModal.jsx";
 
 export default function AudienceImportStep({ campaign, onNextStep }) {
   // Participant List State
@@ -14,6 +15,9 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState("");
   const [loadingList, setLoadingList] = useState(false);
+
+  // Edit Modal State
+  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
 
   // Import State
   const [file, setFile] = useState(null);
@@ -148,9 +152,10 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
                     <th>Tên khách hàng</th>
                     <th>Số điện thoại</th>
                     <th>Số lượt quay</th>
-                    <th>Nhóm khách</th>
+                    <th>Nguồn tham gia</th>
                     <th>Trạng thái</th>
                     <th>Ngày thêm</th>
+                    <th>Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -160,13 +165,30 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
                       <td><strong>{p.customerName || p.customerId}</strong></td>
                       <td><code>{p.customerPhone || "—"}</code></td>
                       <td><strong>{p.spinQuota} lượt</strong></td>
-                      <td><small>{p.importedGroup || "—"}</small></td>
+                      <td>
+                        <small className="badge-preview">
+                          {p.registrationSource === "zalo_guest"
+                            ? "Zalo Auto-Enroll"
+                            : p.registrationSource === "import"
+                            ? "Import Excel"
+                            : "Admin thêm"}
+                        </small>
+                      </td>
                       <td>
                         <span className={`status-badge ${p.status === "active" ? "badge-active" : "badge-draft"}`}>
                           {p.status || "active"}
                         </span>
                       </td>
                       <td><small>{p.createdAt ? new Date(p.createdAt).toLocaleDateString("vi-VN") : "—"}</small></td>
+                      <td>
+                        <UiButton
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setSelectedCustomerId(p.customerId || p.id)}
+                        >
+                          Sửa
+                        </UiButton>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -368,6 +390,15 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
         loading={importing}
         onConfirm={executeImport}
         onCancel={() => setShowConfirmModal(false)}
+      />
+
+      {/* PARTICIPANT EDIT MODAL */}
+      <ParticipantEditModal
+        isOpen={Boolean(selectedCustomerId)}
+        campaignId={campaign?.id}
+        customerId={selectedCustomerId}
+        onClose={() => setSelectedCustomerId(null)}
+        onSaved={() => loadParticipants(page, search)}
       />
     </div>
   );
