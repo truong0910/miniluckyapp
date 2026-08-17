@@ -27,7 +27,6 @@ export default function ParticipantEditModal({ isOpen, campaignId, customerId, o
   const loadData = async () => {
     if (!campaignId || !customerId || !isOpen) return;
     setError("");
-    setSuccessMsg("");
     try {
       const [dRes, rRes, cRes] = await Promise.all([
         api(`/admin/campaigns/${campaignId}/participants/${customerId}`),

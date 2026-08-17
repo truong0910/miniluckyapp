@@ -4,6 +4,7 @@ import { parseCsvToRows, parseWorkbookToRows } from "./import-parser.js";
 import EventWorkspace from "./features/operator/EventWorkspace.jsx";
 import EventWizard from "./features/operator/EventWizard.jsx";
 import UiAlert from "./components/common/UiAlert.jsx";
+import ConfirmModal from "./components/common/ConfirmModal.jsx";
 import LogoImg from "./assets/logo.png";
 
 const EMPTY_REWARD = { codePrefix: "", title: "", value: "", description: "", wheelLabel: "", symbol: "star", active: true };
@@ -723,7 +724,20 @@ function Awards() {
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [confirmConfig, setConfirmConfig] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    awardId: null,
+    actionType: "", // "redeem" | "resend" | "status"
+    targetStatus: "",
+    reason: "",
+    variant: "primary",
+    loading: false,
+  });
 
   const load = async () => {
     setLoading(true);
@@ -742,51 +756,89 @@ function Awards() {
 
   useEffect(() => { const timer = setTimeout(load, 250); return () => clearTimeout(timer); }, [page, status, search]);
 
-  const redeem = async (id) => {
-    if (!confirm("Xác nhận đổi thưởng cho Voucher này?")) return;
+  const openRedeemModal = (item) => {
     setError("");
-    try {
-      await api(`/admin/awards/${id}/redeem`, { method: "POST" });
-      await load();
-    } catch (e) {
-      setError(e.message);
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: "Xác nhận Đổi thưởng Voucher",
+      message: `Bạn có chắc chắn muốn xác nhận Đổi thưởng cho Voucher [${item.code}] của khách hàng ${item.customerName || ""}?`,
+      awardId: item.id,
+      actionType: "redeem",
+      targetStatus: "",
+      reason: "",
+      variant: "primary",
+      loading: false,
+    });
   };
 
-  const resend = async (id) => {
-    if (!confirm("Gửi lại tin nhắn ZNS cho Voucher này?")) return;
+  const openResendModal = (item) => {
     setError("");
-    try {
-      await api(`/admin/awards/${id}/resend`, { method: "POST" });
-      await load();
-    } catch (e) {
-      setError(e.message);
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: "Gửi lại tin nhắn ZNS",
+      message: `Bạn có chắc chắn muốn gửi lại tin nhắn thông báo Voucher [${item.code}] qua Zalo (ZNS) cho khách hàng ${item.customerName || ""}?`,
+      awardId: item.id,
+      actionType: "resend",
+      targetStatus: "",
+      reason: "",
+      variant: "primary",
+      loading: false,
+    });
   };
 
-  const changeStatus = async (id, targetStatus) => {
-    const reason = prompt(`Nhập lý do chuyển trạng thái sang ${targetStatus.toUpperCase()}:`);
-    if (!reason || !reason.trim()) {
-      alert("Cần nhập lý do hợp lệ.");
+  const openStatusModal = (item, targetStatus) => {
+    setError("");
+    setConfirmConfig({
+      isOpen: true,
+      title: `Xác nhận Chuyển trạng thái sang ${targetStatus.toUpperCase()}`,
+      message: `Vui lòng nhập lý do vận hành khi chuyển Voucher [${item.code}] sang trạng thái ${targetStatus.toUpperCase()}:`,
+      awardId: item.id,
+      actionType: "status",
+      targetStatus,
+      reason: "",
+      variant: "danger",
+      loading: false,
+    });
+  };
+
+  const handleConfirmAction = async () => {
+    const { awardId, actionType, targetStatus, reason } = confirmConfig;
+    if (actionType === "status" && (!reason || !reason.trim())) {
+      setError("Vui lòng nhập lý do vận hành hợp lệ.");
       return;
     }
+
+    setConfirmConfig((prev) => ({ ...prev, loading: true }));
     setError("");
+    setSuccessMsg("");
     try {
-      await api(`/admin/awards/${id}/status`, {
-        method: "POST",
-        body: JSON.stringify({ status: targetStatus, reason: reason.trim() }),
-      });
+      if (actionType === "redeem") {
+        await api(`/admin/awards/${awardId}/redeem`, { method: "POST" });
+        setSuccessMsg("Đã xác nhận đổi thưởng cho Voucher thành công!");
+      } else if (actionType === "resend") {
+        await api(`/admin/awards/${awardId}/resend`, { method: "POST" });
+        setSuccessMsg("Đã gửi lại tin nhắn ZNS thành công!");
+      } else if (actionType === "status") {
+        await api(`/admin/awards/${awardId}/status`, {
+          method: "POST",
+          body: JSON.stringify({ status: targetStatus, reason: reason.trim() }),
+        });
+        setSuccessMsg(`Đã cập nhật trạng thái Voucher sang ${targetStatus.toUpperCase()} thành công!`);
+      }
+      setConfirmConfig({ isOpen: false, title: "", message: "", awardId: null, actionType: "", targetStatus: "", reason: "", variant: "primary", loading: false });
       await load();
     } catch (e) {
       setError(e.message);
+      setConfirmConfig((prev) => ({ ...prev, loading: false }));
     }
   };
 
   return (
     <>
       <Header title="Kho Voucher & Vận hành Awards" subtitle="Tra cứu, đổi thưởng, gửi lại ZNS và hủy/chuyển hết hạn voucher của khách hàng." />
-      {error && <div className="error">{error}</div>}
-      <section className="panel">
+      {error && <UiAlert type="error" onClose={() => setError("")}>{error}</UiAlert>}
+      {successMsg && <UiAlert type="success" onClose={() => setSuccessMsg("")}>{successMsg}</UiAlert>}
+      <section className="panel mt-4">
         <div className="panel-heading">
           <h2>Danh sách Voucher ({total})</h2>
           <div className="filters" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
@@ -832,13 +884,13 @@ function Awards() {
                   <td>{item.issuedAt ? new Date(item.issuedAt).toLocaleString("vi-VN") : "—"}</td>
                   <td style={{ whiteSpace: "nowrap" }}>
                     {item.status !== "redeemed" && (item.status === "issued" || item.status === "delivered") && (
-                      <button className="primary" style={{ padding: "4px 8px", fontSize: "11px", marginRight: "4px" }} onClick={() => redeem(item.id)}>Đổi thưởng</button>
+                      <button className="primary" style={{ padding: "4px 8px", fontSize: "11px", marginRight: "4px" }} onClick={() => openRedeemModal(item)}>Đổi thưởng</button>
                     )}
                     {item.status !== "redeemed" && (
-                      <button style={{ padding: "4px 8px", fontSize: "11px", marginRight: "4px" }} onClick={() => resend(item.id)}>Gửi lại ZNS</button>
+                      <button style={{ padding: "4px 8px", fontSize: "11px", marginRight: "4px" }} onClick={() => openResendModal(item)}>Gửi lại ZNS</button>
                     )}
                     {item.status !== "redeemed" && item.status !== "void" && item.status !== "expired" && (
-                      <button className="danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => changeStatus(item.id, "void")}>Hủy</button>
+                      <button className="danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => openStatusModal(item, "void")}>Hủy</button>
                     )}
                   </td>
                 </tr>
@@ -854,6 +906,31 @@ function Awards() {
           </div>
         </div>
       </section>
+
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        variant={confirmConfig.variant}
+        loading={confirmConfig.loading}
+        confirmText={confirmConfig.actionType === "status" ? "Xác nhận Chuyển" : confirmConfig.actionType === "redeem" ? "Xác nhận Đổi thưởng" : "Gửi lại ZNS"}
+        onConfirm={handleConfirmAction}
+        onCancel={() => setConfirmConfig({ isOpen: false, title: "", message: "", awardId: null, actionType: "", targetStatus: "", reason: "", variant: "primary", loading: false })}
+      >
+        {confirmConfig.actionType === "status" && (
+          <div className="form-group" style={{ marginTop: "12px" }}>
+            <label className="form-label" style={{ fontWeight: "600", marginBottom: "6px", display: "block" }}>Lý do vận hành (Bắt buộc):</label>
+            <textarea
+              className="form-control"
+              rows="3"
+              style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #cbd5e1" }}
+              placeholder="VD: Khách vi phạm quy chế hoặc voucher quá hạn..."
+              value={confirmConfig.reason}
+              onChange={(e) => setConfirmConfig((prev) => ({ ...prev, reason: e.target.value }))}
+            />
+          </div>
+        )}
+      </ConfirmModal>
     </>
   );
 }
