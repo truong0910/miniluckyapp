@@ -124,18 +124,18 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
     <div className="operator-step-container">
       <div className="step-header-banner">
         <div>
-          <h2>⚖️ Cấu hình Luật quay theo Ngôn ngữ Tự nhiên</h2>
+          <h2>Cấu hình Luật quay theo Ngôn ngữ Tự nhiên</h2>
           <p>Thiết lập tỷ lệ trúng và giải thưởng cho sự kiện <strong>{campaign?.name}</strong>.</p>
         </div>
       </div>
 
-      {error && <div className="error-card">⚠️ {error}</div>}
-      {successMsg && <div className="success-card">✅ {successMsg}</div>}
+      {error && <div className="error-card">{error}</div>}
+      {successMsg && <div className="success-card">{successMsg}</div>}
 
       <div className="rule-layout-grid">
         {/* Left column: Natural language form */}
         <form onSubmit={handleSaveRule} className="operator-form-card">
-          <h3>{editingId ? "✏️ Chỉnh sửa Luật quay" : "➕ Thêm Luật quay mới"}</h3>
+          <h3>{editingId ? "Chỉnh sửa Luật quay" : "Thêm Luật quay mới"}</h3>
 
           <div className="form-group">
             <label className="form-label">Tên mô tả luật quay *</label>
@@ -157,8 +157,8 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
                 value={form.scope}
                 onChange={(e) => setForm({ ...form, scope: e.target.value })}
               >
-                <option value="default">🌐 Tất cả khách hàng sự kiện</option>
-                <option value="group">⭐ Nhóm khách hàng đặc biệt</option>
+                <option value="default">Tất cả khách hàng sự kiện</option>
+                <option value="group">Nhóm khách hàng đặc biệt</option>
               </select>
             </div>
 
@@ -238,7 +238,7 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
 
           {/* Natural language preview box */}
           <div className="natural-summary-box">
-            <span className="summary-label">💬 Câu tóm tắt quy tắc sẽ áp dụng:</span>
+            <span className="summary-label">Câu tóm tắt quy tắc sẽ áp dụng:</span>
             <p className="summary-text">{summarySentence}</p>
           </div>
 
@@ -249,7 +249,7 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
               className="accordion-toggle"
               onClick={() => setShowAdvanced(!showAdvanced)}
             >
-              {showAdvanced ? "▼ Ẩn Cài đặt Kỹ thuật Nâng cao" : "▶ Hiển thị Cài đặt Kỹ thuật Nâng cao"}
+              {showAdvanced ? "Ẩn Cài đặt Kỹ thuật Nâng cao" : "Hiển thị Cài đặt Kỹ thuật Nâng cao"}
             </button>
 
             {showAdvanced && (
@@ -283,7 +283,7 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
 
           <div className="form-actions">
             <button type="submit" className="btn-primary">
-              {editingId ? "💾 Cập nhật Luật quay" : "➕ Thêm Luật quay"}
+              {editingId ? "Cập nhật Luật quay" : "Thêm Luật quay"}
             </button>
             {editingId && (
               <button
@@ -302,7 +302,7 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
 
         {/* Right column: List of existing rules */}
         <div className="operator-card-section">
-          <h3>📋 Danh sách Luật quay đang áp dụng ({rules.length})</h3>
+          <h3>Danh sách Luật quay đang áp dụng ({rules.length})</h3>
 
           {loading ? (
             <div className="loading-state">Đang tải danh sách luật quay...</div>
@@ -344,7 +344,7 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
                         });
                       }}
                     >
-                      ✏️ Sửa
+                      Sửa
                     </button>
                   </div>
                 </div>
@@ -354,7 +354,7 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
 
           <div className="mt-6">
             <button className="btn-primary-lg w-full" onClick={() => onNextStep("readiness")}>
-              Tiếp tục: Kiểm tra & Kích hoạt Sự kiện ➔
+              Tiếp tục: Kiểm tra &amp; Kích hoạt Sự kiện -&gt;
             </button>
           </div>
         </div>

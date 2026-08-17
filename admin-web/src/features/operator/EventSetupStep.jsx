@@ -76,13 +76,13 @@ export default function EventSetupStep({ campaign, campaigns = [], onSelectCampa
     <div className="operator-step-container">
       <div className="step-header-banner">
         <div>
-          <h2>⚙️ Thiết lập Sự kiện</h2>
+          <h2>Thiết lập Sự kiện</h2>
           <p>Tạo mới sự kiện, thiết lập thời gian diễn ra hoặc nhân bản cấu hình từ sự kiện cũ.</p>
         </div>
       </div>
 
-      {error && <div className="error-card">⚠️ {error}</div>}
-      {successMsg && <div className="success-card">✅ {successMsg}</div>}
+      {error && <div className="error-card">{error}</div>}
+      {successMsg && <div className="success-card">{successMsg}</div>}
 
       <div className="setup-mode-switcher">
         <button
@@ -92,7 +92,7 @@ export default function EventSetupStep({ campaign, campaigns = [], onSelectCampa
             if (campaign) setForm(campaign);
           }}
         >
-          ✏️ Chỉnh sửa sự kiện hiện tại
+          Chỉnh sửa sự kiện hiện tại
         </button>
 
         <button
@@ -103,7 +103,7 @@ export default function EventSetupStep({ campaign, campaigns = [], onSelectCampa
             setForm(EMPTY_CAMPAIGN);
           }}
         >
-          ➕ Tạo mới hoàn toàn
+          Tạo mới hoàn toàn
         </button>
 
         <button
@@ -114,7 +114,7 @@ export default function EventSetupStep({ campaign, campaigns = [], onSelectCampa
             setForm({ ...EMPTY_CAMPAIGN, name: `Nhân bản từ ${campaigns[0]?.name || ""}` });
           }}
         >
-          📋 Dùng lại sự kiện cũ (Nhân bản)
+          Dùng lại sự kiện cũ (Nhân bản)
         </button>
       </div>
 
@@ -212,10 +212,10 @@ export default function EventSetupStep({ campaign, campaigns = [], onSelectCampa
 
         <div className="form-actions">
           <button type="submit" className="btn-primary" disabled={saving}>
-            {saving ? "Đang lưu..." : isCreatingNew ? "🚀 Tạo sự kiện" : "💾 Lưu thay đổi"}
+            {saving ? "Đang lưu..." : isCreatingNew ? "Tạo sự kiện" : "Lưu thay đổi"}
           </button>
           <button type="button" className="btn-secondary" onClick={() => onNextStep("participants")}>
-            Tiếp tục: Thêm khách tham gia ➔
+            Tiếp tục: Thêm khách tham gia -&gt;
           </button>
         </div>
       </form>

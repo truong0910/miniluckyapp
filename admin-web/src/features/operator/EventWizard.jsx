@@ -6,12 +6,12 @@ import RuleBuilderStep from "./RuleBuilderStep.jsx";
 import LaunchChecklist from "./LaunchChecklist.jsx";
 
 const OPERATOR_STEPS = [
-  { id: "overview", number: 1, title: "Tổng quan", icon: "📊" },
-  { id: "setup", number: 2, title: "Thiết lập", icon: "⚙️" },
-  { id: "participants", number: 3, title: "Khách tham gia", icon: "👥" },
-  { id: "reward_mode", number: 4, title: "Phát thưởng", icon: "🎁" },
-  { id: "rules", number: 5, title: "Luật quay", icon: "⚖️" },
-  { id: "readiness", number: 6, title: "Kích hoạt", icon: "🚀" },
+  { id: "overview", number: 1, title: "Tổng quan" },
+  { id: "setup", number: 2, title: "Thiết lập" },
+  { id: "participants", number: 3, title: "Khách tham gia" },
+  { id: "reward_mode", number: 4, title: "Phát thưởng" },
+  { id: "rules", number: 5, title: "Luật quay" },
+  { id: "readiness", number: 6, title: "Kích hoạt" },
 ];
 
 export default function EventWizard({
@@ -37,7 +37,6 @@ export default function EventWizard({
               onClick={() => onSelectStep(step.id)}
             >
               <span className="step-num">{step.number}</span>
-              <span className="step-icon">{step.icon}</span>
               <span className="step-title">{step.title}</span>
             </button>
           );

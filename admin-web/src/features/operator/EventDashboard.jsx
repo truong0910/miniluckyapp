@@ -32,20 +32,20 @@ export default function EventDashboard({ campaign, onNavigateStep }) {
     <div className="operator-step-container">
       <div className="step-header-banner">
         <div>
-          <h2>📊 Báo cáo & Tổng quan Sự kiện: {campaign?.name}</h2>
+          <h2>Báo cáo & Tổng quan Sự kiện: {campaign?.name}</h2>
           <p>Theo dõi thời gian thực kết quả lượt quay, voucher đã trao và đồng bộ báo cáo.</p>
         </div>
         <div className="banner-actions">
           <button className="btn-primary" onClick={exportCsv}>
-            📥 Xuất Báo cáo CSV
+            Xuất Báo cáo CSV
           </button>
           <button className="btn-secondary" onClick={() => onNavigateStep("participants")}>
-            👥 Quản lý Khách
+            Quản lý Khách
           </button>
         </div>
       </div>
 
-      {error && <div className="error-card">⚠️ {error}</div>}
+      {error && <div className="error-card">{error}</div>}
 
       {loading ? (
         <div className="loading-state">Đang tải số liệu tổng quan...</div>
@@ -53,7 +53,6 @@ export default function EventDashboard({ campaign, onNavigateStep }) {
         <>
           <div className="metrics-grid">
             <div className="metric-card">
-              <span className="metric-icon">👥</span>
               <div className="metric-content">
                 <span className="metric-label">Thành viên sự kiện</span>
                 <strong className="metric-value">{m.totalParticipants ?? 0}</strong>
@@ -61,7 +60,6 @@ export default function EventDashboard({ campaign, onNavigateStep }) {
             </div>
 
             <div className="metric-card">
-              <span className="metric-icon">🎯</span>
               <div className="metric-content">
                 <span className="metric-label">Lượt quay đã cấp</span>
                 <strong className="metric-value">{m.totalAllocatedSpins ?? 0}</strong>
@@ -69,7 +67,6 @@ export default function EventDashboard({ campaign, onNavigateStep }) {
             </div>
 
             <div className="metric-card">
-              <span className="metric-icon">🎰</span>
               <div className="metric-content">
                 <span className="metric-label">Lượt đã sử dụng</span>
                 <strong className="metric-value">{m.totalSpinsUsed ?? 0}</strong>
@@ -77,7 +74,6 @@ export default function EventDashboard({ campaign, onNavigateStep }) {
             </div>
 
             <div className="metric-card highlight">
-              <span className="metric-icon">🎁</span>
               <div className="metric-content">
                 <span className="metric-label">Voucher trúng quà</span>
                 <strong className="metric-value">{m.awardsTotal ?? 0}</strong>
@@ -85,7 +81,6 @@ export default function EventDashboard({ campaign, onNavigateStep }) {
             </div>
 
             <div className="metric-card">
-              <span className="metric-icon">✅</span>
               <div className="metric-content">
                 <span className="metric-label">Voucher đã đổi</span>
                 <strong className="metric-value">{m.awardsRedeemed ?? 0}</strong>
@@ -94,7 +89,7 @@ export default function EventDashboard({ campaign, onNavigateStep }) {
           </div>
 
           <div className="operator-card-section">
-            <h3>🔄 Tự động đồng bộ Google Sheets</h3>
+            <h3>Tự động đồng bộ Google Sheets</h3>
             <p>
               Mỗi lượt quay trúng quà được tự động ghi nhận trực tiếp vào cơ sở dữ liệu Supabase và đồng bộ sang
               Google Sheets theo mã sự kiện <code>{campaign?.code}</code>.

@@ -65,12 +65,12 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
     <div className="operator-step-container">
       <div className="step-header-banner">
         <div>
-          <h2>👥 Thêm Khách tham gia & Import Excel</h2>
+          <h2>Thêm Khách tham gia &amp; Import Excel</h2>
           <p>Tải danh sách khách tham gia sự kiện <strong>{campaign?.name}</strong> từ file Excel/CSV.</p>
         </div>
       </div>
 
-      {error && <div className="error-card">⚠️ {error}</div>}
+      {error && <div className="error-card">{error}</div>}
 
       <div className="operator-card-section">
         <h3>1. Chọn chế độ Import khách hàng</h3>
@@ -84,7 +84,7 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
               onChange={() => setImportMode("voucher")}
             />
             <div>
-              <strong>🎁 Mô hình A: Cấp Voucher quà sẵn theo file</strong>
+              <strong>Mô hình A: Cấp Voucher quà sẵn theo file</strong>
               <p>Mỗi khách có các mệnh giá Voucher cố định ghi trong cột Ghi chú (VD: 5 triệu, 3 triệu).</p>
             </div>
           </label>
@@ -98,7 +98,7 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
               onChange={() => setImportMode("quota")}
             />
             <div>
-              <strong>🎯 Mô hình B: Cấp Lượt quay Khách sự kiện</strong>
+              <strong>Mô hình B: Cấp Lượt quay Khách sự kiện</strong>
               <p>Cấp số lượt quay cho khách để tự quay ngẫu nhiên theo Luật quay trong sự kiện.</p>
             </div>
           </label>
@@ -116,7 +116,6 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
             className="file-input"
           />
           <label htmlFor="file-upload-input" className="file-drop-label">
-            <span className="upload-icon">📁</span>
             <strong>{file ? file.name : "Kéo thả file Excel/CSV vào đây hoặc bấm để chọn file"}</strong>
             <small>Chấp nhận cột: Tên KH, SĐT, Số voucher tặng (hoặc Số lượt quay), Ghi chú, Nhóm khách</small>
           </label>
@@ -178,7 +177,7 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
               onClick={executeImport}
               disabled={importing}
             >
-              {importing ? "Đang xử lý Import..." : "✅ Xác nhận Import dữ liệu"}
+              {importing ? "Đang xử lý Import..." : "Xác nhận Import dữ liệu"}
             </button>
           </div>
         </div>
@@ -186,7 +185,7 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
 
       {importResult && (
         <div className="operator-card-section result-box">
-          <h3>🎉 Kết quả Import</h3>
+          <h3>Kết quả Import</h3>
           <p className="result-stat">
             Đã nhập thành công <strong>{importResult.importedCount} / {importResult.totalRows}</strong> dòng.
           </p>
@@ -196,7 +195,7 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
               <h4>Danh sách lỗi ({importResult.errors.length} dòng):</h4>
               <ul className="error-list">
                 {importResult.errors.map((errStr, idx) => (
-                  <li key={idx}>⚠️ {errStr}</li>
+                  <li key={idx}>{errStr}</li>
                 ))}
               </ul>
             </div>
@@ -204,7 +203,7 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
 
           <div className="form-actions mt-4">
             <button className="btn-secondary" onClick={() => onNextStep("reward_mode")}>
-              Tiếp tục: Cấu hình Mô hình phát thưởng ➔
+              Tiếp tục: Cấu hình Mô hình phát thưởng -&gt;
             </button>
           </div>
         </div>

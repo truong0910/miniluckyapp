@@ -61,19 +61,19 @@ export default function LaunchChecklist({ campaign, onTransitionStatus, onNextSt
     <div className="operator-step-container">
       <div className="step-header-banner">
         <div>
-          <h2>🚀 Kiểm tra & Kích hoạt Sự kiện</h2>
+          <h2>Kiểm tra &amp; Kích hoạt Sự kiện</h2>
           <p>Rà soát danh mục kiểm tra an toàn và quay thử trước khi chính thức mở sự kiện.</p>
         </div>
       </div>
 
-      {error && <div className="error-card">⚠️ {error}</div>}
-      {successMsg && <div className="success-card">✅ {successMsg}</div>}
+      {error && <div className="error-card">{error}</div>}
+      {successMsg && <div className="success-card">{successMsg}</div>}
 
       <div className="launch-grid">
         {/* Left Column: Readiness Checklist */}
         <div className="operator-card-section">
           <div className="checklist-header">
-            <h3>📋 Checklist Kiểm tra An toàn</h3>
+            <h3>Checklist Kiểm tra An toàn</h3>
             {readiness && (
               <span className={`score-badge ${readiness.canActivate ? "pass" : "fail"}`}>
                 {readiness.readinessScore}% Sẵn sàng
@@ -87,7 +87,7 @@ export default function LaunchChecklist({ campaign, onTransitionStatus, onNextSt
             <ul className="checklist-items">
               {readiness?.checks?.map((item) => (
                 <li key={item.key} className={`check-item ${item.passed ? "passed" : "failed"}`}>
-                  <span className="check-icon">{item.passed ? "✅" : "❌"}</span>
+                  <span className="check-icon">{item.passed ? "[Đạt]" : "[Chưa đạt]"}</span>
                   <div className="check-info">
                     <strong>{item.title}</strong>
                     <p>{item.detail}</p>
@@ -100,12 +100,12 @@ export default function LaunchChecklist({ campaign, onTransitionStatus, onNextSt
           <div className="activation-box">
             {campaign?.status === "active" ? (
               <div className="active-banner">
-                <span>🟢 Sự kiện đang ở trạng thái ACTIVE (Đang chạy).</span>
+                <span>Sự kiện đang ở trạng thái ACTIVE (Đang chạy).</span>
                 <button
                   className="btn-warning mt-2"
                   onClick={() => onTransitionStatus(campaign.id, "paused")}
                 >
-                  ⏸️ Tạm dừng sự kiện
+                  Tạm dừng sự kiện
                 </button>
               </div>
             ) : (
@@ -114,7 +114,7 @@ export default function LaunchChecklist({ campaign, onTransitionStatus, onNextSt
                 onClick={handleActivate}
                 disabled={!readiness?.canActivate}
               >
-                🚀 KÍCH HOẠT SỰ KIỆN NGAY
+                KÍCH HOẠT SỰ KIỆN NGAY
               </button>
             )}
           </div>
@@ -122,7 +122,7 @@ export default function LaunchChecklist({ campaign, onTransitionStatus, onNextSt
 
         {/* Right Column: Dry-Run Simulation Sandbox */}
         <div className="operator-card-section dry-run-card">
-          <h3>🎰 Chế độ Quay thử (Dry-Run Simulation)</h3>
+          <h3>Chế độ Quay thử (Dry-Run Simulation)</h3>
           <p className="text-xs text-slate-300">
             Mô phỏng lượt quay của một số điện thoại bất kỳ. Chế độ này <strong>không ghi dữ liệu</strong>, không trừ
             tồn kho và không gửi ZNS/Google Sheets.
@@ -141,7 +141,7 @@ export default function LaunchChecklist({ campaign, onTransitionStatus, onNextSt
             </div>
 
             <button type="submit" className="btn-secondary w-full" disabled={simulating}>
-              {simulating ? "Đang mô phỏng..." : "🎰 Quay thử ngay"}
+              {simulating ? "Đang mô phỏng..." : "Quay thử ngay"}
             </button>
           </form>
 
@@ -155,7 +155,7 @@ export default function LaunchChecklist({ campaign, onTransitionStatus, onNextSt
               <div className="result-field">
                 <span>Kết quả mô phỏng:</span>
                 <strong className={dryRunResult.simulatedOutcome === "reward" ? "text-green" : "text-amber"}>
-                  {dryRunResult.simulatedOutcome === "reward" ? "🎉 TRÚNG QUÀ" : "🍀 MAY MẮN LẦN SAU"}
+                  {dryRunResult.simulatedOutcome === "reward" ? "TRÚNG QUÀ" : "MAY MẮN LẦN SAU"}
                 </strong>
               </div>
 
@@ -166,7 +166,7 @@ export default function LaunchChecklist({ campaign, onTransitionStatus, onNextSt
                 </div>
               )}
 
-              <small className="dry-run-note">ℹ️ {dryRunResult.note}</small>
+              <small className="dry-run-note">Ghi chú: {dryRunResult.note}</small>
             </div>
           )}
         </div>

@@ -77,7 +77,7 @@ export default function EventWorkspace({
                 onClick={() => onNavigateStep("readiness")}
                 title="Chuyển đến màn hình Kiểm tra & Kích hoạt"
               >
-                🚀 Kích hoạt sự kiện
+                Kích hoạt sự kiện
               </button>
             ) : selectedCampaign.status === "active" ? (
               <>
@@ -85,14 +85,14 @@ export default function EventWorkspace({
                   className="btn-action warning"
                   onClick={() => onTransitionStatus(selectedCampaign.id, "paused")}
                 >
-                  ⏸️ Tạm dừng
+                  Tạm dừng
                 </button>
 
                 <button
                   className="btn-action danger"
                   onClick={() => onTransitionStatus(selectedCampaign.id, "ended")}
                 >
-                  🏁 Kết thúc
+                  Kết thúc
                 </button>
               </>
             ) : null}
@@ -101,7 +101,7 @@ export default function EventWorkspace({
               className="btn-action secondary"
               onClick={() => onCloneCampaign(selectedCampaign)}
             >
-              📋 Nhân bản
+              Nhân bản
             </button>
           </div>
         )}
@@ -113,14 +113,14 @@ export default function EventWorkspace({
             onClick={() => onToggleMode("operator")}
             title="Chế độ Vận hành: Quy trình 6 bước đơn giản cho người chạy sự kiện"
           >
-            ⚡ Vận hành
+            Vận hành
           </button>
           <button
             className={`toggle-btn ${mode === "advanced" ? "active" : ""}`}
             onClick={() => onToggleMode("advanced")}
             title="Chế độ Nâng cao: Bảng kỹ thuật chi tiết"
           >
-            🛠️ Nâng cao
+            Nâng cao
           </button>
         </div>
       </div>
