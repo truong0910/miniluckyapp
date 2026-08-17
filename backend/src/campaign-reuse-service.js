@@ -94,7 +94,7 @@ export function parseCustomerImportRows(rows = []) {
 export function matchDenominationToReward(value, rewards = []) {
   const match = (rewards || []).find((r) => Number(r.value) === Number(value));
   if (!match) {
-    throw publicError(`Chưa có giải thưởng giá trị ${value.toLocaleString("vi-VN")}đ trong sự kiện — vui lòng tạo giải thưởng trước khi tiếp tục`);
+    throw publicError(`Chưa có giải thưởng giá trị ${value.toLocaleString("vi-VN")}đ trong tab 'Giải thưởng' — vui lòng vào tab Giải thưởng tạo phần quà giá trị ${value.toLocaleString("vi-VN")}đ trước khi tiếp tục`);
   }
   return match;
 }
@@ -236,39 +236,13 @@ export async function importCampaignParticipants({ db, campaignId, rows = [], im
   let rewards = [];
 
   if (importMode === "voucher") {
-    const { data: rules, error: rulesError } = await db
-      .from("campaign_rules")
-      .select("id")
-      .eq("campaign_id", campaign.id)
+    const { data: rewardRows, error: rewardsError } = await db
+      .from("reward_catalog")
+      .select("id,code_prefix,title,value,description,wheel_label,active")
       .eq("active", true);
-    if (rulesError) throw rulesError;
+    if (rewardsError) throw rewardsError;
+    rewards = rewardRows || [];
 
-    const ruleIds = (rules || []).map((rule) => rule.id);
-    if (ruleIds.length > 0) {
-      const { data: configs, error: configsError } = await db
-        .from("rule_spin_configs")
-        .select("id")
-        .in("rule_id", ruleIds);
-      if (configsError) throw configsError;
-      const configIds = (configs || []).map((config) => config.id);
-      if (configIds.length > 0) {
-        const { data: links, error: linksError } = await db
-          .from("rule_spin_rewards")
-          .select("reward_id")
-          .in("spin_config_id", configIds);
-        if (linksError) throw linksError;
-        const rewardIds = [...new Set((links || []).map((link) => link.reward_id).filter(Boolean))];
-        if (rewardIds.length > 0) {
-          const { data: rewardRows, error: rewardsError } = await db
-            .from("reward_catalog")
-            .select("id,code_prefix,title,value,description,wheel_label,active")
-            .in("id", rewardIds)
-            .eq("active", true);
-          if (rewardsError) throw rewardsError;
-          rewards = rewardRows || [];
-        }
-      }
-    }
     const validated = validateVoucherImportRows(parsedRows, rewards);
     validRows = validated.validRows;
     errors = validated.errors;
