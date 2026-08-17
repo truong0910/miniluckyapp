@@ -23,6 +23,7 @@ export function buildGoogleSheetsPayload({ spin, customer, award, campaign }) {
     spinId: String(spin?.spinId || ""),
     awardId: award?.id ? String(award.id) : "",
     campaignId: campaign?.id ? String(campaign.id) : (spin?.campaignId ? String(spin.campaignId) : ""),
+    campaignCode: campaign?.code ? String(campaign.code) : "",
     campaignName: campaign?.name ? String(campaign.name) : (spin?.campaignName ? String(spin.campaignName) : ""),
     timestamp: spin?.timestamp || new Date().toISOString(),
     customerName: String(customer?.name || "Khách hàng"),
