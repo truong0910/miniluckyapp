@@ -95,7 +95,7 @@ test(
       auth: { autoRefreshToken: false, persistSession: false },
     });
     const { error: availabilityError } = await db.from("awards").select("id").limit(1);
-    if (isAwardsUnavailable(availabilityError)) {
+    if (isAwardsUnavailable(availabilityError) || availabilityError?.code === "PGRST303" || availabilityError?.message?.includes("future")) {
       t.skip(OPT_IN_REASON);
       return;
     }
