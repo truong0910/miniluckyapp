@@ -531,9 +531,28 @@ export async function issueManualAward({ db, campaignId, customerId, rewardId, c
 
   const awardCode = String(code || `${reward.code_prefix || "AWD"}-${Date.now()}`).trim();
 
+  // Create a spin_event entry for audit and satisfy spin_event_id constraint
+  let spinEventId = null;
+  const { data: manualSpinEvent } = await db
+    .from("spin_events")
+    .insert({
+      campaign_id: campaignId,
+      customer_id: customerId,
+      reward_id: reward.id,
+      outcome: "reward",
+      created_at: new Date().toISOString(),
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (manualSpinEvent?.id) {
+    spinEventId = manualSpinEvent.id;
+  }
+
   const record = {
     campaign_id: campaignId,
     customer_id: customerId,
+    spin_event_id: spinEventId,
     reward_id: reward.id,
     status: "issued",
     code: awardCode,
