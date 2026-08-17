@@ -353,6 +353,11 @@ router.post("/groups/:id/members", requireAdmin, asyncRoute(async (req, res) => 
   res.json(result);
 }));
 
+router.post("/groups/:id/members/:customerId", requireAdmin, asyncRoute(async (req, res) => {
+  const result = await addGroupMember({ db: supabase, groupId: req.params.id, customerId: req.params.customerId });
+  res.json(result);
+}));
+
 router.delete("/groups/:id/members/:customerId", requireAdmin, asyncRoute(async (req, res) => {
   const result = await removeGroupMember({ db: supabase, groupId: req.params.id, customerId: req.params.customerId });
   res.json(result);
@@ -369,6 +374,11 @@ router.post("/groups/:id/rules", requireAdmin, asyncRoute(async (req, res) => {
     return res.json(result);
   }
   const result = await assignRuleToGroup({ db: supabase, groupId: req.params.id, ruleId: req.body?.ruleId });
+  res.json(result);
+}));
+
+router.post("/groups/:id/rules/:ruleId", requireAdmin, asyncRoute(async (req, res) => {
+  const result = await assignRuleToGroup({ db: supabase, groupId: req.params.id, ruleId: req.params.ruleId });
   res.json(result);
 }));
 

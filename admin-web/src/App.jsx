@@ -727,7 +727,10 @@ function CustomerGroups() {
     if (!selectedGroupId || !selectedCustomerIdToAdd) return;
     setError("");
     try {
-      await api(`/admin/groups/${selectedGroupId}/members/${selectedCustomerIdToAdd}`, { method: "POST" });
+      await api(`/admin/groups/${selectedGroupId}/members`, {
+        method: "POST",
+        body: JSON.stringify({ customerId: selectedCustomerIdToAdd }),
+      });
       setSelectedCustomerIdToAdd("");
       await loadMembersAndRules();
       await loadGroups();
