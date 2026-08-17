@@ -117,3 +117,49 @@
 .error-card { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; padding: 14px 18px; border-radius: 14px; font-weight: 700; font-size: 13px; }
 .success-card { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 14px 18px; border-radius: 14px; font-weight: 700; font-size: 13px; }
 
+/* REUSABLE UI ALERT SYSTEM */
+.ui-alert { padding: 14px 18px; border-radius: 14px; font-size: 13px; line-height: 1.5; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; border: 1px solid transparent; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
+.ui-alert-error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.ui-alert-success { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+.ui-alert-warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+.ui-alert-info { background: #f0f9ff; border-color: #bae6fd; color: #075985; }
+.ui-alert-title { font-weight: 900; font-size: 14px; margin: 0 0 4px; }
+.ui-alert-content { font-weight: 600; }
+.ui-alert-close { background: transparent; border: 0; font-size: 18px; font-weight: 900; cursor: pointer; color: inherit; opacity: 0.6; line-height: 1; padding: 0 4px; }
+.ui-alert-close:hover { opacity: 1; }
+
+/* REUSABLE CONFIRMATION MODAL */
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(4px); display: grid; place-items: center; z-index: 9999; padding: 20px; animation: fadeIn 0.15s ease-out; }
+.modal-container { background: #fff; border-radius: 20px; width: 100%; max-width: 520px; box-shadow: 0 20px 50px rgba(0,0,0,0.25); border: 1px solid #e2e8f0; overflow: hidden; display: flex; flex-direction: column; }
+.modal-header { padding: 20px 24px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; }
+.modal-title { margin: 0; font-size: 18px; font-weight: 900; color: #0f172a; }
+.modal-close-btn { background: transparent; border: 0; font-size: 22px; font-weight: 900; color: #94a3b8; cursor: pointer; border-radius: 8px; width: 32px; height: 32px; display: grid; place-items: center; }
+.modal-close-btn:hover { background: #f1f5f9; color: #0f172a; }
+.modal-body { padding: 24px; color: #334155; font-size: 14px; line-height: 1.6; }
+.modal-message { margin: 0; font-size: 14px; color: #475569; font-weight: 600; }
+.modal-footer { padding: 16px 24px; background: #f8fafc; border-top: 1px solid #f1f5f9; display: flex; justify-content: flex-end; gap: 12px; }
+
+/* REUSABLE BUTTON SYSTEM */
+.btn-ui { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-weight: 800; border-radius: 10px; border: 0; cursor: pointer; transition: all 0.2s ease; outline: none; text-decoration: none; }
+.btn-ui:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-ui-sm { padding: 6px 12px; font-size: 12px; }
+.btn-ui-md { padding: 10px 18px; font-size: 13px; }
+.btn-ui-lg { padding: 14px 28px; font-size: 15px; border-radius: 12px; font-weight: 900; }
+
+.btn-ui-primary { background: linear-gradient(135deg, #f97316, #ea580c); color: #fff; box-shadow: 0 4px 14px rgba(234,88,12,0.25); }
+.btn-ui-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(234,88,12,0.35); }
+.btn-ui-secondary { background: #e2e8f0; color: #334155; }
+.btn-ui-secondary:hover:not(:disabled) { background: #cbd5e1; color: #0f172a; }
+.btn-ui-danger { background: #ef4444; color: #fff; box-shadow: 0 4px 14px rgba(239,68,68,0.25); }
+.btn-ui-danger:hover:not(:disabled) { background: #dc2626; box-shadow: 0 6px 20px rgba(239,68,68,0.35); }
+.btn-ui-warning { background: #f59e0b; color: #fff; }
+.btn-ui-warning:hover:not(:disabled) { background: #d97706; }
+.btn-ui-success { background: #10b981; color: #fff; box-shadow: 0 4px 14px rgba(16,185,129,0.25); }
+.btn-ui-success:hover:not(:disabled) { background: #059669; }
+
+.btn-spinner-wrapper { display: inline-flex; align-items: center; gap: 8px; }
+.btn-spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+

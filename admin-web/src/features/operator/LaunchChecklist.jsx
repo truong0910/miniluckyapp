@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { executeDryRunSpin, fetchCampaignReadiness } from "./operator-api.js";
+import UiAlert from "../../components/common/UiAlert.jsx";
+import ConfirmModal from "../../components/common/ConfirmModal.jsx";
+import UiButton from "../../components/common/UiButton.jsx";
 
 export default function LaunchChecklist({ campaign, onTransitionStatus, onNextStep }) {
   const [readiness, setReadiness] = useState(null);
@@ -7,6 +10,8 @@ export default function LaunchChecklist({ campaign, onTransitionStatus, onNextSt
   const [dryRunPhone, setDryRunPhone] = useState("0901234567");
   const [dryRunResult, setDryRunResult] = useState(null);
   const [simulating, setSimulating] = useState(false);
+  const [showActivateModal, setShowActivateModal] = useState(false);
+  const [activating, setActivating] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
@@ -48,12 +53,17 @@ export default function LaunchChecklist({ campaign, onTransitionStatus, onNextSt
     if (!campaign?.id) return;
     setError("");
     setSuccessMsg("");
+    setActivating(true);
     try {
       await onTransitionStatus(campaign.id, "active");
       setSuccessMsg(`Đã kích hoạt thành công sự kiện '${campaign.name}'!`);
+      setShowActivateModal(false);
       await loadChecklist();
     } catch (err) {
       setError(err.message);
+      setShowActivateModal(false);
+    } finally {
+      setActivating(false);
     }
   };
 
@@ -66,8 +76,8 @@ export default function LaunchChecklist({ campaign, onTransitionStatus, onNextSt
         </div>
       </div>
 
-      {error && <div className="error-card">{error}</div>}
-      {successMsg && <div className="success-card">{successMsg}</div>}
+      {error && <UiAlert type="error" onClose={() => setError("")}>{error}</UiAlert>}
+      {successMsg && <UiAlert type="success" onClose={() => setSuccessMsg("")}>{successMsg}</UiAlert>}
 
       <div className="launch-grid">
         {/* Left Column: Readiness Checklist */}
@@ -101,21 +111,24 @@ export default function LaunchChecklist({ campaign, onTransitionStatus, onNextSt
             {campaign?.status === "active" ? (
               <div className="active-banner">
                 <span>Sự kiện đang ở trạng thái ACTIVE (Đang chạy).</span>
-                <button
-                  className="btn-warning mt-2"
+                <UiButton
+                  variant="warning"
+                  size="md"
                   onClick={() => onTransitionStatus(campaign.id, "paused")}
                 >
                   Tạm dừng sự kiện
-                </button>
+                </UiButton>
               </div>
             ) : (
-              <button
-                className="btn-primary-lg w-full shine-sweep"
-                onClick={handleActivate}
+              <UiButton
+                variant="primary"
+                size="lg"
+                className="w-full shine-sweep"
+                onClick={() => setShowActivateModal(true)}
                 disabled={!readiness?.canActivate}
               >
                 KÍCH HOẠT SỰ KIỆN NGAY
-              </button>
+              </UiButton>
             )}
           </div>
         </div>
@@ -140,9 +153,9 @@ export default function LaunchChecklist({ campaign, onTransitionStatus, onNextSt
               />
             </div>
 
-            <button type="submit" className="btn-secondary w-full" disabled={simulating}>
-              {simulating ? "Đang mô phỏng..." : "Quay thử ngay"}
-            </button>
+            <UiButton type="submit" variant="secondary" size="md" className="w-full" loading={simulating}>
+              Quay thử ngay
+            </UiButton>
           </form>
 
           {dryRunResult && (
@@ -171,6 +184,19 @@ export default function LaunchChecklist({ campaign, onTransitionStatus, onNextSt
           )}
         </div>
       </div>
+
+      {/* CONFIRM ACTIVATION MODAL */}
+      <ConfirmModal
+        isOpen={showActivateModal}
+        title="Xác nhận Kích hoạt Sự kiện"
+        message={`Bạn có chắc chắn muốn mở và Kích hoạt sự kiện '${campaign?.name || ""}' cho khách hàng tham gia ngay bây giờ không?`}
+        confirmText="Mở &amp; Kích hoạt Ngay"
+        cancelText="Hủy bỏ"
+        variant="primary"
+        loading={activating}
+        onConfirm={handleActivate}
+        onCancel={() => setShowActivateModal(false)}
+      />
     </div>
   );
 }

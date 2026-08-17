@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { api, downloadFile } from "../../api.js";
 import { fetchCampaignParticipants } from "./operator-api.js";
 import { parseCsvToRows, parseWorkbookToRows } from "../../import-parser.js";
+import UiAlert from "../../components/common/UiAlert.jsx";
+import ConfirmModal from "../../components/common/ConfirmModal.jsx";
+import UiButton from "../../components/common/UiButton.jsx";
 
 export default function AudienceImportStep({ campaign, onNextStep }) {
   // Participant List State
@@ -18,6 +21,7 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
   const [importMode, setImportMode] = useState("voucher");
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [error, setError] = useState("");
 
@@ -88,9 +92,11 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
         }),
       });
       setImportResult(result);
+      setShowConfirmModal(false);
       await loadParticipants(1, search);
     } catch (err) {
       setError(err.message);
+      setShowConfirmModal(false);
     } finally {
       setImporting(false);
     }
@@ -107,7 +113,7 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
         </div>
       </div>
 
-      {error && <div className="error-card">{error}</div>}
+      {error && <UiAlert type="error" onClose={() => setError("")}>{error}</UiAlert>}
 
       {/* SECTION 1: ROSTER OF EXISTING PARTICIPANTS */}
       <div className="operator-card-section">
@@ -122,7 +128,7 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
               onChange={(e) => setSearch(e.target.value)}
               style={{ width: "240px" }}
             />
-            <button type="submit" className="btn-secondary">Tìm kiếm</button>
+            <UiButton type="submit" variant="secondary" size="md">Tìm kiếm</UiButton>
           </form>
         </div>
 
@@ -173,8 +179,9 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
                 Hiển thị trang {page} / {totalPages} (Tổng: {totalCount} khách hàng)
               </span>
               <div style={{ display: "flex", gap: "8px" }}>
-                <button
-                  className="btn-secondary"
+                <UiButton
+                  variant="secondary"
+                  size="sm"
                   disabled={page <= 1}
                   onClick={() => {
                     const newP = page - 1;
@@ -183,9 +190,10 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
                   }}
                 >
                   Trang trước
-                </button>
-                <button
-                  className="btn-secondary"
+                </UiButton>
+                <UiButton
+                  variant="secondary"
+                  size="sm"
                   disabled={page >= totalPages}
                   onClick={() => {
                     const newP = page + 1;
@@ -194,7 +202,7 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
                   }}
                 >
                   Trang sau
-                </button>
+                </UiButton>
               </div>
             </div>
           </>
@@ -309,24 +317,26 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
               Kiểm tra các thông tin trên. Sau khi xác nhận, dữ liệu sẽ được ghi chính thức vào sự kiện{" "}
               <strong>{campaign?.name}</strong>.
             </p>
-            <button
-              type="button"
-              className="btn-primary-lg"
-              onClick={executeImport}
-              disabled={importing}
+            <UiButton
+              variant="primary"
+              size="lg"
+              onClick={() => setShowConfirmModal(true)}
+              loading={importing}
             >
-              {importing ? "Đang xử lý Import..." : "Xác nhận Import dữ liệu"}
-            </button>
+              Xác nhận Import dữ liệu
+            </UiButton>
           </div>
         </div>
       )}
 
       {importResult && (
         <div className="operator-card-section result-box">
-          <h3>Kết quả Import</h3>
-          <p className="result-stat">
+          <UiAlert
+            type={importResult.errors && importResult.errors.length > 0 ? "warning" : "success"}
+            title="Kết quả Import"
+          >
             Đã nhập thành công <strong>{importResult.importedCount} / {importResult.totalRows}</strong> dòng.
-          </p>
+          </UiAlert>
 
           {importResult.errors && importResult.errors.length > 0 && (
             <div className="error-list-container">
@@ -340,12 +350,25 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
           )}
 
           <div className="form-actions mt-4">
-            <button className="btn-secondary" onClick={() => onNextStep("reward_mode")}>
+            <UiButton variant="secondary" onClick={() => onNextStep("reward_mode")}>
               Tiếp tục: Cấu hình Mô hình phát thưởng -&gt;
-            </button>
+            </UiButton>
           </div>
         </div>
       )}
+
+      {/* CONFIRMATION MODAL */}
+      <ConfirmModal
+        isOpen={showConfirmModal}
+        title="Xác nhận Import Khách hàng"
+        message={`Bạn có chắc chắn muốn Import ${rawRows.length} dòng dữ liệu khách hàng vào sự kiện '${campaign?.name || ""}' theo Mô hình ${importMode === "voucher" ? "A (Voucher cấp sẵn)" : "B (Cấp Lượt quay)"} không?`}
+        confirmText="Xác nhận Import"
+        cancelText="Hủy bỏ"
+        variant="primary"
+        loading={importing}
+        onConfirm={executeImport}
+        onCancel={() => setShowConfirmModal(false)}
+      />
     </div>
   );
 }

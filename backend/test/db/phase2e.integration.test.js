@@ -49,7 +49,7 @@ test(
       const { error: custErr } = await db.from("customers").insert({
         id: customerId,
         name: "Phase 2E Customer",
-        phone: "0988776655",
+        phone: `09${Math.floor(10000000 + Math.random() * 90000000)}`,
         total_spins: 5,
       });
       if (custErr && (custErr.code === "PGRST303" || custErr.message?.includes("future"))) {

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { api } from "../../api.js";
+import UiAlert from "../../components/common/UiAlert.jsx";
+import UiButton from "../../components/common/UiButton.jsx";
 
 const EMPTY_CAMPAIGN = { code: "", name: "", startsAt: "", endsAt: "", timezone: "Asia/Ho_Chi_Minh" };
 
@@ -81,11 +83,12 @@ export default function EventSetupStep({ campaign, campaigns = [], onSelectCampa
         </div>
       </div>
 
-      {error && <div className="error-card">{error}</div>}
-      {successMsg && <div className="success-card">{successMsg}</div>}
+      {error && <UiAlert type="error" onClose={() => setError("")}>{error}</UiAlert>}
+      {successMsg && <UiAlert type="success" onClose={() => setSuccessMsg("")}>{successMsg}</UiAlert>}
 
       <div className="setup-mode-switcher">
         <button
+          type="button"
           className={`mode-tab ${!isCreatingNew ? "active" : ""}`}
           onClick={() => {
             setIsCreatingNew(false);
@@ -96,6 +99,7 @@ export default function EventSetupStep({ campaign, campaigns = [], onSelectCampa
         </button>
 
         <button
+          type="button"
           className={`mode-tab ${isCreatingNew && !sourceCampaignId ? "active" : ""}`}
           onClick={() => {
             setIsCreatingNew(true);
@@ -107,6 +111,7 @@ export default function EventSetupStep({ campaign, campaigns = [], onSelectCampa
         </button>
 
         <button
+          type="button"
           className={`mode-tab ${isCreatingNew && sourceCampaignId ? "active" : ""}`}
           onClick={() => {
             setIsCreatingNew(true);
@@ -211,12 +216,12 @@ export default function EventSetupStep({ campaign, campaigns = [], onSelectCampa
         </div>
 
         <div className="form-actions">
-          <button type="submit" className="btn-primary" disabled={saving}>
-            {saving ? "Đang lưu..." : isCreatingNew ? "Tạo sự kiện" : "Lưu thay đổi"}
-          </button>
-          <button type="button" className="btn-secondary" onClick={() => onNextStep("participants")}>
+          <UiButton type="submit" variant="primary" loading={saving}>
+            {isCreatingNew ? "Tạo sự kiện" : "Lưu thay đổi"}
+          </UiButton>
+          <UiButton type="button" variant="secondary" onClick={() => onNextStep("participants")}>
             Tiếp tục: Thêm khách tham gia -&gt;
-          </button>
+          </UiButton>
         </div>
       </form>
     </div>

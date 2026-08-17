@@ -266,6 +266,16 @@ router.get("/campaigns/:id/participants", requireAdmin, asyncRoute(async (req, r
   res.json(result);
 }));
 
+router.post("/campaigns/:id/participants", requireAdmin, asyncRoute(async (req, res) => {
+  const result = await importCampaignParticipants({
+    db: supabase,
+    campaignId: req.params.id,
+    rows: Array.isArray(req.body?.rows) ? req.body.rows : [],
+    importMode: req.body?.importMode || "voucher",
+  });
+  res.json(result);
+}));
+
 router.post("/campaigns/:id/participants/import", requireAdmin, asyncRoute(async (req, res) => {
   const result = await importCampaignParticipants({
     db: supabase,
