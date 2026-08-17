@@ -3,6 +3,7 @@ import { api, auth, downloadFile, fileToDataUrl, login, logout, setUnauthorizedH
 import { parseCsvToRows, parseWorkbookToRows } from "./import-parser.js";
 import EventWorkspace from "./features/operator/EventWorkspace.jsx";
 import EventWizard from "./features/operator/EventWizard.jsx";
+import UiAlert from "./components/common/UiAlert.jsx";
 import LogoImg from "./assets/logo.png";
 
 const EMPTY_REWARD = { codePrefix: "", title: "", value: "", description: "", wheelLabel: "", symbol: "star", active: true };
@@ -562,6 +563,7 @@ function Customers() {
   const [items, setItems] = useState([]);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
   const [form, setForm] = useState({ name: "", phone: "", totalSpins: 5 });
   const [editingId, setEditingId] = useState(null);
 
@@ -578,17 +580,20 @@ function Customers() {
   const save = async (event) => {
     event.preventDefault();
     setError("");
+    setSuccessMsg("");
     try {
       if (editingId) {
         await api(`/admin/customers/${editingId}`, {
           method: "PUT",
           body: JSON.stringify({ ...form, totalSpins: Number(form.totalSpins) }),
         });
+        setSuccessMsg("Đã cập nhật thông tin khách hàng thành công!");
       } else {
         await api("/admin/customers", {
           method: "POST",
           body: JSON.stringify({ ...form, totalSpins: Number(form.totalSpins) }),
         });
+        setSuccessMsg("Đã thêm khách hàng thành công!");
       }
       setForm({ name: "", phone: "", totalSpins: 5 });
       setEditingId(null);
@@ -609,8 +614,11 @@ function Customers() {
 
   const remove = async (id) => {
     if (!confirm("Ẩn khách hàng này?")) return;
+    setError("");
+    setSuccessMsg("");
     try {
       await api(`/admin/customers/${id}`, { method: "DELETE" });
+      setSuccessMsg("Đã ẩn khách hàng thành công!");
       await load();
     } catch (e) {
       setError(e.message);
@@ -620,7 +628,8 @@ function Customers() {
   return (
     <>
       <Header title="Khách hàng" subtitle="Thêm, chỉnh sửa thông tin khách hàng thủ công và kiểm tra số lượt quay được cấp." />
-      {error && <div className="error">{error}</div>}
+      {error && <UiAlert type="error" onClose={() => setError("")}>{error}</UiAlert>}
+      {successMsg && <UiAlert type="success" onClose={() => setSuccessMsg("")}>{successMsg}</UiAlert>}
       <section className="panel inline-form">
         <h2>{editingId ? "Sửa thông tin khách hàng" : "Thêm khách hàng mới"}</h2>
         <form onSubmit={save}>

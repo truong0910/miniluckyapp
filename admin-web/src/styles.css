@@ -118,14 +118,15 @@
 .success-card { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 14px 18px; border-radius: 14px; font-weight: 700; font-size: 13px; }
 
 /* REUSABLE UI ALERT SYSTEM */
-.ui-alert { padding: 14px 18px; border-radius: 14px; font-size: 13px; line-height: 1.5; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; border: 1px solid transparent; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
-.ui-alert-error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
-.ui-alert-success { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
-.ui-alert-warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
-.ui-alert-info { background: #f0f9ff; border-color: #bae6fd; color: #075985; }
+.ui-alert { padding: 16px 20px; border-radius: 16px; font-size: 13px; line-height: 1.5; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; border: 1px solid transparent; box-shadow: 0 8px 25px rgba(0,0,0,0.04); animation: alertSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes alertSlideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+.ui-alert-error { background: linear-gradient(135deg, #fef2f2, #fee2e2); border-color: #fca5a5; color: #991b1b; }
+.ui-alert-success { background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-color: #86efac; color: #166534; }
+.ui-alert-warning { background: linear-gradient(135deg, #fffbeb, #fef3c7); border-color: #fde68a; color: #92400e; }
+.ui-alert-info { background: linear-gradient(135deg, #f0f9ff, #e0f2fe); border-color: #7dd3fc; color: #075985; }
 .ui-alert-title { font-weight: 900; font-size: 14px; margin: 0 0 4px; }
-.ui-alert-content { font-weight: 600; }
-.ui-alert-close { background: transparent; border: 0; font-size: 18px; font-weight: 900; cursor: pointer; color: inherit; opacity: 0.6; line-height: 1; padding: 0 4px; }
+.ui-alert-content { font-weight: 700; }
+.ui-alert-close { background: transparent; border: 0; font-size: 20px; font-weight: 900; cursor: pointer; color: inherit; opacity: 0.6; line-height: 1; padding: 0 4px; }
 .ui-alert-close:hover { opacity: 1; }
 
 /* REUSABLE CONFIRMATION MODAL */

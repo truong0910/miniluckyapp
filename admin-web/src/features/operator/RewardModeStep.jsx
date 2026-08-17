@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import UiAlert from "../../components/common/UiAlert.jsx";
 
 export default function RewardModeStep({ campaign, onNextStep }) {
   const storageKey = campaign?.id ? `reward_mode_${campaign.id}` : "reward_mode_default";
@@ -54,7 +55,7 @@ export default function RewardModeStep({ campaign, onNextStep }) {
         </div>
       </div>
 
-      {savedMessage && <div className="success-card">{savedMessage}</div>}
+      {savedMessage && <UiAlert type="success" onClose={() => setSavedMessage("")}>{savedMessage}</UiAlert>}
 
       <div className="reward-mode-grid">
         {/* Mode A */}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api.js";
+import UiAlert from "../../components/common/UiAlert.jsx";
 
 const EMPTY_RULE = {
   name: "",
@@ -122,15 +123,14 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
   const rewardValStr = selectedReward?.value ? selectedReward.value.toLocaleString("vi-VN") + "đ" : "";
 
   // Generate natural language summary sentence
-  const summarySentence = `Lượt ${form.spinNumber}: ${
-    form.scope === "group"
+  const summarySentence = `Lượt ${form.spinNumber}: ${form.scope === "group"
       ? "Khách hàng nhóm đặc biệt"
       : form.scope === "guest"
-      ? "Khách ngoài danh sách"
-      : form.scope === "user"
-      ? "Khách chỉ định"
-      : "Tất cả khách hàng"
-  } có ${form.winRate ?? 100}% cơ hội nhận ${rewardTitle}${rewardValStr ? ` (${rewardValStr})` : ""}, tối đa ${form.maxWins} lần. Số lượng quà: ${form.quantity}.`;
+        ? "Khách ngoài danh sách"
+        : form.scope === "user"
+          ? "Khách chỉ định"
+          : "Tất cả khách hàng"
+    } có ${form.winRate ?? 100}% cơ hội nhận ${rewardTitle}${rewardValStr ? ` (${rewardValStr})` : ""}, tối đa ${form.maxWins} lần. Số lượng quà: ${form.quantity}.`;
 
   return (
     <div className="operator-step-container">
@@ -141,8 +141,8 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
         </div>
       </div>
 
-      {error && <div className="error-card">{error}</div>}
-      {successMsg && <div className="success-card">{successMsg}</div>}
+      {error && <UiAlert type="error" onClose={() => setError("")}>{error}</UiAlert>}
+      {successMsg && <UiAlert type="success" onClose={() => setSuccessMsg("")}>{successMsg}</UiAlert>}
 
       <div className="rule-layout-grid">
         {/* Left column: Natural language form */}
