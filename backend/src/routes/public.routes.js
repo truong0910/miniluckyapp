@@ -46,22 +46,53 @@ function buildWheelSegments(customer, catalog) {
 
 async function loadParticipantResponse(row, session) {
   const customer = await loadCustomer(row);
-  const { count, error: countError } = await supabase
-    .from("spin_events")
-    .select("id", { count: "exact", head: true })
-    .eq("customer_id", row.id);
-  if (countError) throw countError;
+  const activeCampaign = await getActiveCampaign({ db: supabase });
+
+  let spinsTotal = customer.totalSpins;
+  let spinCount = 0;
+
+  if (activeCampaign?.id) {
+    const { data: partRow } = await supabase
+      .from("campaign_participants")
+      .select("spin_quota,status")
+      .eq("campaign_id", activeCampaign.id)
+      .eq("customer_id", row.id)
+      .maybeSingle();
+
+    if (partRow) {
+      spinsTotal = Number(partRow.spin_quota || 0);
+    } else if (activeCampaign.id !== "00000000-0000-0000-0000-000000000001") {
+      spinsTotal = 0;
+    }
+
+    const { count, error: countError } = await supabase
+      .from("spin_events")
+      .select("id", { count: "exact", head: true })
+      .eq("customer_id", row.id)
+      .eq("campaign_id", activeCampaign.id);
+    if (countError) throw countError;
+    spinCount = Number(count || 0);
+  } else {
+    const { count, error: countError } = await supabase
+      .from("spin_events")
+      .select("id", { count: "exact", head: true })
+      .eq("customer_id", row.id);
+    if (countError) throw countError;
+    spinCount = Number(count || 0);
+  }
+
   const catalogResult = await supabase
     .from("reward_catalog")
     .select("id,code_prefix,title,value,description,wheel_label,symbol,active")
     .eq("active", true)
     .order("value", { ascending: false });
   if (catalogResult.error) throw catalogResult.error;
+
   const participant = {
     ...customer,
-    spinsTotal: customer.totalSpins,
+    spinsTotal,
     rewardsTotal: customer.rewards.length,
-    spinsRemaining: Math.max(0, customer.totalSpins - Number(count || 0)),
+    spinsRemaining: Math.max(0, spinsTotal - spinCount),
     wheelSegments: buildWheelSegments(customer, (catalogResult.data || []).map(mapReward)),
   };
   return { ...participant, session: session ? { token: session.token, expiresAt: session.expiresAt } : undefined };

@@ -140,7 +140,7 @@ async function findOrCreateCustomer({ db, row, importMode }) {
     name: row.name,
     sex: "other",
     job: "other",
-    total_spins: importMode === "quota" ? row.voucherCount : 5,
+    total_spins: row.voucherCount || 1,
     deleted_at: null,
   });
   if (error) throw error;
