@@ -485,7 +485,34 @@ async function loadCampaignRule(id) {
   const spinIds = (spins || []).map((spin) => spin.id);
   const rewards = spinIds.length ? await supabase.from("rule_spin_rewards").select("spin_config_id,reward_id,probability,quantity,remaining_quantity").in("spin_config_id", spinIds) : { data: [], error: null };
   if (rewards.error) throw rewards.error;
-  return { ...rule, spins: (spins || []).map((spin) => ({ ...spin, rewards: (rewards.data || []).filter((item) => item.spin_config_id === spin.id) })) };
+
+  const mappedSpins = (spins || []).map((spin) => {
+    const spinRewards = (rewards.data || [])
+      .filter((item) => item.spin_config_id === spin.id)
+      .map((item) => ({
+        ...item,
+        rewardId: item.reward_id,
+        spinConfigId: item.spin_config_id,
+        remainingQuantity: item.remaining_quantity,
+      }));
+    return {
+      ...spin,
+      spinNumber: spin.spin_number,
+      spinCount: spin.spin_count,
+      winRate: spin.win_rate,
+      maxWins: spin.max_wins,
+      specialConditions: spin.special_conditions,
+      rewards: spinRewards,
+    };
+  });
+
+  return {
+    ...rule,
+    campaignId: rule.campaign_id,
+    oaRequired: rule.oa_required,
+    allowUnlisted: rule.allow_unlisted,
+    spins: mappedSpins,
+  };
 }
 
 const LEGACY_CAMPAIGN_ID = "00000000-0000-0000-0000-000000000001";
@@ -499,22 +526,53 @@ async function saveCampaignRule(body, id) {
     scope: body.scope || "default",
     priority: Number(body.priority || 0),
     active: body.active !== false,
-    allow_unlisted: body.allowUnlisted === true,
-    oa_required: body.oaRequired === true,
-    allow_refollow: body.allowRefollow !== false,
-    max_total_wins: body.maxTotalWins == null || body.maxTotalWins === "" ? null : Number(body.maxTotalWins),
-    starts_at: body.startsAt || null,
-    ends_at: body.endsAt || null,
+    allow_unlisted: body.allowUnlisted === true || body.allow_unlisted === true,
+    oa_required: body.oaRequired === true || body.oa_required === true,
+    allow_refollow: body.allowRefollow !== false && body.allow_refollow !== false,
+    max_total_wins: body.maxTotalWins == null && body.max_total_wins == null ? null : Number(body.maxTotalWins ?? body.max_total_wins),
+    starts_at: body.startsAt || body.starts_at || null,
+    ends_at: body.endsAt || body.ends_at || null,
     ...(campaignId ? { campaign_id: campaignId } : (!id ? { campaign_id: LEGACY_CAMPAIGN_ID } : {})),
   };
   const { data: rule, error } = await supabase.from("campaign_rules").upsert(ruleRecord).select("*").single();
   if (error) throw error;
   await supabase.from("rule_spin_configs").delete().eq("rule_id", rule.id);
   for (const spin of Array.isArray(body.spins) ? body.spins : []) {
-    const { data: configRow, error: configError } = await supabase.from("rule_spin_configs").insert({ rule_id: rule.id, spin_number: Number(spin.spinNumber), spin_count: Number(spin.spinCount || 1), win_rate: Number(spin.winRate || 0), max_wins: spin.maxWins == null || spin.maxWins === "" ? null : Number(spin.maxWins), special_conditions: spin.specialConditions || {} }).select("id").single();
+    const spinNumber = Number(spin.spinNumber ?? spin.spin_number ?? 1);
+    const spinCount = Number(spin.spinCount ?? spin.spin_count ?? 1);
+    const winRate = Number(spin.winRate ?? spin.win_rate ?? 100);
+    const maxWins = spin.maxWins == null && spin.max_wins == null ? null : Number(spin.maxWins ?? spin.max_wins);
+    const specialConditions = spin.specialConditions || spin.special_conditions || {};
+
+    const { data: configRow, error: configError } = await supabase
+      .from("rule_spin_configs")
+      .insert({
+        rule_id: rule.id,
+        spin_number: spinNumber,
+        spin_count: spinCount,
+        win_rate: winRate,
+        max_wins: maxWins,
+        special_conditions: specialConditions,
+      })
+      .select("id")
+      .single();
+
     if (configError) throw configError;
-    const rows = (Array.isArray(spin.rewards) ? spin.rewards : []).map((reward) => ({ spin_config_id: configRow.id, reward_id: reward.rewardId, probability: Number(reward.probability || 0), quantity: Number(reward.quantity || 0), remaining_quantity: Number(reward.remainingQuantity ?? reward.quantity ?? 0) })).filter((reward) => reward.reward_id && reward.quantity > 0);
-    if (rows.length) { const { error: rewardError } = await supabase.from("rule_spin_rewards").insert(rows); if (rewardError) throw rewardError; }
+
+    const rows = (Array.isArray(spin.rewards) ? spin.rewards : [])
+      .map((reward) => ({
+        spin_config_id: configRow.id,
+        reward_id: reward.rewardId || reward.reward_id || "",
+        probability: Number(reward.probability ?? 100),
+        quantity: Number(reward.quantity ?? 1),
+        remaining_quantity: Number(reward.remainingQuantity ?? reward.remaining_quantity ?? reward.quantity ?? 1),
+      }))
+      .filter((reward) => reward.reward_id && reward.quantity > 0);
+
+    if (rows.length) {
+      const { error: rewardError } = await supabase.from("rule_spin_rewards").insert(rows);
+      if (rewardError) throw rewardError;
+    }
   }
   return loadCampaignRule(rule.id);
 }

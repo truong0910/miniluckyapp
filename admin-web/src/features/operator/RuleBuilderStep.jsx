@@ -8,7 +8,7 @@ const EMPTY_RULE = {
   priority: 100,
   oaRequired: false,
   spinNumber: 1,
-  winRate: 80,
+  winRate: 100,
   maxWins: 1,
   rewardId: "",
   quantity: 10,
@@ -35,10 +35,16 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
         api("/admin/groups"),
       ]);
       setRules(rulesRes.items || []);
-      setRewards(rewardsRes.items || []);
+      const items = rewardsRes.items || [];
+      setRewards(items);
       setGroups(groupsRes.items || []);
-      if (rewardsRes.items?.[0]) {
-        setForm((f) => ({ ...f, rewardId: f.rewardId || rewardsRes.items[0].id }));
+      if (items.length > 0) {
+        setForm((f) => ({
+          ...f,
+          rewardId: f.rewardId && items.some((r) => String(r.id) === String(f.rewardId))
+            ? f.rewardId
+            : items[0].id,
+        }));
       }
     } catch (err) {
       setError(err.message);
@@ -60,28 +66,28 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
       setError("Vui lòng nhập tên mô tả cho luật quay");
       return;
     }
-    if (!form.rewardId) {
-      setError("Vui lòng chọn Giải thưởng cho luật quay");
+    const currentRewardId = form.rewardId || rewards[0]?.id;
+    if (!currentRewardId) {
+      setError("Vui lòng tạo hoặc chọn Giải thưởng cho luật quay");
       return;
     }
 
     try {
-      const selectedReward = rewards.find((r) => r.id === form.rewardId);
       const payload = {
         campaignId: campaign.id,
         name: form.name,
         scope: form.scope,
         active: form.active !== false,
-        priority: Number(form.priority || 100),
+        priority: Number(form.priority ?? 100),
         oaRequired: Boolean(form.oaRequired),
         spins: [
           {
             spinNumber: Number(form.spinNumber || 1),
-            winRate: Number(form.winRate || 0),
+            winRate: Number(form.winRate ?? 100),
             maxWins: Number(form.maxWins || 1),
             rewards: [
               {
-                rewardId: form.rewardId,
+                rewardId: currentRewardId,
                 probability: 100,
                 quantity: Number(form.quantity || 1),
               },
@@ -103,7 +109,7 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
         });
         setSuccessMsg("Đã tạo mới luật quay thành công!");
       }
-      setForm(EMPTY_RULE);
+      setForm({ ...EMPTY_RULE, rewardId: rewards[0]?.id || "" });
       setEditingId(null);
       await loadData();
     } catch (err) {
@@ -111,14 +117,20 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
     }
   };
 
-  const selectedReward = rewards.find((r) => r.id === form.rewardId);
+  const selectedReward = rewards.find((r) => String(r.id) === String(form.rewardId)) || rewards[0];
+  const rewardTitle = selectedReward ? selectedReward.title : "Giải thưởng";
+  const rewardValStr = selectedReward?.value ? selectedReward.value.toLocaleString("vi-VN") + "đ" : "";
 
   // Generate natural language summary sentence
   const summarySentence = `Lượt ${form.spinNumber}: ${
-    form.scope === "group" ? "Khách hàng nhóm đặc biệt" : "Tất cả khách hàng"
-  } có ${form.winRate}% cơ hội nhận ${selectedReward ? selectedReward.title : "Giải thưởng"} (${
-    selectedReward?.value ? selectedReward.value.toLocaleString("vi-VN") + "đ" : ""
-  }), tối đa ${form.maxWins} lần. Số lượng quà: ${form.quantity}.`;
+    form.scope === "group"
+      ? "Khách hàng nhóm đặc biệt"
+      : form.scope === "guest"
+      ? "Khách ngoài danh sách"
+      : form.scope === "user"
+      ? "Khách chỉ định"
+      : "Tất cả khách hàng"
+  } có ${form.winRate ?? 100}% cơ hội nhận ${rewardTitle}${rewardValStr ? ` (${rewardValStr})` : ""}, tối đa ${form.maxWins} lần. Số lượng quà: ${form.quantity}.`;
 
   return (
     <div className="operator-step-container">
@@ -192,14 +204,14 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
                 onChange={(e) => setForm({ ...form, winRate: Number(e.target.value) })}
                 required
               />
-              <small className="form-help">VD: 80 nghĩa là 80% trúng quà, 20% vào May mắn lần sau.</small>
+              <small className="form-help">VD: 100 nghĩa là 100% trúng quà, 80 nghĩa là 80% trúng quà.</small>
             </div>
 
             <div className="form-group">
               <label className="form-label">Chọn Giải thưởng *</label>
               <select
                 className="form-control"
-                value={form.rewardId}
+                value={form.rewardId || selectedReward?.id || ""}
                 onChange={(e) => setForm({ ...form, rewardId: e.target.value })}
                 required
               >
@@ -293,7 +305,7 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
                 className="btn-secondary"
                 onClick={() => {
                   setEditingId(null);
-                  setForm(EMPTY_RULE);
+                  setForm({ ...EMPTY_RULE, rewardId: rewards[0]?.id || "" });
                 }}
               >
                 Hủy bỏ
@@ -314,43 +326,55 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
             </div>
           ) : (
             <div className="rule-cards-list">
-              {rules.map((r) => (
-                <div key={r.id} className="rule-item-card">
-                  <div className="rule-item-header">
-                    <strong>{r.name}</strong>
-                    <span className={`status-tag ${r.active ? "active" : "inactive"}`}>
-                      {r.active ? "Đang bật" : "Tắt"}
-                    </span>
-                  </div>
+              {rules.map((r) => {
+                const firstSpin = r.spins?.[0] || {};
+                const firstReward = firstSpin.rewards?.[0] || {};
+                const matchedReward = rewards.find(
+                  (rw) => String(rw.id) === String(firstReward.rewardId || firstReward.reward_id)
+                );
+                const winRateVal = firstSpin.winRate ?? firstSpin.win_rate ?? 100;
+                return (
+                  <div key={r.id} className="rule-item-card">
+                    <div className="rule-item-header">
+                      <strong>{r.name}</strong>
+                      <span className={`status-tag ${r.active ? "active" : "inactive"}`}>
+                        {r.active ? "Đang bật" : "Tắt"}
+                      </span>
+                    </div>
 
-                  <p className="rule-item-detail">
-                    Scope: <code>{r.scope}</code> | Ưu tiên: <code>{r.priority}</code>
-                  </p>
+                    <p className="rule-item-detail" style={{ margin: "6px 0", color: "#1e293b", fontWeight: "600" }}>
+                      Tỷ lệ trúng: <strong style={{ color: "#dc2626" }}>{winRateVal}%</strong> | Giải thưởng: <strong>{matchedReward ? matchedReward.title : "Giải thưởng"}</strong> ({firstReward.quantity || 1} phần)
+                    </p>
 
-                  <div className="rule-item-actions">
-                    <button
-                      className="btn-link"
-                      onClick={() => {
-                        setEditingId(r.id);
-                        setForm({
-                          name: r.name,
-                          scope: r.scope,
-                          active: r.active,
-                          priority: r.priority,
-                          oaRequired: r.oaRequired,
-                          spinNumber: r.spins?.[0]?.spinNumber || 1,
-                          winRate: r.spins?.[0]?.winRate || 80,
-                          maxWins: r.spins?.[0]?.maxWins || 1,
-                          rewardId: r.spins?.[0]?.rewards?.[0]?.rewardId || "",
-                          quantity: r.spins?.[0]?.rewards?.[0]?.quantity || 1,
-                        });
-                      }}
-                    >
-                      Sửa
-                    </button>
+                    <p className="rule-item-detail">
+                      Đối tượng: <code>{r.scope}</code> | Ưu tiên: <code>{r.priority}</code>
+                    </p>
+
+                    <div className="rule-item-actions">
+                      <button
+                        className="btn-link"
+                        onClick={() => {
+                          setEditingId(r.id);
+                          setForm({
+                            name: r.name,
+                            scope: r.scope,
+                            active: r.active,
+                            priority: r.priority,
+                            oaRequired: r.oaRequired ?? r.oa_required ?? false,
+                            spinNumber: firstSpin.spinNumber ?? firstSpin.spin_number ?? 1,
+                            winRate: firstSpin.winRate ?? firstSpin.win_rate ?? 100,
+                            maxWins: firstSpin.maxWins ?? firstSpin.max_wins ?? 1,
+                            rewardId: firstReward.rewardId || firstReward.reward_id || rewards[0]?.id || "",
+                            quantity: firstReward.quantity || 1,
+                          });
+                        }}
+                      >
+                        Sửa
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
