@@ -559,11 +559,151 @@ function Rewards() {
 }
 
 function Customers() {
-  const [items, setItems] = useState([]); const [search, setSearch] = useState(""); const [error, setError] = useState(""); const [form, setForm] = useState({ name: "", phone: "", totalSpins: 5 });
-  const load = () => api(`/admin/customers?search=${encodeURIComponent(search)}`).then((r) => setItems(r.items || [])).catch((e) => setError(e.message)); useEffect(() => { const timer = setTimeout(load, 250); return () => clearTimeout(timer); }, [search]);
-  const add = async (event) => { event.preventDefault(); try { await api("/admin/customers", { method: "POST", body: JSON.stringify({ ...form, totalSpins: Number(form.totalSpins) }) }); setForm({ name: "", phone: "", totalSpins: 5 }); await load(); } catch (e) { setError(e.message); } };
-  const remove = async (id) => { if (!confirm("Ẩn khách hàng này?")) return; try { await api(`/admin/customers/${id}`, { method: "DELETE" }); await load(); } catch (e) { setError(e.message); } };
-  return <><Header title="Khách hàng" subtitle="Thêm khách thủ công và kiểm tra số lượt quay được cấp." />{error && <div className="error">{error}</div>}<section className="panel inline-form"><h2>Thêm khách hàng</h2><form onSubmit={add}><input placeholder="Họ tên" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /><input placeholder="Số điện thoại" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required /><input type="number" min="0" placeholder="Lượt quay" value={form.totalSpins} onChange={(e) => setForm({ ...form, totalSpins: e.target.value })} /><button className="primary">Thêm</button></form></section><section className="panel"><div className="panel-heading"><h2>Danh sách ({items.length})</h2><input placeholder="Tìm tên hoặc số điện thoại" value={search} onChange={(e) => setSearch(e.target.value)} /></div><div className="table-wrap"><table><thead><tr><th>Tên</th><th>Số điện thoại</th><th>Lượt cấp</th><th>Voucher</th><th></th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.phone}</td><td>{item.totalSpins}</td><td>{item.rewards?.length || 0}</td><td><button className="danger" onClick={() => remove(item.id)}>Ẩn</button></td></tr>)}</tbody></table></div></section></>;
+  const [items, setItems] = useState([]);
+  const [search, setSearch] = useState("");
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({ name: "", phone: "", totalSpins: 5 });
+  const [editingId, setEditingId] = useState(null);
+
+  const load = () =>
+    api(`/admin/customers?search=${encodeURIComponent(search)}`)
+      .then((r) => setItems(r.items || []))
+      .catch((e) => setError(e.message));
+
+  useEffect(() => {
+    const timer = setTimeout(load, 250);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const save = async (event) => {
+    event.preventDefault();
+    setError("");
+    try {
+      if (editingId) {
+        await api(`/admin/customers/${editingId}`, {
+          method: "PUT",
+          body: JSON.stringify({ ...form, totalSpins: Number(form.totalSpins) }),
+        });
+      } else {
+        await api("/admin/customers", {
+          method: "POST",
+          body: JSON.stringify({ ...form, totalSpins: Number(form.totalSpins) }),
+        });
+      }
+      setForm({ name: "", phone: "", totalSpins: 5 });
+      setEditingId(null);
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const startEdit = (item) => {
+    setEditingId(item.id);
+    setForm({
+      name: item.name || "",
+      phone: item.phone || "",
+      totalSpins: item.totalSpins ?? 5,
+    });
+  };
+
+  const remove = async (id) => {
+    if (!confirm("Ẩn khách hàng này?")) return;
+    try {
+      await api(`/admin/customers/${id}`, { method: "DELETE" });
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  return (
+    <>
+      <Header title="Khách hàng" subtitle="Thêm, chỉnh sửa thông tin khách hàng thủ công và kiểm tra số lượt quay được cấp." />
+      {error && <div className="error">{error}</div>}
+      <section className="panel inline-form">
+        <h2>{editingId ? "Sửa thông tin khách hàng" : "Thêm khách hàng mới"}</h2>
+        <form onSubmit={save}>
+          <input
+            placeholder="Họ tên"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            required
+          />
+          <input
+            placeholder="Số điện thoại"
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            required
+          />
+          <input
+            type="number"
+            min="0"
+            placeholder="Lượt quay"
+            value={form.totalSpins}
+            onChange={(e) => setForm({ ...form, totalSpins: e.target.value })}
+          />
+          <button className="primary">{editingId ? "Cập nhật" : "Thêm"}</button>
+          {editingId && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditingId(null);
+                setForm({ name: "", phone: "", totalSpins: 5 });
+              }}
+            >
+              Hủy
+            </button>
+          )}
+        </form>
+      </section>
+      <section className="panel">
+        <div className="panel-heading">
+          <h2>Danh sách ({items.length})</h2>
+          <input
+            placeholder="Tìm tên hoặc số điện thoại"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tên</th>
+                <th>Số điện thoại</th>
+                <th>Lượt cấp</th>
+                <th>Voucher</th>
+                <th>Hành động</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id}>
+                  <td>{item.name}</td>
+                  <td>{item.phone}</td>
+                  <td>{item.totalSpins}</td>
+                  <td>{item.rewards?.length || 0}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>
+                    <button
+                      className="btn-action secondary"
+                      style={{ padding: "4px 8px", fontSize: "11px", marginRight: "6px" }}
+                      onClick={() => startEdit(item)}
+                    >
+                      Sửa
+                    </button>
+                    <button className="danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => remove(item.id)}>
+                      Ẩn
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
+  );
 }
 
 function Awards() {
