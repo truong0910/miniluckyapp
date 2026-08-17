@@ -61,7 +61,8 @@ export function formatAwardsToCsv(awards = []) {
     rows.push(row.map(escapeCsvCell).join(","));
   }
 
-  return rows.join("\r\n");
+  // Excel otherwise guesses a legacy Vietnamese code page and mangles UTF-8 headers.
+  return `\uFEFF${rows.join("\r\n")}`;
 }
 
 export async function getCampaignAnalytics({ db, campaignId }) {

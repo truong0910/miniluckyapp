@@ -1,7 +1,7 @@
 // Deploy as a Web App and set access to anyone who has the URL.
 // The backend sends the JSON payload built in backend/src/google-sheets-service.js.
 function doGet() {
-  return jsonResponse({ status: "ok", version: "v2-12-columns" });
+  return jsonResponse({ status: "ok", version: "v3-14-columns" });
 }
 
 function doPost(e) {
@@ -37,7 +37,9 @@ function doPost(e) {
       data.awardId || "",
       data.status || "",
       formatDate(data.deliveredAt),
-      formatDate(data.redeemedAt)
+      formatDate(data.redeemedAt),
+      data.campaignId || "",
+      data.campaignName || ""
     ]);
 
     return jsonResponse({ status: "success", spinId: data.spinId });

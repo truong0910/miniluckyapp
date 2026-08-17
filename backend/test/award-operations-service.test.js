@@ -1,9 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import path from "node:path";
 import {
   validateAwardStatusTransition,
   calculateInventorySummary,
 } from "../src/award-operations-service.js";
+
+test("award status audit reason has an additive schema migration and service write contract", async () => {
+  const migration = await fs.readFile(path.resolve(process.cwd(), "../lucky-wheels/supabase/migrations/0009_award_status_audit.sql"), "utf8");
+  const service = await fs.readFile(path.resolve(process.cwd(), "../backend/src/award-operations-service.js"), "utf8");
+  assert.match(migration, /add column if not exists status_reason/i);
+  assert.match(service, /status_reason/);
+});
 
 test("validateAwardStatusTransition enforces valid state transitions and mandatory reason for void/expire", () => {
   // Redeem allowed from issued or delivered

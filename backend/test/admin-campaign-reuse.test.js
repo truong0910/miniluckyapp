@@ -16,3 +16,10 @@ test("admin campaign clone and participant routes are authenticated and delegate
   assert.match(source, /router\.get\(\s*"\/campaigns\/:id\/participants"\s*,\s*requireAdmin/);
   assert.match(source, /router\.post\(\s*"\/campaigns\/:id\/participants\/import"\s*,\s*requireAdmin/);
 });
+
+test("campaign rule listing and creation carry the selected campaign", async () => {
+  const source = await readFile(adminRoutesPath, "utf8");
+  assert.match(source, /campaignId\s*=\s*String\(_req\.query\.campaignId/);
+  assert.match(source, /\.eq\("campaign_id", campaignId\)/);
+  assert.match(source, /campaign_id:\s*campaignId/);
+});

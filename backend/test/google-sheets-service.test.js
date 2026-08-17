@@ -1,6 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { buildGoogleSheetsPayload, postSpinToGoogleSheets, syncSpinToGoogleSheets } from "../src/google-sheets-service.js";
+
+test("Apps Script appends campaign context columns", async () => {
+  const script = await fs.readFile(path.resolve(process.cwd(), "../docs/google-sheets-webhook-doPost.gs"), "utf8");
+  assert.match(script, /data\.campaignId/);
+  assert.match(script, /data\.campaignName/);
+});
 
 test("buildGoogleSheetsPayload matches the Apps Script doPost contract", () => {
   const payload = buildGoogleSheetsPayload({

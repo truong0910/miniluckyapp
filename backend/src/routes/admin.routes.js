@@ -26,6 +26,20 @@ import {
   generateCampaignExportCsv,
   getCampaignAnalytics,
 } from "../campaign-reporting-service.js";
+import {
+  addGroupMember,
+  assignRuleToGroup,
+  createGroup,
+  deleteGroup,
+  listGroupMembers,
+  listGroupRules,
+  listGroups,
+  removeGroupMember,
+  removeRuleFromGroup,
+  renameGroup,
+  replaceGroupMembers,
+  replaceGroupRules,
+} from "../customer-group-service.js";
 
 const router = Router();
 
@@ -297,6 +311,72 @@ router.get("/campaigns/:id/export", requireAdmin, asyncRoute(async (req, res) =>
   res.send(csv);
 }));
 
+router.get("/groups", requireAdmin, asyncRoute(async (req, res) => {
+  const result = await listGroups({ db: supabase, search: req.query.search || "" });
+  res.json(result);
+}));
+
+router.post("/groups", requireAdmin, asyncRoute(async (req, res) => {
+  const group = await createGroup({ db: supabase, name: req.body?.name });
+  res.status(201).json(group);
+}));
+
+router.put("/groups/:id", requireAdmin, asyncRoute(async (req, res) => {
+  const group = await renameGroup({ db: supabase, id: req.params.id, name: req.body?.name });
+  res.json(group);
+}));
+
+router.delete("/groups/:id", requireAdmin, asyncRoute(async (req, res) => {
+  const result = await deleteGroup({ db: supabase, id: req.params.id });
+  res.json(result);
+}));
+
+router.get("/groups/:id/members", requireAdmin, asyncRoute(async (req, res) => {
+  const page = parseInt(String(req.query.page || 1), 10) || 1;
+  const limit = parseInt(String(req.query.limit || 20), 10) || 20;
+  const result = await listGroupMembers({
+    db: supabase,
+    groupId: req.params.id,
+    page,
+    limit,
+    search: req.query.search || "",
+  });
+  res.json(result);
+}));
+
+router.post("/groups/:id/members", requireAdmin, asyncRoute(async (req, res) => {
+  if (Array.isArray(req.body?.customerIds)) {
+    const result = await replaceGroupMembers({ db: supabase, groupId: req.params.id, customerIds: req.body.customerIds });
+    return res.json(result);
+  }
+  const result = await addGroupMember({ db: supabase, groupId: req.params.id, customerId: req.body?.customerId });
+  res.json(result);
+}));
+
+router.delete("/groups/:id/members/:customerId", requireAdmin, asyncRoute(async (req, res) => {
+  const result = await removeGroupMember({ db: supabase, groupId: req.params.id, customerId: req.params.customerId });
+  res.json(result);
+}));
+
+router.get("/groups/:id/rules", requireAdmin, asyncRoute(async (req, res) => {
+  const result = await listGroupRules({ db: supabase, groupId: req.params.id, campaignId: req.query.campaignId || "" });
+  res.json(result);
+}));
+
+router.post("/groups/:id/rules", requireAdmin, asyncRoute(async (req, res) => {
+  if (Array.isArray(req.body?.ruleIds)) {
+    const result = await replaceGroupRules({ db: supabase, groupId: req.params.id, ruleIds: req.body.ruleIds });
+    return res.json(result);
+  }
+  const result = await assignRuleToGroup({ db: supabase, groupId: req.params.id, ruleId: req.body?.ruleId });
+  res.json(result);
+}));
+
+router.delete("/groups/:id/rules/:ruleId", requireAdmin, asyncRoute(async (req, res) => {
+  const result = await removeRuleFromGroup({ db: supabase, groupId: req.params.id, ruleId: req.params.ruleId });
+  res.json(result);
+}));
+
 async function loadCampaignRule(id) {
   const { data: rule, error } = await supabase.from("campaign_rules").select("*").eq("id", id).single();
   if (error) throw error;
@@ -308,7 +388,10 @@ async function loadCampaignRule(id) {
   return { ...rule, spins: (spins || []).map((spin) => ({ ...spin, rewards: (rewards.data || []).filter((item) => item.spin_config_id === spin.id) })) };
 }
 
+const LEGACY_CAMPAIGN_ID = "00000000-0000-0000-0000-000000000001";
+
 async function saveCampaignRule(body, id) {
+  const campaignId = String(body.campaignId || body.campaign_id || "").trim();
   const ruleRecord = {
     ...(id ? { id } : {}),
     name: String(body.name || "Rule mới").trim(),
@@ -322,6 +405,7 @@ async function saveCampaignRule(body, id) {
     max_total_wins: body.maxTotalWins == null || body.maxTotalWins === "" ? null : Number(body.maxTotalWins),
     starts_at: body.startsAt || null,
     ends_at: body.endsAt || null,
+    ...(campaignId ? { campaign_id: campaignId } : (!id ? { campaign_id: LEGACY_CAMPAIGN_ID } : {})),
   };
   const { data: rule, error } = await supabase.from("campaign_rules").upsert(ruleRecord).select("*").single();
   if (error) throw error;
@@ -336,7 +420,10 @@ async function saveCampaignRule(body, id) {
 }
 
 router.get("/campaign-rules", requireAdmin, asyncRoute(async (_req, res) => {
-  const { data, error } = await supabase.from("campaign_rules").select("id").order("priority", { ascending: false });
+  const campaignId = String(_req.query.campaignId || "").trim();
+  let query = supabase.from("campaign_rules").select("id").order("priority", { ascending: false });
+  if (campaignId) query = query.eq("campaign_id", campaignId);
+  const { data, error } = await query;
   if (error) throw error;
   res.json({ items: await Promise.all((data || []).map((row) => loadCampaignRule(row.id))) });
 }));

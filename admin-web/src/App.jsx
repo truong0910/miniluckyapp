@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, auth, fileToDataUrl, login, logout } from "./api.js";
+import { api, auth, downloadFile, fileToDataUrl, login, logout } from "./api.js";
+import { parseCsvToRows, parseWorkbookToRows } from "./import-parser.js";
 
 const EMPTY_REWARD = { codePrefix: "", title: "", value: "", description: "", wheelLabel: "", symbol: "star", active: true };
 const EMPTY_BANNER = { title: "", imageUrl: "", linkUrl: "", active: true, order: 0 };
@@ -14,7 +15,7 @@ function Login({ onLogin }) {
 }
 
 function Shell({ tab, setTab, onLogout, children }) {
-  return <div className="app-shell"><aside><div className="brand"><span>LW</span><div><strong>Lucky Wheels</strong><small>Admin Console</small></div></div><nav>{[["overview", "Tổng quan"], ["campaigns", "Sự kiện"], ["participants", "Khách sự kiện"], ["banners", "Banner"], ["rewards", "Giải thưởng"], ["customers", "Khách hàng"], ["awards", "Kho Voucher"], ["campaign", "Luật quay"], ["rules", "Thể lệ"]].map(([id, label]) => <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>{label}</button>)}</nav><button className="logout" onClick={onLogout}>Đăng xuất</button></aside><main className="content">{children}</main></div>;
+  return <div className="app-shell"><aside><div className="brand"><span>LW</span><div><strong>Lucky Wheels</strong><small>Admin Console</small></div></div><nav>{[["overview", "Tổng quan"], ["campaigns", "Sự kiện"], ["participants", "Khách sự kiện"], ["groups", "Nhóm khách"], ["banners", "Banner"], ["rewards", "Giải thưởng"], ["customers", "Khách hàng"], ["awards", "Kho Voucher"], ["campaign", "Luật quay"], ["rules", "Thể lệ"]].map(([id, label]) => <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>{label}</button>)}</nav><button className="logout" onClick={onLogout}>Đăng xuất</button></aside><main className="content">{children}</main></div>;
 }
 
 function Header({ title, subtitle }) { return <header className="page-header"><div><div className="eyebrow">ADMIN WEB · BACKEND API</div><h1>{title}</h1><p>{subtitle}</p></div></header>; }
@@ -39,9 +40,13 @@ function Overview() {
       .catch((e) => setError(e.message));
   }, [selectedCampaignId]);
 
-  const exportCsv = () => {
+  const exportCsv = async () => {
     if (!selectedCampaignId) return;
-    window.open(`/api/v1/admin/campaigns/${selectedCampaignId}/export`, "_blank");
+    try {
+      await downloadFile(`/admin/campaigns/${selectedCampaignId}/export`, `campaign-${selectedCampaignId}.csv`);
+    } catch (e) {
+      setError(e.message);
+    }
   };
 
   const m = analytics?.metrics || {};
@@ -238,45 +243,6 @@ function Campaigns() {
   );
 }
 
-function parseCsvToRows(text) {
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  if (lines.length < 2) return [];
-
-  const parseLine = (line) => {
-    const result = [];
-    let cur = "";
-    let inQuotes = false;
-    for (let i = 0; i < line.length; i++) {
-      const c = line[i];
-      if (c === '"') {
-        if (inQuotes && line[i + 1] === '"') { cur += '"'; i++; }
-        else { inQuotes = !inQuotes; }
-      } else if (c === ',' || c === '\t' || c === ';') {
-        if (inQuotes) { cur += c; }
-        else { result.push(cur.trim()); cur = ""; }
-      } else {
-        cur += c;
-      }
-    }
-    result.push(cur.trim());
-    return result;
-  };
-
-  const headers = parseLine(lines[0]);
-  const rows = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const vals = parseLine(lines[i]);
-    const obj = {};
-    headers.forEach((h, idx) => {
-      obj[h] = vals[idx] || "";
-    });
-    rows.push(obj);
-  }
-
-  return rows;
-}
-
 function CampaignParticipants() {
   const [campaigns, setCampaigns] = useState([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
@@ -315,16 +281,23 @@ function CampaignParticipants() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
+    const isWorkbook = /\.(xlsx|xls)$/i.test(file.name);
     reader.onload = (evt) => {
-      const content = evt.target?.result || "";
-      if (file.name.endsWith(".json")) {
-        setImportRowsJson(content);
-      } else {
-        const rows = parseCsvToRows(content);
-        setImportRowsJson(JSON.stringify(rows, null, 2));
+      try {
+        const content = evt.target?.result || "";
+        if (file.name.toLowerCase().endsWith(".json")) {
+          setImportRowsJson(typeof content === "string" ? content : "");
+        } else {
+          const rows = isWorkbook ? parseWorkbookToRows(content) : parseCsvToRows(content);
+          setImportRowsJson(JSON.stringify(rows, null, 2));
+        }
+        setError("");
+      } catch (error) {
+        setError(`Không đọc được file ${file.name}: ${error.message}`);
       }
     };
-    reader.readAsText(file, "UTF-8");
+    if (isWorkbook) reader.readAsArrayBuffer(file);
+    else reader.readAsText(file, "UTF-8");
   };
 
   const handleImport = async (e) => {
@@ -634,12 +607,335 @@ function Rules() {
 
 function CampaignRules() {
   const EMPTY = { name: "", code: "", scope: "default", priority: 0, spinNumber: 1, winRate: 0, rewardId: "", probability: 100, quantity: 1, maxTotalWins: "", oaRequired: false, active: true };
-  const [items, setItems] = useState([]); const [rewards, setRewards] = useState([]); const [form, setForm] = useState(EMPTY); const [editing, setEditing] = useState(null); const [error, setError] = useState("");
-  const load = async () => { try { const [rules, catalog] = await Promise.all([api("/admin/campaign-rules"), api("/admin/rewards")]); setItems(rules.items || []); setRewards(catalog.items || []); if (!form.rewardId && catalog.items?.[0]) setForm((x) => ({ ...x, rewardId: catalog.items[0].id })); } catch (e) { setError(e.message); } }; useEffect(() => { void load(); }, []);
-  const save = async (event) => { event.preventDefault(); setError(""); try { const body = { name: form.name, code: form.code, scope: form.scope, priority: Number(form.priority), maxTotalWins: form.maxTotalWins, oaRequired: form.oaRequired, active: form.active, spins: [{ spinNumber: Number(form.spinNumber), winRate: Number(form.winRate), rewards: [{ rewardId: form.rewardId, probability: Number(form.probability), quantity: Number(form.quantity), remainingQuantity: Number(form.quantity) }] }] }; await api(editing ? `/admin/campaign-rules/${editing}` : "/admin/campaign-rules", { method: editing ? "PUT" : "POST", body: JSON.stringify(body) }); setForm(EMPTY); setEditing(null); await load(); } catch (e) { setError(e.message); } };
+  const [items, setItems] = useState([]); const [rewards, setRewards] = useState([]); const [campaigns, setCampaigns] = useState([]); const [campaignId, setCampaignId] = useState(""); const [form, setForm] = useState(EMPTY); const [editing, setEditing] = useState(null); const [error, setError] = useState("");
+  const load = async () => { try { const query = campaignId ? `?campaignId=${encodeURIComponent(campaignId)}` : ""; const [rules, catalog] = await Promise.all([api(`/admin/campaign-rules${query}`), api("/admin/rewards")]); setItems(rules.items || []); setRewards(catalog.items || []); if (!form.rewardId && catalog.items?.[0]) setForm((x) => ({ ...x, rewardId: catalog.items[0].id })); } catch (e) { setError(e.message); } };
+  useEffect(() => { api("/admin/campaigns").then((result) => { const available = result.items || []; setCampaigns(available); if (!campaignId && available[0]) setCampaignId(available[0].id); }).catch((e) => setError(e.message)); }, []);
+  useEffect(() => { void load(); }, [campaignId]);
+  const save = async (event) => { event.preventDefault(); setError(""); try { const body = { campaignId, name: form.name, code: form.code, scope: form.scope, priority: Number(form.priority), maxTotalWins: form.maxTotalWins, oaRequired: form.oaRequired, active: form.active, spins: [{ spinNumber: Number(form.spinNumber), winRate: Number(form.winRate), rewards: [{ rewardId: form.rewardId, probability: Number(form.probability), quantity: Number(form.quantity), remainingQuantity: Number(form.quantity) }] }] }; await api(editing ? `/admin/campaign-rules/${editing}` : "/admin/campaign-rules", { method: editing ? "PUT" : "POST", body: JSON.stringify(body) }); setForm(EMPTY); setEditing(null); await load(); } catch (e) { setError(e.message); } };
   const edit = (item) => { const spin = item.spins?.[0]; const reward = spin?.rewards?.[0]; setEditing(item.id); setForm({ ...EMPTY, name: item.name, code: item.code, scope: item.scope, priority: item.priority, maxTotalWins: item.max_total_wins ?? "", oaRequired: item.oa_required, active: item.active, spinNumber: spin?.spin_number || 1, winRate: spin?.win_rate || 0, rewardId: reward?.reward_id || rewards[0]?.id || "", probability: reward?.probability || 100, quantity: reward?.quantity || 1 }); };
   const remove = async (id) => { if (!confirm("Xóa rule này?")) return; try { await api(`/admin/campaign-rules/${id}`, { method: "DELETE" }); await load(); } catch (e) { setError(e.message); } };
-  return <><Header title="Luật quay" subtitle="Cấu hình tỷ lệ thắng từng lượt, tỷ lệ từng quà, số lượng, giới hạn và điều kiện OA." />{error && <div className="error">{error}</div>}<div className="split"><form className="panel form" onSubmit={save}><h2>{editing ? "Sửa rule" : "Tạo rule"}</h2><label>Tên rule<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></label><label>Mã rule<input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="DEFAULT_2026" /></label><div className="two"><label>Phạm vi<select value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })}><option value="default">Default</option><option value="user">Khách hàng</option><option value="group">Nhóm khách</option></select></label><label>Độ ưu tiên<input type="number" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} /></label></div><div className="two"><label>Lượt thứ<input type="number" min="1" value={form.spinNumber} onChange={(e) => setForm({ ...form, spinNumber: e.target.value })} /></label><label>Tỷ lệ thắng lượt (%)<input type="number" min="0" max="100" value={form.winRate} onChange={(e) => setForm({ ...form, winRate: e.target.value })} /></label></div><label>Giải thưởng<select value={form.rewardId} onChange={(e) => setForm({ ...form, rewardId: e.target.value })}>{rewards.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label><div className="two"><label>Tỷ lệ quà (%)<input type="number" min="0" max="100" value={form.probability} onChange={(e) => setForm({ ...form, probability: e.target.value })} /></label><label>Số lượng quà<input type="number" min="1" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} /></label></div><label>Giới hạn tổng số lần trúng<input type="number" min="0" value={form.maxTotalWins} onChange={(e) => setForm({ ...form, maxTotalWins: e.target.value })} placeholder="Không giới hạn" /></label><label className="check"><input type="checkbox" checked={form.oaRequired} onChange={(e) => setForm({ ...form, oaRequired: e.target.checked })} /> Bắt buộc theo dõi OA</label><label className="check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Đang áp dụng</label><div className="actions"><button className="primary">{editing ? "Lưu rule" : "Tạo rule"}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY); }}>Hủy</button>}</div></form><section className="panel"><h2>Danh sách rule ({items.length})</h2><div className="items">{items.map((item) => <article className="item reward-item" key={item.id}><div><strong>{item.name}</strong><small>{item.scope} · ưu tiên {item.priority} · {item.active ? "Đang bật" : "Đang tắt"}</small><small>{item.spins?.length || 0} cấu hình lượt quay</small></div><div className="actions"><button onClick={() => edit(item)}>Sửa</button><button className="danger" onClick={() => remove(item.id)}>Xóa</button></div></article>)}</div></section></div></>;
+  return <><Header title="Luật quay" subtitle="Cấu hình tỷ lệ thắng từng lượt, tỷ lệ từng quà, số lượng, giới hạn và điều kiện OA." />{error && <div className="error">{error}</div>}<div className="split"><form className="panel form" onSubmit={save}><h2>{editing ? "Sửa rule" : "Tạo rule"}</h2><label>Sự kiện<select value={campaignId} onChange={(e) => { setCampaignId(e.target.value); setEditing(null); setForm(EMPTY); }} required>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name} ({campaign.code})</option>)}</select></label><label>Tên rule<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></label><label>Mã rule<input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="DEFAULT_2026" /></label><div className="two"><label>Phạm vi<select value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })}><option value="default">Default</option><option value="user">Khách hàng</option><option value="group">Nhóm khách</option></select></label><label>Độ ưu tiên<input type="number" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} /></label></div><div className="two"><label>Lượt thứ<input type="number" min="1" value={form.spinNumber} onChange={(e) => setForm({ ...form, spinNumber: e.target.value })} /></label><label>Tỷ lệ thắng lượt (%)<input type="number" min="0" max="100" value={form.winRate} onChange={(e) => setForm({ ...form, winRate: e.target.value })} /></label></div><label>Giải thưởng<select value={form.rewardId} onChange={(e) => setForm({ ...form, rewardId: e.target.value })}>{rewards.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label><div className="two"><label>Tỷ lệ quà (%)<input type="number" min="0" max="100" value={form.probability} onChange={(e) => setForm({ ...form, probability: e.target.value })} /></label><label>Số lượng quà<input type="number" min="1" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} /></label></div><label>Giới hạn tổng số lần trúng<input type="number" min="0" value={form.maxTotalWins} onChange={(e) => setForm({ ...form, maxTotalWins: e.target.value })} placeholder="Không giới hạn" /></label><label className="check"><input type="checkbox" checked={form.oaRequired} onChange={(e) => setForm({ ...form, oaRequired: e.target.checked })} /> Bắt buộc theo dõi OA</label><label className="check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Đang áp dụng</label><div className="actions"><button className="primary">{editing ? "Lưu rule" : "Tạo rule"}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY); }}>Hủy</button>}</div></form><section className="panel"><h2>Danh sách rule ({items.length})</h2><div className="items">{items.map((item) => <article className="item reward-item" key={item.id}><div><strong>{item.name}</strong><small>{item.scope} · ưu tiên {item.priority} · {item.active ? "Đang bật" : "Đang tắt"}</small><small>{item.spins?.length || 0} cấu hình lượt quay</small></div><div className="actions"><button onClick={() => edit(item)}>Sửa</button><button className="danger" onClick={() => remove(item.id)}>Xóa</button></div></article>)}</div></section></div></>;
+}
+
+function CustomerGroups() {
+  const [groups, setGroups] = useState([]);
+  const [selectedGroupId, setSelectedGroupId] = useState("");
+  const [members, setMembers] = useState([]);
+  const [groupRules, setGroupRules] = useState([]);
+  const [allCustomers, setAllCustomers] = useState([]);
+  const [campaigns, setCampaigns] = useState([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState("");
+  const [campaignRules, setCampaignRules] = useState([]);
+
+  const [newGroupName, setNewGroupName] = useState("");
+  const [renamingGroupId, setRenamingGroupId] = useState(null);
+  const [renamingName, setRenamingName] = useState("");
+  const [memberSearch, setMemberSearch] = useState("");
+  const [selectedCustomerIdToAdd, setSelectedCustomerIdToAdd] = useState("");
+  const [error, setError] = useState("");
+
+  const loadGroups = async () => {
+    try {
+      const res = await api("/admin/groups");
+      const list = res.items || [];
+      setGroups(list);
+      if (!selectedGroupId && list[0]) setSelectedGroupId(list[0].id);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const loadMembersAndRules = async () => {
+    if (!selectedGroupId) return;
+    try {
+      const [mRes, rRes] = await Promise.all([
+        api(`/admin/groups/${selectedGroupId}/members`),
+        api(`/admin/groups/${selectedGroupId}/rules`),
+      ]);
+      setMembers(mRes.items || []);
+      setGroupRules(rRes.items || []);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  useEffect(() => { void loadGroups(); }, []);
+  useEffect(() => { void loadMembersAndRules(); }, [selectedGroupId]);
+
+  useEffect(() => {
+    api("/admin/customers").then((r) => setAllCustomers(r.items || [])).catch(() => {});
+    api("/admin/campaigns").then((r) => {
+      const available = r.items || [];
+      setCampaigns(available);
+      if (!selectedCampaignId && available[0]) setSelectedCampaignId(available[0].id);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!selectedCampaignId) return;
+    api(`/admin/campaign-rules?campaignId=${encodeURIComponent(selectedCampaignId)}`)
+      .then((r) => setCampaignRules(r.items || []))
+      .catch(() => {});
+  }, [selectedCampaignId]);
+
+  const handleCreateGroup = async (e) => {
+    e.preventDefault();
+    setError("");
+    try {
+      const created = await api("/admin/groups", {
+        method: "POST",
+        body: JSON.stringify({ name: newGroupName }),
+      });
+      setNewGroupName("");
+      setSelectedGroupId(created.id);
+      await loadGroups();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleRenameGroup = async (id) => {
+    if (!renamingName.trim()) return;
+    setError("");
+    try {
+      await api(`/admin/groups/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ name: renamingName.trim() }),
+      });
+      setRenamingGroupId(null);
+      setRenamingName("");
+      await loadGroups();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleDeleteGroup = async (id, name) => {
+    if (!confirm(`Xóa nhóm '${name}'? Thao tác này chỉ xóa liên kết nhóm, giữ nguyên thông tin khách hàng và lịch sử.`)) return;
+    setError("");
+    try {
+      await api(`/admin/groups/${id}`, { method: "DELETE" });
+      if (selectedGroupId === id) setSelectedGroupId("");
+      await loadGroups();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleAddMember = async (e) => {
+    e.preventDefault();
+    if (!selectedGroupId || !selectedCustomerIdToAdd) return;
+    setError("");
+    try {
+      await api(`/admin/groups/${selectedGroupId}/members/${selectedCustomerIdToAdd}`, { method: "POST" });
+      setSelectedCustomerIdToAdd("");
+      await loadMembersAndRules();
+      await loadGroups();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleRemoveMember = async (customerId) => {
+    if (!selectedGroupId) return;
+    setError("");
+    try {
+      await api(`/admin/groups/${selectedGroupId}/members/${customerId}`, { method: "DELETE" });
+      await loadMembersAndRules();
+      await loadGroups();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleToggleRuleAssignment = async (ruleId, assigned) => {
+    if (!selectedGroupId) return;
+    setError("");
+    try {
+      if (assigned) {
+        await api(`/admin/groups/${selectedGroupId}/rules/${ruleId}`, { method: "DELETE" });
+      } else {
+        await api(`/admin/groups/${selectedGroupId}/rules/${ruleId}`, { method: "POST" });
+      }
+      await loadMembersAndRules();
+      await loadGroups();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const filteredCustomersForAdd = allCustomers.filter((c) => {
+    if (members.some((m) => m.customerId === c.id)) return false;
+    if (!memberSearch) return true;
+    const s = memberSearch.toLowerCase();
+    return c.name.toLowerCase().includes(s) || c.phone.includes(s) || c.id.includes(s);
+  });
+
+  const selectedGroup = groups.find((g) => g.id === selectedGroupId);
+
+  return (
+    <>
+      <Header title="Nhóm khách hàng (Customer Groups)" subtitle="Phân nhóm khách hàng (VIP, Đại lý, Nội bộ) để gán thể lệ/luật quay đặc thù theo từng sự kiện." />
+      {error && <div className="error">{error}</div>}
+      <div className="split">
+        <section className="panel">
+          <div className="panel-heading">
+            <h2>Tạo nhóm mới</h2>
+          </div>
+          <form className="form" onSubmit={handleCreateGroup}>
+            <label>Tên nhóm khách
+              <input
+                placeholder="VD: Khách hàng VIP, Đại lý..."
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                required
+              />
+            </label>
+            <button className="primary">Tạo nhóm</button>
+          </form>
+
+          <div className="panel-heading" style={{ marginTop: "24px" }}>
+            <h2>Danh sách nhóm ({groups.length})</h2>
+          </div>
+          <div className="items">
+            {groups.map((g) => (
+              <article
+                className={`item reward-item ${selectedGroupId === g.id ? "active" : ""}`}
+                key={g.id}
+                style={{ cursor: "pointer", borderLeft: selectedGroupId === g.id ? "4px solid #ef7e3a" : "none" }}
+                onClick={() => setSelectedGroupId(g.id)}
+              >
+                <div>
+                  {renamingGroupId === g.id ? (
+                    <div style={{ display: "flex", gap: "6px" }} onClick={(e) => e.stopPropagation()}>
+                      <input
+                        value={renamingName}
+                        onChange={(e) => setRenamingName(e.target.value)}
+                        style={{ padding: "4px 8px" }}
+                      />
+                      <button className="primary" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => handleRenameGroup(g.id)}>Lưu</button>
+                      <button style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => setRenamingGroupId(null)}>Hủy</button>
+                    </div>
+                  ) : (
+                    <strong>{g.name}</strong>
+                  )}
+                  <small>{g.memberCount} thành viên · {g.ruleCount} luật được gán</small>
+                </div>
+                <div className="actions" onClick={(e) => e.stopPropagation()}>
+                  {renamingGroupId !== g.id && (
+                    <button style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => { setRenamingGroupId(g.id); setRenamingName(g.name); }}>Sửa</button>
+                  )}
+                  <button className="danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => handleDeleteGroup(g.id, g.name)}>Xóa</button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <div>
+          {selectedGroup ? (
+            <>
+              <section className="panel" style={{ marginBottom: "16px" }}>
+                <div className="panel-heading">
+                  <h2>Thành viên nhóm: {selectedGroup.name} ({members.length})</h2>
+                </div>
+                <form className="form" onSubmit={handleAddMember} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "8px", alignItems: "end" }}>
+                  <label style={{ margin: 0 }}>Tìm theo Tên / SĐT
+                    <input
+                      placeholder="Tìm khách hàng..."
+                      value={memberSearch}
+                      onChange={(e) => setMemberSearch(e.target.value)}
+                    />
+                  </label>
+                  <label style={{ margin: 0 }}>Chọn khách hàng
+                    <select
+                      value={selectedCustomerIdToAdd}
+                      onChange={(e) => setSelectedCustomerIdToAdd(e.target.value)}
+                    >
+                      <option value="">-- Chọn khách hàng --</option>
+                      {filteredCustomersForAdd.slice(0, 50).map((c) => (
+                        <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
+                      ))}
+                    </select>
+                  </label>
+                  <button className="primary" disabled={!selectedCustomerIdToAdd}>Thêm vào nhóm</button>
+                </form>
+
+                <div className="table-wrap" style={{ marginTop: "12px" }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Tên Khách hàng</th>
+                        <th>Số điện thoại</th>
+                        <th>Mã Khách hàng</th>
+                        <th>Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {members.length === 0 ? (
+                        <tr><td colSpan="4" style={{ textAlign: "center", padding: "16px" }}>Chưa có thành viên nào trong nhóm này.</td></tr>
+                      ) : (
+                        members.map((m) => (
+                          <tr key={m.customerId}>
+                            <td><strong>{m.customerName}</strong></td>
+                            <td>{m.customerPhone}</td>
+                            <td><code>{m.customerId}</code></td>
+                            <td>
+                              <button className="danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => handleRemoveMember(m.customerId)}>Loại khỏi nhóm</button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+
+              <section className="panel">
+                <div className="panel-heading">
+                  <h2>Gán Luật quay theo Sự kiện</h2>
+                  <select value={selectedCampaignId} onChange={(e) => setSelectedCampaignId(e.target.value)} style={{ padding: "6px 12px" }}>
+                    {campaigns.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name} ({c.code})</option>
+                    ))}
+                  </select>
+                </div>
+                <p style={{ fontSize: "13px", color: "#666" }}>Chọn luật quay thuộc sự kiện để áp dụng cho thành viên nhóm <strong>{selectedGroup.name}</strong>:</p>
+                <div className="items" style={{ marginTop: "12px" }}>
+                  {campaignRules.length === 0 ? (
+                    <div style={{ padding: "12px", color: "#888" }}>Sự kiện này chưa có luật quay nào.</div>
+                  ) : (
+                    campaignRules.map((rule) => {
+                      const isAssigned = groupRules.some((gr) => gr.ruleId === rule.id);
+                      return (
+                        <article className="item reward-item" key={rule.id}>
+                          <div>
+                            <strong>{rule.name}</strong>
+                            <small>Mã: <code>{rule.code}</code> · Phạm vi: {rule.scope} · Ưu tiên: {rule.priority}</small>
+                          </div>
+                          <button
+                            className={isAssigned ? "danger" : "primary"}
+                            style={{ padding: "6px 12px", fontSize: "12px" }}
+                            onClick={() => handleToggleRuleAssignment(rule.id, isAssigned)}
+                          >
+                            {isAssigned ? "Hủy gán" : "Gán cho nhóm"}
+                          </button>
+                        </article>
+                      );
+                    })
+                  )}
+                </div>
+              </section>
+            </>
+          ) : (
+            <section className="panel">
+              <p style={{ padding: "24px", textAlign: "center", color: "#888" }}>Vui lòng chọn hoặc tạo một nhóm khách hàng để xem thông tin chi tiết.</p>
+            </section>
+          )}
+        </div>
+      </div>
+    </>
+  );
 }
 
 export default function App() {
@@ -650,6 +946,7 @@ export default function App() {
     overview: <Overview />,
     campaigns: <Campaigns />,
     participants: <CampaignParticipants />,
+    groups: <CustomerGroups />,
     banners: <Banners />,
     rewards: <Rewards />,
     customers: <Customers />,

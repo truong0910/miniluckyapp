@@ -51,6 +51,7 @@ test("formatAwardsToCsv generates RFC4180 compliant CSV string", () => {
   ];
 
   const csv = formatAwardsToCsv(awards);
-  assert.match(csv, /^"Mã Voucher","Tên Khách hàng","SĐT","Phần thưởng","Giá trị","Trạng thái","Ngày cấp"/);
+  assert.equal(csv.charCodeAt(0), 0xfeff, "CSV must include an UTF-8 BOM for Excel");
+  assert.match(csv.slice(1), /^"Mã Voucher","Tên Khách hàng","SĐT","Phần thưởng","Giá trị","Trạng thái","Ngày cấp"/);
   assert.match(csv, /"V5M_01","Nguyễn Văn A","0912345678","Voucher 5 triệu","5000000","delivered"/);
 });

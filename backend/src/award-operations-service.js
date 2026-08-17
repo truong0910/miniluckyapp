@@ -121,15 +121,26 @@ export async function updateAwardStatus({ db, awardId, status, reason = "" }) {
 
   validateAwardStatusTransition(award.status, status, reason);
 
-  const { data: updated, error: updateErr } = await db
+  const normalizedReason = String(reason || "").trim() || null;
+  let { data: updated, error: updateErr } = await db
     .from("awards")
-    .update({ status })
+    .update({ status, status_reason: normalizedReason })
     .eq("id", awardId)
     .select("*")
     .single();
 
+  // Keep older test databases usable until the additive audit migration is applied.
+  if (updateErr && (updateErr.code === "PGRST204" || updateErr.code === "42703" || /status_reason/i.test(updateErr.message || ""))) {
+    ({ data: updated, error: updateErr } = await db
+      .from("awards")
+      .update({ status })
+      .eq("id", awardId)
+      .select("*")
+      .single());
+  }
+
   if (updateErr) throw updateErr;
-  return { ...updated, reason };
+  return { ...updated, reason: normalizedReason };
 }
 
 export async function getCampaignInventorySummary({ db, campaignId }) {

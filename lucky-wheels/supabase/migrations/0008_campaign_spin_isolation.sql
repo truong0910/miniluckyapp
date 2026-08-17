@@ -1,5 +1,6 @@
 -- Phase 2F: isolate spin_once RPC execution by active campaign_id and campaign_participants quotas.
--- Preserves all legacy data and falls back gracefully to global customer total_spins if no campaign participant row exists.
+-- Preserves all legacy data. The legacy campaign keeps the old customer quota;
+-- every newly created campaign requires an explicit campaign_participants row.
 
 create or replace function public.spin_once(
   p_customer_id text,
@@ -73,13 +74,18 @@ begin
     v_campaign_id := '00000000-0000-0000-0000-000000000001'::uuid;
   end if;
 
-  -- Read spin_quota from campaign_participants for active campaign, or fallback to customer total_spins
+  -- Read quota from the active campaign. Only the deterministic legacy campaign
+  -- may use the pre-campaign customers.total_spins value.
   select spin_quota into v_allowed_spins
   from public.campaign_participants
   where campaign_id = v_campaign_id and customer_id = p_customer_id and status = 'active';
 
   if not found then
-    v_allowed_spins := v_customer.total_spins;
+    if v_campaign_id = '00000000-0000-0000-0000-000000000001'::uuid then
+      v_allowed_spins := v_customer.total_spins;
+    else
+      raise exception using errcode = 'P0003', message = 'customer is not a participant in the active campaign';
+    end if;
   end if;
 
   -- Count spins scoped to current campaign

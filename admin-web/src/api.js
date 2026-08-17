@@ -17,6 +17,25 @@ export async function api(path, options = {}) {
   return payload;
 }
 
+export async function downloadFile(path, filename) {
+  const headers = new Headers();
+  if (auth.token) headers.set("authorization", `Bearer ${auth.token}`);
+  const response = await fetch(`${API_BASE_URL}${path}`, { headers });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || `API lỗi ${response.status}`);
+  }
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+}
+
 export async function login(email, password) {
   const result = await api("/admin/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
   auth.token = result.accessToken;

@@ -84,6 +84,54 @@ export function matchDenominationToReward(value, rewards = []) {
   return match;
 }
 
+export function validateVoucherImportRows(parsedRows = [], rewards = []) {
+  const validRows = [];
+  const errors = [];
+
+  for (const row of parsedRows) {
+    if (!row.valid) {
+      errors.push(`Dòng ${row.rowNumber}: ${row.error}`);
+      continue;
+    }
+    if (row.voucherCount <= 0 || row.denominations.length !== row.voucherCount) {
+      errors.push(`Dòng ${row.rowNumber}: Cần ghi đúng số mệnh giá trong cột Ghi chú`);
+      continue;
+    }
+    try {
+      row.denominations.forEach((denomination) => matchDenominationToReward(denomination, rewards));
+      validRows.push(row);
+    } catch (error) {
+      errors.push(`Dòng ${row.rowNumber}: ${error.message}`);
+    }
+  }
+
+  return { validRows, errors };
+}
+
+async function findOrCreateCustomer({ db, row, importMode }) {
+  const { data: existing, error: lookupError } = await db
+    .from("customers")
+    .select("id")
+    .eq("phone", row.phone)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+  if (existing?.id) return existing.id;
+
+  const custId = `customer-${row.phone}`;
+  const { error } = await db.from("customers").insert({
+    id: custId,
+    phone: row.phone,
+    name: row.name,
+    sex: "other",
+    job: "other",
+    total_spins: importMode === "quota" ? row.voucherCount : 5,
+    deleted_at: null,
+  });
+  if (error) throw error;
+  return custId;
+}
+
 export async function cloneCampaign({ db, sourceCampaignId, newCode, newName, cloneMode = "config_only" }) {
   const source = await getCampaign({ db, id: sourceCampaignId });
   const newCampaign = await createCampaign({ db, input: { code: newCode, name: newName, timezone: source.timezone } });
@@ -168,38 +216,60 @@ export async function importCampaignParticipants({ db, campaignId, rows = [], im
   const campaign = await getCampaign({ db, id: campaignId });
   const parsedRows = parseCustomerImportRows(rows);
 
-  const validRows = parsedRows.filter((r) => r.valid);
-  const invalidRows = parsedRows.filter((r) => !r.valid);
+  let validRows = parsedRows.filter((r) => r.valid);
+  let errors = parsedRows.filter((r) => !r.valid).map((r) => `Dòng ${r.rowNumber}: ${r.error}`);
+  let rewards = [];
 
-  if (invalidRows.length > 0 && validRows.length === 0) {
-    return {
-      success: false,
-      totalRows: rows.length,
-      importedCount: 0,
-      invalidCount: invalidRows.length,
-      errors: invalidRows.map((r) => `Dòng ${r.rowNumber}: ${r.error}`),
-    };
+  if (importMode === "voucher") {
+    const { data: rules, error: rulesError } = await db
+      .from("campaign_rules")
+      .select("id")
+      .eq("campaign_id", campaign.id)
+      .eq("active", true);
+    if (rulesError) throw rulesError;
+
+    const ruleIds = (rules || []).map((rule) => rule.id);
+    if (ruleIds.length > 0) {
+      const { data: configs, error: configsError } = await db
+        .from("rule_spin_configs")
+        .select("id")
+        .in("rule_id", ruleIds);
+      if (configsError) throw configsError;
+      const configIds = (configs || []).map((config) => config.id);
+      if (configIds.length > 0) {
+        const { data: links, error: linksError } = await db
+          .from("rule_spin_rewards")
+          .select("reward_id")
+          .in("spin_config_id", configIds);
+        if (linksError) throw linksError;
+        const rewardIds = [...new Set((links || []).map((link) => link.reward_id).filter(Boolean))];
+        if (rewardIds.length > 0) {
+          const { data: rewardRows, error: rewardsError } = await db
+            .from("reward_catalog")
+            .select("id,code_prefix,title,value,description,wheel_label,active")
+            .in("id", rewardIds)
+            .eq("active", true);
+          if (rewardsError) throw rewardsError;
+          rewards = rewardRows || [];
+        }
+      }
+    }
+    const validated = validateVoucherImportRows(parsedRows, rewards);
+    validRows = validated.validRows;
+    errors = validated.errors;
   }
 
-  // Fetch campaign rewards for denomination matching if voucher mode
-  const { data: rewards } = await db.from("reward_catalog").select("id,code_prefix,title,value,description,wheel_label,active").eq("active", true);
+  // Never partially assign an import: the Admin must correct every row first.
+  if (errors.length > 0) {
+    return { success: false, totalRows: rows.length, importedCount: 0, invalidCount: errors.length, errors };
+  }
 
   let importedCount = 0;
-  const errors = invalidRows.map((r) => `Dòng ${r.rowNumber}: ${r.error}`);
 
   for (const row of validRows) {
     try {
       // 1. Find or create customer
-      const custId = `customer-${row.phone}`;
-      await db.from("customers").upsert({
-        id: custId,
-        phone: row.phone,
-        name: row.name,
-        sex: "other",
-        job: "other",
-        total_spins: importMode === "quota" ? row.voucherCount : 5,
-        deleted_at: null,
-      });
+      const custId = await findOrCreateCustomer({ db, row, importMode });
 
       // 2. Upsert campaign_participants
       await db.from("campaign_participants").upsert({
@@ -211,7 +281,7 @@ export async function importCampaignParticipants({ db, campaignId, rows = [], im
       }, { onConflict: "campaign_id,customer_id" });
 
       // 3. Create pre-assigned customer_rewards if voucher mode
-      if (importMode === "voucher" && row.denominations.length > 0) {
+      if (importMode === "voucher") {
         const assignments = row.denominations.map((denom) => {
           const reward = matchDenominationToReward(denom, rewards || []);
           return {

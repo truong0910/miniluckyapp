@@ -4,6 +4,7 @@ import {
   parseCustomerImportRows,
   parseDenominationsFromNote,
   matchDenominationToReward,
+  validateVoucherImportRows,
 } from "../src/campaign-reuse-service.js";
 
 test("parseDenominationsFromNote extracts numeric values from Vietnamese text", () => {
@@ -53,4 +54,13 @@ test("matchDenominationToReward finds reward by value", () => {
     () => matchDenominationToReward(1000000, rewards),
     /Chưa có giải thưởng giá trị 1.000.000/,
   );
+});
+
+test("voucher import validation requires a denomination for every declared voucher", () => {
+  const parsed = parseCustomerImportRows([
+    { name: "Công ty A", phone: "0900000000", voucherCount: 2, note: "" },
+  ]);
+  const result = validateVoucherImportRows(parsed, []);
+  assert.equal(result.validRows.length, 0);
+  assert.match(result.errors[0], /mệnh giá|Mệnh giá|voucher/i);
 });
