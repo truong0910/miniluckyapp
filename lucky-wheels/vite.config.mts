@@ -14,6 +14,9 @@ export default () => {
         "Cache-Control": "no-store",
       },
     },
+    optimizeDeps: {
+      include: ["zmp-ui", "zmp-sdk", "react", "react-dom"],
+    },
     build: {
       assetsInlineLimit: 0,
     },
