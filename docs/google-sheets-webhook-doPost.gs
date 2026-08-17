@@ -15,6 +15,27 @@ function doPost(e) {
 
     if (!data.spinId) throw new Error("spinId is required");
 
+    // Auto-ensure header row has all 14 columns
+    if (sheet.getLastRow() === 0 || sheet.getRange(1, 13).getValue() !== "ID Sự Kiện") {
+      sheet.getRange(1, 1, 1, 14).setValues([[
+        "Thời Gian",
+        "Tên Khách Hàng",
+        "Số Điện Thoại",
+        "Kết Quả",
+        "Giá Trị Voucher",
+        "Tên Voucher",
+        "Mã Voucher",
+        "Mã Lượt Quay",
+        "Award ID",
+        "Trạng Thái Award",
+        "Delivered At",
+        "Redeemed At",
+        "ID Sự Kiện",
+        "Tên Sự Kiện"
+      ]]);
+      sheet.getRange(1, 1, 1, 14).setFontWeight("bold");
+    }
+
     // H is the existing Mã Lượt Quay column. Retrying the same spin is a no-op.
     var lastRow = sheet.getLastRow();
     if (lastRow > 1) {
