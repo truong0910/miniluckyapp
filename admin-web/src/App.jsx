@@ -547,7 +547,7 @@ function Banners() {
   const save = async (event) => { event.preventDefault(); setSaving(true); setError(""); try { const body = { ...form }; const path = editing ? `/admin/banners/${editing}` : "/admin/banners"; await api(path, { method: editing ? "PUT" : "POST", body: JSON.stringify(body) }); setForm(EMPTY_BANNER); setEditing(null); await load(); } catch (e) { setError(e.message); } finally { setSaving(false); } };
   const upload = async (event) => { const file = event.target.files?.[0]; if (!file) return; if (file.size > 8_000_000) { setError("Ảnh tối đa 8MB"); return; } const imageData = await fileToDataUrl(file); setForm((x) => ({ ...x, imageData, imageUrl: "" })); };
   const remove = async (id) => { if (!confirm("Xóa banner này?")) return; try { await api(`/admin/banners/${id}`, { method: "DELETE" }); await load(); } catch (e) { setError(e.message); } };
-  return <><Header title="Quản lý banner" subtitle="Ảnh được lưu trên Supabase Storage, không nhúng data URL vào Mini App." />{error && <div className="error">{error}</div>}<div className="split"><form className="panel form" onSubmit={save}><h2>{editing ? "Sửa banner" : "Thêm banner"}</h2><label>Tiêu đề<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label><label>URL ảnh<input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value, imageData: undefined })} placeholder="https://..." /></label><label>Hoặc tải file<input type="file" accept="image/*" onChange={upload} /></label>{(form.imageUrl || form.imageData) && <img className="banner-preview" src={form.imageData || form.imageUrl} /> }<label>Link khi bấm<input value={form.linkUrl} onChange={(e) => setForm({ ...form, linkUrl: e.target.value })} /></label><label className="check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Hiển thị</label><div className="actions"><button className="primary" disabled={saving}>{saving ? "Đang lưu…" : editing ? "Lưu thay đổi" : "Thêm banner"}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY_BANNER); }}>Hủy</button>}</div></form><section className="panel"><h2>Danh sách ({items.length})</h2><div className="items">{items.map((item) => <article className="item" key={item.id}><img src={item.imageUrl} /><div><strong>{item.title}</strong><small>{item.active ? "Đang hiển thị" : "Đang tắt"}</small><div className="actions"><button onClick={() => { setEditing(item.id); setForm(item); }}>Sửa</button><button className="danger" onClick={() => remove(item.id)}>Xóa</button></div></div></article>)}</div></section></div></>;
+  return <><Header title="Quản lý banner" subtitle="Quản lý hình ảnh banner truyền thông hiển thị trên trang chủ Mini App." />{error && <div className="error">{error}</div>}<div className="split"><form className="panel form" onSubmit={save}><h2>{editing ? "Sửa banner" : "Thêm banner"}</h2><label>Tiêu đề<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label><label>URL ảnh<input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value, imageData: undefined })} placeholder="https://..." /></label><label>Hoặc tải file<input type="file" accept="image/*" onChange={upload} /></label>{(form.imageUrl || form.imageData) && <img className="banner-preview" src={form.imageData || form.imageUrl} /> }<label>Link khi bấm<input value={form.linkUrl} onChange={(e) => setForm({ ...form, linkUrl: e.target.value })} /></label><label className="check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Hiển thị</label><div className="actions"><button className="primary" disabled={saving}>{saving ? "Đang lưu…" : editing ? "Lưu thay đổi" : "Thêm banner"}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY_BANNER); }}>Hủy</button>}</div></form><section className="panel"><h2>Danh sách ({items.length})</h2><div className="items">{items.map((item) => <article className="item" key={item.id}><img src={item.imageUrl} /><div><strong>{item.title}</strong><small>{item.active ? "Đang hiển thị" : "Đang tắt"}</small><div className="actions"><button onClick={() => { setEditing(item.id); setForm(item); }}>Sửa</button><button className="danger" onClick={() => remove(item.id)}>Xóa</button></div></div></article>)}</div></section></div></>;
 }
 
 function Rewards() {
@@ -556,7 +556,7 @@ function Rewards() {
   useEffect(() => { void load(); }, []);
   const save = async (event) => { event.preventDefault(); setError(""); try { const body = { ...form, value: Number(form.value) }; await api(editing ? `/admin/rewards/${editing}` : "/admin/rewards", { method: editing ? "PUT" : "POST", body: JSON.stringify(body) }); setForm(EMPTY_REWARD); setEditing(null); await load(); } catch (e) { setError(e.message); } };
   const remove = async (id) => { if (!confirm("Xóa giải thưởng này?")) return; try { await api(`/admin/rewards/${id}`, { method: "DELETE" }); await load(); } catch (e) { setError(e.message); } };
-  return <><Header title="Giải thưởng & Tồn kho" subtitle="Mọi nơi hiển thị giải thưởng đều đọc từ danh mục này." />{error && <div className="error">{error}</div>}<div className="split"><form className="panel form" onSubmit={save}><h2>{editing ? "Sửa quà" : "Thêm quà"}</h2><label>Tên giải thưởng<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></label><label>Mã quà<input value={form.codePrefix} onChange={(e) => setForm({ ...form, codePrefix: e.target.value })} required /></label><div className="two"><label>Giá trị<input type="number" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} required /></label><label>Nhãn vòng quay<input value={form.wheelLabel} onChange={(e) => setForm({ ...form, wheelLabel: e.target.value })} /></label></div><label>Mô tả<textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label><label>Biểu tượng<select value={form.symbol} onChange={(e) => setForm({ ...form, symbol: e.target.value })}><option value="star">Ngôi sao</option><option value="bell">Chuông</option><option value="red_envelope">Phong bao</option><option value="cherry">Cherry</option><option value="lemon">Lemon</option></select></label><label className="check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Hiển thị trên vòng quay</label><div className="actions"><button className="primary">{editing ? "Lưu thay đổi" : "Thêm quà"}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY_REWARD); }}>Hủy</button>}</div></form><section className="panel"><h2>Danh mục ({items.length})</h2><div className="items">{items.map((item) => <article className="item reward-item" key={item.id}><div><strong>{item.title}</strong><small>{item.value.toLocaleString("vi-VN")}đ · {item.codePrefix} · {item.active ? "Đang bật" : "Đang tắt"}</small></div><div className="actions"><button onClick={() => { setEditing(item.id); setForm(item); }}>Sửa</button><button className="danger" onClick={() => remove(item.id)}>Xóa</button></div></article>)}</div></section></div></>;
+  return <><Header title="Giải thưởng & Tồn kho" subtitle="Quản lý danh mục giải thưởng, hình ảnh và mệnh giá quà tặng." />{error && <div className="error">{error}</div>}<div className="split"><form className="panel form" onSubmit={save}><h2>{editing ? "Sửa quà" : "Thêm quà"}</h2><label>Tên giải thưởng<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></label><label>Mã quà<input value={form.codePrefix} onChange={(e) => setForm({ ...form, codePrefix: e.target.value })} required /></label><div className="two"><label>Giá trị<input type="number" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} required /></label><label>Nhãn vòng quay<input value={form.wheelLabel} onChange={(e) => setForm({ ...form, wheelLabel: e.target.value })} /></label></div><label>Mô tả<textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label><label>Biểu tượng<select value={form.symbol} onChange={(e) => setForm({ ...form, symbol: e.target.value })}><option value="star">Ngôi sao</option><option value="bell">Chuông</option><option value="red_envelope">Phong bao</option><option value="cherry">Cherry</option><option value="lemon">Lemon</option></select></label><label className="check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Hiển thị trên vòng quay</label><div className="actions"><button className="primary">{editing ? "Lưu thay đổi" : "Thêm quà"}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY_REWARD); }}>Hủy</button>}</div></form><section className="panel"><h2>Danh mục ({items.length})</h2><div className="items">{items.map((item) => <article className="item reward-item" key={item.id}><div><strong>{item.title}</strong><small>{item.value.toLocaleString("vi-VN")}đ · {item.codePrefix} · {item.active ? "Đang bật" : "Đang tắt"}</small></div><div className="actions"><button onClick={() => { setEditing(item.id); setForm(item); }}>Sửa</button><button className="danger" onClick={() => remove(item.id)}>Xóa</button></div></article>)}</div></section></div></>;
 }
 
 function Customers() {
@@ -859,11 +859,78 @@ function Awards() {
 }
 
 function Rules() {
-  const [rules, setRules] = useState({ intro: "", eligibility: [], rewards: [], usageNotes: [] }); const [error, setError] = useState("");
-  useEffect(() => { api("/admin/rules").then((r) => r.rules && setRules({ ...rules, ...r.rules })).catch((e) => setError(e.message)); }, []);
-  const save = async (event) => { event.preventDefault(); try { await api("/admin/rules", { method: "PUT", body: JSON.stringify(rules) }); } catch (e) { setError(e.message); } };
-  const lines = (key) => Array.isArray(rules[key]) ? rules[key].join("\n") : "";
-  return <><Header title="Thể lệ chương trình" subtitle="Nội dung này được Mini App đọc qua Backend API." />{error && <div className="error">{error}</div>}<form className="panel form rules" onSubmit={save}><label>Giới thiệu<textarea value={rules.intro} onChange={(e) => setRules({ ...rules, intro: e.target.value })} /></label>{[["eligibility", "Điều kiện tham gia"], ["rewards", "Cơ cấu giải thưởng"], ["usageNotes", "Quy định sử dụng Voucher"]].map(([key, label]) => <label key={key}>{label}<textarea rows="5" value={lines(key)} onChange={(e) => setRules({ ...rules, [key]: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean) })} /></label>)}<button className="primary">Lưu thể lệ</button></form></>;
+  const [rules, setRules] = useState({ intro: "", eligibility: [], rewards: [], usageNotes: [] });
+  const [rawTexts, setRawTexts] = useState({ eligibility: "", rewards: "", usageNotes: "" });
+  const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
+  const load = async () => {
+    try {
+      const r = await api("/admin/rules");
+      if (r.rules) {
+        setRules((prev) => ({ ...prev, ...r.rules }));
+        setRawTexts({
+          eligibility: Array.isArray(r.rules.eligibility) ? r.rules.eligibility.join("\n") : (r.rules.eligibility || ""),
+          rewards: Array.isArray(r.rules.rewards) ? r.rules.rewards.join("\n") : (r.rules.rewards || ""),
+          usageNotes: Array.isArray(r.rules.usageNotes) ? r.rules.usageNotes.join("\n") : (r.rules.usageNotes || ""),
+        });
+      }
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const save = async (event) => {
+    event.preventDefault();
+    setError("");
+    setSuccessMsg("");
+    try {
+      const payload = {
+        ...rules,
+        eligibility: rawTexts.eligibility.split("\n").map((x) => x.trim()).filter(Boolean),
+        rewards: rawTexts.rewards.split("\n").map((x) => x.trim()).filter(Boolean),
+        usageNotes: rawTexts.usageNotes.split("\n").map((x) => x.trim()).filter(Boolean),
+      };
+      await api("/admin/rules", { method: "PUT", body: JSON.stringify(payload) });
+      setSuccessMsg("Đã lưu nội dung thể lệ chương trình thành công!");
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  return (
+    <>
+      <Header title="Thể lệ chương trình" subtitle="Cấu hình điều khoản, điều kiện và cơ cấu giải thưởng hiển thị trên Mini App." />
+      {error && <UiAlert type="error" onClose={() => setError("")}>{error}</UiAlert>}
+      {successMsg && <UiAlert type="success" onClose={() => setSuccessMsg("")}>{successMsg}</UiAlert>}
+      <form className="panel form rules" onSubmit={save}>
+        <label>
+          Giới thiệu
+          <textarea value={rules.intro} onChange={(e) => setRules({ ...rules, intro: e.target.value })} />
+        </label>
+        {[
+          ["eligibility", "Điều kiện tham gia"],
+          ["rewards", "Cơ cấu giải thưởng"],
+          ["usageNotes", "Quy định sử dụng Voucher"],
+        ].map(([key, label]) => (
+          <label key={key}>
+            {label}
+            <textarea
+              rows="5"
+              value={rawTexts[key] || ""}
+              onChange={(e) => setRawTexts({ ...rawTexts, [key]: e.target.value })}
+            />
+          </label>
+        ))}
+        <button className="primary">Lưu thể lệ</button>
+      </form>
+    </>
+  );
 }
 
 function CampaignRules() {
