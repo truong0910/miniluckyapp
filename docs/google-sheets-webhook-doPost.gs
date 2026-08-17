@@ -1,5 +1,27 @@
 // Deploy as a Web App and set access to anyone who has the URL.
 // The backend sends the JSON payload built in backend/src/google-sheets-service.js.
+
+// Run setupHeader() directly in Apps Script editor to update Row 1 headers instantly!
+function setupHeader() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Trang tính1") || ss.getActiveSheet();
+  sheet.getRange(1, 1, 1, 12).setValues([[
+    "Thời Gian",
+    "Tên Khách Hàng",
+    "Số Điện Thoại",
+    "Tên Sự Kiện",
+    "Mã Sự Kiện",
+    "Kết Quả",
+    "Giá Trị Voucher",
+    "Tên Voucher",
+    "Mã Voucher",
+    "Trạng Thái Award",
+    "Thời Gian Gửi ZNS",
+    "Thời Gian Đổi Thưởng"
+  ]]);
+  sheet.getRange(1, 1, 1, 12).setFontWeight("bold");
+}
+
 function doGet() {
   return jsonResponse({ status: "ok", version: "v4-12-clean-columns" });
 }
