@@ -1038,6 +1038,9 @@ function CustomerGroups() {
   const [memberSearch, setMemberSearch] = useState("");
   const [selectedCustomerIdToAdd, setSelectedCustomerIdToAdd] = useState("");
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
+  const [deleteGroupModal, setDeleteGroupModal] = useState({ isOpen: false, groupId: null, groupName: "" });
 
   const loadGroups = async () => {
     try {
@@ -1086,6 +1089,7 @@ function CustomerGroups() {
   const handleCreateGroup = async (e) => {
     e.preventDefault();
     setError("");
+    setSuccessMsg("");
     try {
       const created = await api("/admin/groups", {
         method: "POST",
@@ -1093,6 +1097,7 @@ function CustomerGroups() {
       });
       setNewGroupName("");
       setSelectedGroupId(created.id);
+      setSuccessMsg("Đã tạo nhóm khách hàng mới thành công!");
       await loadGroups();
     } catch (err) {
       setError(err.message);
@@ -1102,6 +1107,7 @@ function CustomerGroups() {
   const handleRenameGroup = async (id) => {
     if (!renamingName.trim()) return;
     setError("");
+    setSuccessMsg("");
     try {
       await api(`/admin/groups/${id}`, {
         method: "PUT",
@@ -1109,18 +1115,27 @@ function CustomerGroups() {
       });
       setRenamingGroupId(null);
       setRenamingName("");
+      setSuccessMsg("Đã đổi tên nhóm thành công!");
       await loadGroups();
     } catch (err) {
       setError(err.message);
     }
   };
 
-  const handleDeleteGroup = async (id, name) => {
-    if (!confirm(`Xóa nhóm '${name}'? Thao tác này chỉ xóa liên kết nhóm, giữ nguyên thông tin khách hàng và lịch sử.`)) return;
+  const confirmDeleteGroup = (id, name) => {
     setError("");
+    setDeleteGroupModal({ isOpen: true, groupId: id, groupName: name });
+  };
+
+  const handleExecuteDeleteGroup = async () => {
+    const { groupId, groupName } = deleteGroupModal;
+    setError("");
+    setSuccessMsg("");
     try {
-      await api(`/admin/groups/${id}`, { method: "DELETE" });
-      if (selectedGroupId === id) setSelectedGroupId("");
+      await api(`/admin/groups/${groupId}`, { method: "DELETE" });
+      if (selectedGroupId === groupId) setSelectedGroupId("");
+      setSuccessMsg(`Đã xóa nhóm '${groupName}' thành công!`);
+      setDeleteGroupModal({ isOpen: false, groupId: null, groupName: "" });
       await loadGroups();
     } catch (err) {
       setError(err.message);
@@ -1131,12 +1146,14 @@ function CustomerGroups() {
     e.preventDefault();
     if (!selectedGroupId || !selectedCustomerIdToAdd) return;
     setError("");
+    setSuccessMsg("");
     try {
       await api(`/admin/groups/${selectedGroupId}/members`, {
         method: "POST",
         body: JSON.stringify({ customerId: selectedCustomerIdToAdd }),
       });
       setSelectedCustomerIdToAdd("");
+      setSuccessMsg("Đã thêm khách hàng vào nhóm thành công!");
       await loadMembersAndRules();
       await loadGroups();
     } catch (err) {
@@ -1147,8 +1164,10 @@ function CustomerGroups() {
   const handleRemoveMember = async (customerId) => {
     if (!selectedGroupId) return;
     setError("");
+    setSuccessMsg("");
     try {
       await api(`/admin/groups/${selectedGroupId}/members/${customerId}`, { method: "DELETE" });
+      setSuccessMsg("Đã loại khách hàng khỏi nhóm thành công!");
       await loadMembersAndRules();
       await loadGroups();
     } catch (err) {
@@ -1159,11 +1178,14 @@ function CustomerGroups() {
   const handleToggleRuleAssignment = async (ruleId, assigned) => {
     if (!selectedGroupId) return;
     setError("");
+    setSuccessMsg("");
     try {
       if (assigned) {
         await api(`/admin/groups/${selectedGroupId}/rules/${ruleId}`, { method: "DELETE" });
+        setSuccessMsg("Đã hủy gán luật cho nhóm!");
       } else {
         await api(`/admin/groups/${selectedGroupId}/rules/${ruleId}`, { method: "POST" });
+        setSuccessMsg("Đã gán luật quay cho nhóm thành công!");
       }
       await loadMembersAndRules();
       await loadGroups();
@@ -1184,8 +1206,9 @@ function CustomerGroups() {
   return (
     <>
       <Header title="Nhóm khách hàng (Customer Groups)" subtitle="Phân nhóm khách hàng (VIP, Đại lý, Nội bộ) để gán thể lệ/luật quay đặc thù theo từng sự kiện." />
-      {error && <div className="error">{error}</div>}
-      <div className="split">
+      {error && <UiAlert type="error" onClose={() => setError("")}>{error}</UiAlert>}
+      {successMsg && <UiAlert type="success" onClose={() => setSuccessMsg("")}>{successMsg}</UiAlert>}
+      <div className="split mt-4">
         <section className="panel">
           <div className="panel-heading">
             <h2>Tạo nhóm mới</h2>
@@ -1210,16 +1233,16 @@ function CustomerGroups() {
               <article
                 className={`item reward-item ${selectedGroupId === g.id ? "active" : ""}`}
                 key={g.id}
-                style={{ cursor: "pointer", borderLeft: selectedGroupId === g.id ? "4px solid #ef7e3a" : "none" }}
+                style={{ cursor: "pointer", borderLeft: selectedGroupId === g.id ? "4px solid #e11b22" : "none" }}
                 onClick={() => setSelectedGroupId(g.id)}
               >
                 <div>
                   {renamingGroupId === g.id ? (
-                    <div style={{ display: "flex", gap: "6px" }} onClick={(e) => e.stopPropagation()}>
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }} onClick={(e) => e.stopPropagation()}>
                       <input
                         value={renamingName}
                         onChange={(e) => setRenamingName(e.target.value)}
-                        style={{ padding: "4px 8px" }}
+                        style={{ padding: "4px 8px", width: "120px" }}
                       />
                       <button className="primary" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => handleRenameGroup(g.id)}>Lưu</button>
                       <button style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => setRenamingGroupId(null)}>Hủy</button>
@@ -1229,11 +1252,11 @@ function CustomerGroups() {
                   )}
                   <small>{g.memberCount} thành viên · {g.ruleCount} luật được gán</small>
                 </div>
-                <div className="actions" onClick={(e) => e.stopPropagation()}>
+                <div className="actions" style={{ flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
                   {renamingGroupId !== g.id && (
                     <button style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => { setRenamingGroupId(g.id); setRenamingName(g.name); }}>Sửa</button>
                   )}
-                  <button className="danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => handleDeleteGroup(g.id, g.name)}>Xóa</button>
+                  <button className="danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => confirmDeleteGroup(g.id, g.name)}>Xóa</button>
                 </div>
               </article>
             ))}
@@ -1247,16 +1270,20 @@ function CustomerGroups() {
                 <div className="panel-heading">
                   <h2>Thành viên nhóm: {selectedGroup.name} ({members.length})</h2>
                 </div>
-                <form className="form" onSubmit={handleAddMember} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "8px", alignItems: "end" }}>
-                  <label style={{ margin: 0 }}>Tìm theo Tên / SĐT
+                <form className="form" onSubmit={handleAddMember} style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "flex-end" }}>
+                  <div style={{ flex: "1 1 180px", minWidth: "160px" }}>
+                    <label style={{ margin: 0, fontSize: "12px", fontWeight: "700" }}>Tìm theo Tên / SĐT</label>
                     <input
+                      style={{ marginTop: "4px", width: "100%" }}
                       placeholder="Tìm khách hàng..."
                       value={memberSearch}
                       onChange={(e) => setMemberSearch(e.target.value)}
                     />
-                  </label>
-                  <label style={{ margin: 0 }}>Chọn khách hàng
+                  </div>
+                  <div style={{ flex: "1 1 200px", minWidth: "180px" }}>
+                    <label style={{ margin: 0, fontSize: "12px", fontWeight: "700" }}>Chọn khách hàng</label>
                     <select
+                      style={{ marginTop: "4px", width: "100%" }}
                       value={selectedCustomerIdToAdd}
                       onChange={(e) => setSelectedCustomerIdToAdd(e.target.value)}
                     >
@@ -1265,11 +1292,15 @@ function CustomerGroups() {
                         <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>
                       ))}
                     </select>
-                  </label>
-                  <button className="primary" disabled={!selectedCustomerIdToAdd}>Thêm vào nhóm</button>
+                  </div>
+                  <div style={{ flex: "0 0 auto" }}>
+                    <button className="primary" style={{ height: "42px", padding: "0 16px", whiteSpace: "nowrap" }} disabled={!selectedCustomerIdToAdd}>
+                      Thêm vào nhóm
+                    </button>
+                  </div>
                 </form>
 
-                <div className="table-wrap" style={{ marginTop: "12px" }}>
+                <div className="table-wrap" style={{ marginTop: "16px" }}>
                   <table>
                     <thead>
                       <tr>
@@ -1342,6 +1373,16 @@ function CustomerGroups() {
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={deleteGroupModal.isOpen}
+        title="Xác nhận Xóa nhóm khách hàng"
+        message={`Bạn có chắc chắn muốn xóa nhóm '${deleteGroupModal.groupName}'? Thao tác này chỉ xóa nhóm, không xóa tài khoản khách hàng.`}
+        variant="danger"
+        confirmText="Xóa nhóm"
+        onConfirm={handleExecuteDeleteGroup}
+        onCancel={() => setDeleteGroupModal({ isOpen: false, groupId: null, groupName: "" })}
+      />
     </>
   );
 }
