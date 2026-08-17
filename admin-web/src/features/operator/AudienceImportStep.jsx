@@ -1,8 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, downloadFile } from "../../api.js";
+import { fetchCampaignParticipants } from "./operator-api.js";
 import { parseCsvToRows, parseWorkbookToRows } from "../../import-parser.js";
 
 export default function AudienceImportStep({ campaign, onNextStep }) {
+  // Participant List State
+  const [participants, setParticipants] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [search, setSearch] = useState("");
+  const [loadingList, setLoadingList] = useState(false);
+
+  // Import State
   const [file, setFile] = useState(null);
   const [rawRows, setRawRows] = useState([]);
   const [importMode, setImportMode] = useState("voucher");
@@ -10,6 +20,32 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [error, setError] = useState("");
+
+  const loadParticipants = async (p = page, s = search) => {
+    if (!campaign?.id) return;
+    setLoadingList(true);
+    try {
+      const data = await fetchCampaignParticipants(campaign.id, p, 20, s);
+      setParticipants(data.items || []);
+      setTotalCount(data.total || 0);
+      setTotalPages(data.totalPages || 1);
+    } catch (err) {
+      console.error("Lỗi khi tải danh sách khách tham gia", err);
+    } finally {
+      setLoadingList(false);
+    }
+  };
+
+  useEffect(() => {
+    setPage(1);
+    loadParticipants(1, search);
+  }, [campaign?.id]);
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    setPage(1);
+    loadParticipants(1, search);
+  };
 
   const handleFileChange = async (e) => {
     const selected = e.target.files?.[0];
@@ -52,6 +88,7 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
         }),
       });
       setImportResult(result);
+      await loadParticipants(1, search);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -65,67 +102,168 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
     <div className="operator-step-container">
       <div className="step-header-banner">
         <div>
-          <h2>Thêm Khách tham gia &amp; Import Excel</h2>
-          <p>Tải danh sách khách tham gia sự kiện <strong>{campaign?.name}</strong> từ file Excel/CSV.</p>
+          <h2>Danh sách Khách tham gia &amp; Import Excel</h2>
+          <p>Quản lý danh sách khách đã ghi nhận và Import dữ liệu từ file Excel cho sự kiện <strong>{campaign?.name}</strong>.</p>
         </div>
       </div>
 
       {error && <div className="error-card">{error}</div>}
 
+      {/* SECTION 1: ROSTER OF EXISTING PARTICIPANTS */}
       <div className="operator-card-section">
-        <h3>1. Chọn chế độ Import khách hàng</h3>
-        <div className="import-mode-selector">
-          <label className={`mode-card ${importMode === "voucher" ? "selected" : ""}`}>
+        <div className="panel-heading" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+          <h3>Danh sách Khách đã đăng ký trong sự kiện ({totalCount})</h3>
+          <form onSubmit={handleSearchSubmit} style={{ display: "flex", gap: "8px" }}>
             <input
-              type="radio"
-              name="importModeSelect"
-              value="voucher"
-              checked={importMode === "voucher"}
-              onChange={() => setImportMode("voucher")}
+              type="text"
+              className="form-control"
+              placeholder="Tìm theo tên hoặc SĐT..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ width: "240px" }}
             />
-            <div>
-              <strong>Mô hình A: Cấp Voucher quà sẵn theo file</strong>
-              <p>Mỗi khách có các mệnh giá Voucher cố định ghi trong cột Ghi chú (VD: 5 triệu, 3 triệu).</p>
-            </div>
-          </label>
-
-          <label className={`mode-card ${importMode === "quota" ? "selected" : ""}`}>
-            <input
-              type="radio"
-              name="importModeSelect"
-              value="quota"
-              checked={importMode === "quota"}
-              onChange={() => setImportMode("quota")}
-            />
-            <div>
-              <strong>Mô hình B: Cấp Lượt quay Khách sự kiện</strong>
-              <p>Cấp số lượt quay cho khách để tự quay ngẫu nhiên theo Luật quay trong sự kiện.</p>
-            </div>
-          </label>
+            <button type="submit" className="btn-secondary">Tìm kiếm</button>
+          </form>
         </div>
+
+        {loadingList ? (
+          <div className="loading-state">Đang tải danh sách khách tham gia...</div>
+        ) : participants.length === 0 ? (
+          <div className="empty-state">
+            Chưa có khách hàng nào tham gia sự kiện này. Bạn có thể Import file Excel bên dưới để cấp quyền.
+          </div>
+        ) : (
+          <>
+            <div className="table-wrap">
+              <table className="operator-table">
+                <thead>
+                  <tr>
+                    <th>STT</th>
+                    <th>Tên khách hàng</th>
+                    <th>Số điện thoại</th>
+                    <th>Số lượt quay</th>
+                    <th>Nhóm khách</th>
+                    <th>Trạng thái</th>
+                    <th>Ngày thêm</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {participants.map((p, idx) => (
+                    <tr key={p.id || idx}>
+                      <td>{(page - 1) * 20 + idx + 1}</td>
+                      <td><strong>{p.customerName || p.customerId}</strong></td>
+                      <td><code>{p.customerPhone || "—"}</code></td>
+                      <td><strong>{p.spinQuota} lượt</strong></td>
+                      <td><small>{p.importedGroup || "—"}</small></td>
+                      <td>
+                        <span className={`status-badge ${p.status === "active" ? "badge-active" : "badge-draft"}`}>
+                          {p.status || "active"}
+                        </span>
+                      </td>
+                      <td><small>{p.createdAt ? new Date(p.createdAt).toLocaleDateString("vi-VN") : "—"}</small></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="pagination-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px" }}>
+              <span style={{ fontSize: "13px", color: "#64748b" }}>
+                Hiển thị trang {page} / {totalPages} (Tổng: {totalCount} khách hàng)
+              </span>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  className="btn-secondary"
+                  disabled={page <= 1}
+                  onClick={() => {
+                    const newP = page - 1;
+                    setPage(newP);
+                    loadParticipants(newP, search);
+                  }}
+                >
+                  Trang trước
+                </button>
+                <button
+                  className="btn-secondary"
+                  disabled={page >= totalPages}
+                  onClick={() => {
+                    const newP = page + 1;
+                    setPage(newP);
+                    loadParticipants(newP, search);
+                  }}
+                >
+                  Trang sau
+                </button>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
+      {/* SECTION 2: IMPORT NEW PARTICIPANTS VIA FILE */}
       <div className="operator-card-section">
-        <h3>2. Chọn file Excel (.xlsx) hoặc CSV</h3>
-        <div className="file-dropzone">
-          <input
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            onChange={handleFileChange}
-            id="file-upload-input"
-            className="file-input"
-          />
-          <label htmlFor="file-upload-input" className="file-drop-label">
-            <strong>{file ? file.name : "Kéo thả file Excel/CSV vào đây hoặc bấm để chọn file"}</strong>
-            <small>Chấp nhận cột: Tên KH, SĐT, Số voucher tặng (hoặc Số lượt quay), Ghi chú, Nhóm khách</small>
+        <h3>Import thêm Khách từ File Excel / CSV</h3>
+        
+        <div style={{ marginBottom: "16px" }}>
+          <label className="form-label" style={{ marginBottom: "8px", display: "block" }}>
+            1. Chọn chế độ Import:
           </label>
+          <div className="import-mode-selector">
+            <label className={`mode-card ${importMode === "voucher" ? "selected" : ""}`}>
+              <input
+                type="radio"
+                name="importModeSelect"
+                value="voucher"
+                checked={importMode === "voucher"}
+                onChange={() => setImportMode("voucher")}
+              />
+              <div>
+                <strong>Mô hình A: Cấp Voucher quà sẵn theo file</strong>
+                <p>Mỗi khách có các mệnh giá Voucher cố định ghi trong cột Ghi chú (VD: 5 triệu, 3 triệu).</p>
+              </div>
+            </label>
+
+            <label className={`mode-card ${importMode === "quota" ? "selected" : ""}`}>
+              <input
+                type="radio"
+                name="importModeSelect"
+                value="quota"
+                checked={importMode === "quota"}
+                onChange={() => setImportMode("quota")}
+              />
+              <div>
+                <strong>Mô hình B: Cấp Lượt quay Khách sự kiện</strong>
+                <p>Cấp số lượt quay cho khách để tự quay ngẫu nhiên theo Luật quay trong sự kiện.</p>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label className="form-label" style={{ marginBottom: "8px", display: "block" }}>
+            2. Chọn file Excel (.xlsx) hoặc CSV:
+          </label>
+          <div className="file-dropzone">
+            <input
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleFileChange}
+              id="file-upload-input"
+              className="file-input"
+            />
+            <label htmlFor="file-upload-input" className="file-drop-label">
+              <strong>{file ? file.name : "Kéo thả file Excel/CSV vào đây hoặc bấm để chọn file"}</strong>
+              <small>Chấp nhận cột: Tên KH, SĐT, Số voucher tặng (hoặc Số lượt quay), Ghi chú, Nhóm khách</small>
+            </label>
+          </div>
         </div>
       </div>
 
       {rawRows.length > 0 && (
         <div className="operator-card-section">
           <div className="preview-header">
-            <h3>3. Xem trước dữ liệu ({rawRows.length} dòng)</h3>
+            <h3>Xem trước dữ liệu Import ({rawRows.length} dòng)</h3>
             <span className="badge-preview">Hiển thị 20 dòng đầu</span>
           </div>
 
