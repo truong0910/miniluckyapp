@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, auth, downloadFile, fileToDataUrl, login, logout } from "./api.js";
+import { api, auth, downloadFile, fileToDataUrl, login, logout, setUnauthorizedHandler } from "./api.js";
 import { parseCsvToRows, parseWorkbookToRows } from "./import-parser.js";
 import EventWorkspace from "./features/operator/EventWorkspace.jsx";
 import EventWizard from "./features/operator/EventWizard.jsx";
@@ -963,6 +963,12 @@ export default function App() {
       console.error("Unable to load campaigns", e);
     }
   };
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setLoggedIn(false);
+    });
+  }, []);
 
   useEffect(() => {
     if (loggedIn) {
