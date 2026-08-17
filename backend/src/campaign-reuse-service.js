@@ -508,9 +508,26 @@ export async function issueManualAward({ db, campaignId, customerId, rewardId, c
     .from("reward_catalog")
     .select("id,code_prefix,title,value,description,wheel_label,symbol")
     .eq("id", rewardId)
-    .single();
+    .maybeSingle();
 
   if (rErr || !reward) throw publicError("Giải thưởng không hợp lệ", 404);
+
+  // Ensure target customer exists in public.customers to satisfy foreign key constraint
+  const { data: existingCust } = await db
+    .from("customers")
+    .select("id,name,phone")
+    .eq("id", customerId)
+    .maybeSingle();
+
+  if (!existingCust) {
+    const validPhone = /^0(3|5|7|8|9)\d{8}$/.test(customerId) ? customerId : "0900000000";
+    await db.from("customers").upsert({
+      id: customerId,
+      name: `Khách hàng ${customerId}`,
+      phone: validPhone,
+      total_spins: 1,
+    });
+  }
 
   const awardCode = String(code || `${reward.code_prefix || "AWD"}-${Date.now()}`).trim();
 
@@ -521,7 +538,7 @@ export async function issueManualAward({ db, campaignId, customerId, rewardId, c
     status: "issued",
     code: awardCode,
     title_snapshot: reward.title,
-    value_snapshot: reward.value,
+    value_snapshot: Math.max(0, Number(reward.value || 0)),
     description_snapshot: reward.description || "",
     result: [reward.symbol || "star", reward.symbol || "star", reward.symbol || "star"],
     issued_at: new Date().toISOString(),
@@ -533,7 +550,12 @@ export async function issueManualAward({ db, campaignId, customerId, rewardId, c
     .select()
     .single();
 
-  if (insErr) throw insErr;
+  if (insErr) {
+    if (insErr.code === "23505") {
+      throw publicError("Mã Voucher này đã tồn tại trong hệ thống. Vui lòng chọn hoặc tạo mã khác.", 400);
+    }
+    throw publicError(`Không thể cấp quà bổ sung: ${insErr.message}`, 400);
+  }
   return created;
 }
 
