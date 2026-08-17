@@ -64,3 +64,20 @@ test("voucher import validation requires a denomination for every declared vouch
   assert.equal(result.validRows.length, 0);
   assert.match(result.errors[0], /mệnh giá|Mệnh giá|voucher/i);
 });
+
+test("parseCustomerImportRows tolerates column typos like 'Số vocher tặng' and infers count from note", () => {
+  const rows = [
+    {
+      "Tên KH": "CÔNG TY TNHH TM SX & DV ĐẠI TRƯỜNG THÀNH",
+      "SĐT": "0934252139",
+      "Số vocher tặng": 3,
+      "Ghi chú": "5 triệu , 5 triệu , 3 triệu",
+    },
+  ];
+
+  const parsed = parseCustomerImportRows(rows);
+  assert.equal(parsed.length, 1);
+  assert.equal(parsed[0].valid, true);
+  assert.equal(parsed[0].voucherCount, 3);
+  assert.deepEqual(parsed[0].denominations, [5000000, 5000000, 3000000]);
+});

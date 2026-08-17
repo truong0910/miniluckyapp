@@ -37,10 +37,21 @@ export function parseCustomerImportRows(rows = []) {
   if (!Array.isArray(rows)) return [];
 
   return rows.map((row, idx) => {
-    const name = String(row["Tên KH"] || row.name || "").trim();
-    const phoneRaw = String(row["SĐT"] || row.phone || "").trim();
-    const voucherCountRaw = row["Số voucher tặng"] ?? row.voucherCount ?? 0;
-    const note = String(row["Ghi chú"] || row.note || "").trim();
+    const name = String(row["Tên KH"] || row["Tên Khách Hàng"] || row["Tên khách hàng"] || row.name || "").trim();
+    const phoneRaw = String(row["SĐT"] || row["Số điện thoại"] || row["SDT"] || row.phone || "").trim();
+    const voucherCountRaw =
+      row["Số voucher tặng"] ??
+      row["Số vocher tặng"] ??
+      row["Số voucher"] ??
+      row["Số vocher"] ??
+      row["Số lượng voucher"] ??
+      row["Số lượng vocher"] ??
+      row["Số lượng"] ??
+      row.voucherCount ??
+      row.voucher_count ??
+      undefined;
+
+    const note = String(row["Ghi chú"] || row["Ghi chu"] || row.note || "").trim();
 
     if (!name) {
       return { valid: false, rowNumber: idx + 1, error: "Tên KH không được để trống" };
@@ -51,8 +62,12 @@ export function parseCustomerImportRows(rows = []) {
       return { valid: false, rowNumber: idx + 1, name, error: "Số điện thoại không hợp lệ" };
     }
 
-    const voucherCount = Math.max(0, parseInt(String(voucherCountRaw), 10) || 0);
     const denominations = parseDenominationsFromNote(note);
+    let voucherCount = voucherCountRaw !== undefined ? Math.max(0, parseInt(String(voucherCountRaw), 10) || 0) : 0;
+
+    if (voucherCount === 0 && denominations.length > 0) {
+      voucherCount = denominations.length;
+    }
 
     if (voucherCount > 0 && denominations.length > 0 && denominations.length !== voucherCount) {
       return {
