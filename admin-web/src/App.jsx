@@ -363,8 +363,8 @@ function CampaignParticipants() {
               </div>
               <label>2. Chế độ cấp:
                 <select value={importMode} onChange={(e) => setImportMode(e.target.value)}>
-                  <option value="voucher">Cấp Voucher cụ thể từ cột Ghi chú (VD: '5 triệu, 3 triệu')</option>
-                  <option value="quota">Cấp Lượt quay từ cột Số voucher tặng</option>
+                  <option value="quota">🎯 Cấp Lượt quay Khách sự kiện (Không yêu cầu mệnh giá ở Ghi chú)</option>
+                  <option value="voucher">🎁 Cấp Voucher quà sẵn từ cột Ghi chú (VD: '5 triệu, 3 triệu')</option>
                 </select>
               </label>
               <label style={{ fontSize: "12px", color: "#666" }}>Xem trước dữ liệu hàng (Rows Preview JSON):</label>

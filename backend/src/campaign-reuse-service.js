@@ -275,7 +275,7 @@ export async function importCampaignParticipants({ db, campaignId, rows = [], im
       await db.from("campaign_participants").upsert({
         campaign_id: campaign.id,
         customer_id: custId,
-        spin_quota: importMode === "quota" ? row.voucherCount : 0,
+        spin_quota: importMode === "quota" ? Math.max(1, row.voucherCount || 1) : (row.voucherCount || 0),
         imported_group: row.note || null,
         status: "active",
       }, { onConflict: "campaign_id,customer_id" });
@@ -315,11 +315,20 @@ export async function importCampaignParticipants({ db, campaignId, rows = [], im
 }
 
 export async function listCampaignParticipants({ db, campaignId, page = 1, limit = 20, search = "" }) {
+  const cleanSearch = String(search || "").trim();
+  const selectClause = cleanSearch
+    ? "id,campaign_id,customer_id,status,spin_quota,imported_group,created_at,customers!inner(name,phone)"
+    : "id,campaign_id,customer_id,status,spin_quota,imported_group,created_at,customers(name,phone)";
+
   let query = db
     .from("campaign_participants")
-    .select("id,campaign_id,customer_id,status,spin_quota,imported_group,created_at,customers(name,phone)", { count: "exact" })
+    .select(selectClause, { count: "exact" })
     .eq("campaign_id", campaignId)
     .order("created_at", { ascending: false });
+
+  if (cleanSearch) {
+    query = query.or(`customer_id.ilike.%${cleanSearch}%,customers.name.ilike.%${cleanSearch}%,customers.phone.ilike.%${cleanSearch}%`);
+  }
 
   const start = (page - 1) * limit;
   query = query.range(start, start + limit - 1);
