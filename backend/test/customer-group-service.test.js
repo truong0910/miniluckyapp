@@ -8,6 +8,7 @@ import {
   removeGroupMember,
   assignRuleToGroup,
   removeRuleFromGroup,
+  replaceGroupRules,
 } from "../src/customer-group-service.js";
 
 function createMockDb() {
@@ -75,6 +76,15 @@ function createMockDb() {
           return { data: null, error: null };
         },
         then(resolve) {
+          if (table === "campaign_rules" && filters.campaign_id) {
+            if (filters.campaign_id === "camp-A") {
+              return resolve({ data: [{ id: "rule-A1" }, { id: "rule-A2" }], error: null });
+            }
+            if (filters.campaign_id === "camp-B") {
+              return resolve({ data: [{ id: "rule-B1" }], error: null });
+            }
+            return resolve({ data: [], error: null });
+          }
           if (action === "delete") {
             if (table === "customer_groups") {
               const idx = groups.findIndex((g) => g.id === filters.id);
@@ -108,15 +118,19 @@ function createMockDb() {
           }
           if (action === "insert") {
             if (table === "customer_group_members") {
-              const row = Array.isArray(payload) ? payload[0] : payload;
-              if (!members.some((m) => m.group_id === row.group_id && m.customer_id === row.customer_id)) {
-                members.push({ ...row, created_at: new Date().toISOString() });
+              const rows = Array.isArray(payload) ? payload : [payload];
+              for (const row of rows) {
+                if (!members.some((m) => m.group_id === row.group_id && m.customer_id === row.customer_id)) {
+                  members.push({ ...row, created_at: new Date().toISOString() });
+                }
               }
             }
             if (table === "group_rule_assignments") {
-              const row = Array.isArray(payload) ? payload[0] : payload;
-              if (!ruleAssignments.some((r) => r.group_id === row.group_id && r.rule_id === row.rule_id)) {
-                ruleAssignments.push({ ...row, created_at: new Date().toISOString() });
+              const rows = Array.isArray(payload) ? payload : [payload];
+              for (const row of rows) {
+                if (!ruleAssignments.some((r) => r.group_id === row.group_id && r.rule_id === row.rule_id)) {
+                  ruleAssignments.push({ ...row, created_at: new Date().toISOString() });
+                }
               }
             }
             return resolve({ data: payload, error: null });
@@ -194,4 +208,22 @@ test("deleteGroup removes metadata links without affecting customers", async () 
   assert.equal(db.groups.length, 0);
   assert.equal(db.members.length, 0);
   assert.equal(db.ruleAssignments.length, 0);
+});
+
+test("replaceGroupRules preserves rules of other campaigns when campaignId is supplied", async () => {
+  const db = createMockDb();
+  const group = await createGroup({ db, name: "VIP" });
+
+  // Assign rules from camp-A and camp-B
+  await assignRuleToGroup({ db, groupId: group.id, ruleId: "rule-A1" });
+  await assignRuleToGroup({ db, groupId: group.id, ruleId: "rule-B1" });
+  assert.equal(db.ruleAssignments.length, 2);
+
+  // Replace rules for camp-A only with rule-A2
+  await replaceGroupRules({ db, groupId: group.id, ruleIds: ["rule-A2"], campaignId: "camp-A" });
+
+  const assignedRuleIds = db.ruleAssignments.map((r) => r.rule_id);
+  assert.ok(assignedRuleIds.includes("rule-B1"), "Rule B1 from camp-B must be preserved");
+  assert.ok(assignedRuleIds.includes("rule-A2"), "Rule A2 must be assigned");
+  assert.ok(!assignedRuleIds.includes("rule-A1"), "Rule A1 from camp-A must be removed");
 });

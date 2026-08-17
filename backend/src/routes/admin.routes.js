@@ -370,7 +370,12 @@ router.get("/groups/:id/rules", requireAdmin, asyncRoute(async (req, res) => {
 
 router.post("/groups/:id/rules", requireAdmin, asyncRoute(async (req, res) => {
   if (Array.isArray(req.body?.ruleIds)) {
-    const result = await replaceGroupRules({ db: supabase, groupId: req.params.id, ruleIds: req.body.ruleIds });
+    const result = await replaceGroupRules({
+      db: supabase,
+      groupId: req.params.id,
+      ruleIds: req.body.ruleIds,
+      campaignId: req.body?.campaignId || req.query?.campaignId || "",
+    });
     return res.json(result);
   }
   const result = await assignRuleToGroup({ db: supabase, groupId: req.params.id, ruleId: req.body?.ruleId });
@@ -452,29 +457,6 @@ router.delete("/campaign-rules/:id", requireAdmin, asyncRoute(async (req, res) =
   res.status(204).end();
 }));
 
-router.get("/groups", requireAdmin, asyncRoute(async (_req, res) => {
-  const { data, error } = await supabase.from("customer_groups").select("id,name,created_at").order("name");
-  if (error) throw error;
-  res.json({ items: data || [] });
-}));
-
-router.post("/groups", requireAdmin, asyncRoute(async (req, res) => {
-  const name = String(req.body?.name || "").trim();
-  if (!name) throw publicError("Tên nhóm là bắt buộc");
-  const { data, error } = await supabase.from("customer_groups").insert({ name }).select("id,name,created_at").single();
-  if (error) throw error;
-  res.status(201).json(data);
-}));
-
-router.post("/groups/:id/members", requireAdmin, asyncRoute(async (req, res) => {
-  const customerIds = Array.isArray(req.body?.customerIds) ? req.body.customerIds : [];
-  await supabase.from("customer_group_members").delete().eq("group_id", req.params.id);
-  if (customerIds.length) {
-    const { error } = await supabase.from("customer_group_members").insert(customerIds.map((customerId) => ({ group_id: req.params.id, customer_id: customerId })));
-    if (error) throw error;
-  }
-  res.json({ ok: true });
-}));
 
 router.post("/campaign-rules/:id/assign-customers", requireAdmin, asyncRoute(async (req, res) => {
   const customerIds = Array.isArray(req.body?.customerIds) ? req.body.customerIds : [];

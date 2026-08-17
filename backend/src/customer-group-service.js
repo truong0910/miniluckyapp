@@ -100,11 +100,22 @@ export async function deleteGroup({ db, id }) {
 }
 
 export async function listGroupMembers({ db, groupId, page = 1, limit = 20, search = "" }) {
+  const cleanSearch = String(search || "").trim();
+  const selectClause = cleanSearch
+    ? "group_id,customer_id,created_at,customers!inner(id,name,phone)"
+    : "group_id,customer_id,created_at,customers(id,name,phone)";
+
   let query = db
     .from("customer_group_members")
-    .select("group_id,customer_id,created_at,customers(id,name,phone)", { count: "exact" })
+    .select(selectClause, { count: "exact" })
     .eq("group_id", groupId)
     .order("created_at", { ascending: false });
+
+  if (cleanSearch) {
+    query = query.or(
+      `customer_id.ilike.%${cleanSearch}%,customers.name.ilike.%${cleanSearch}%,customers.phone.ilike.%${cleanSearch}%`
+    );
+  }
 
   const start = (page - 1) * limit;
   query = query.range(start, start + limit - 1);
@@ -112,20 +123,13 @@ export async function listGroupMembers({ db, groupId, page = 1, limit = 20, sear
   const { data: rows, count, error } = await query;
   if (error) throw error;
 
-  let items = (rows || []).map((r) => ({
+  const items = (rows || []).map((r) => ({
     groupId: r.group_id,
     customerId: r.customer_id,
     customerName: r.customers?.name || r.customer_id,
     customerPhone: r.customers?.phone || "",
     createdAt: r.created_at,
   }));
-
-  if (search) {
-    const s = search.toLowerCase();
-    items = items.filter(
-      (item) => item.customerName.toLowerCase().includes(s) || item.customerPhone.includes(s) || item.customerId.includes(s)
-    );
-  }
 
   return {
     items,
@@ -199,11 +203,33 @@ export async function removeRuleFromGroup({ db, groupId, ruleId }) {
   return { success: true, groupId, ruleId };
 }
 
-export async function replaceGroupRules({ db, groupId, ruleIds = [] }) {
-  await db.from("group_rule_assignments").delete().eq("group_id", groupId);
+export async function replaceGroupRules({ db, groupId, ruleIds = [], campaignId = "" }) {
+  const cleanCampaignId = String(campaignId || "").trim();
+
+  if (cleanCampaignId) {
+    const { data: campaignRules } = await db
+      .from("campaign_rules")
+      .select("id")
+      .eq("campaign_id", cleanCampaignId);
+
+    const targetRuleIds = (campaignRules || []).map((r) => r.id);
+    if (targetRuleIds.length > 0) {
+      for (const rid of targetRuleIds) {
+        await db
+          .from("group_rule_assignments")
+          .delete()
+          .eq("group_id", groupId)
+          .eq("rule_id", rid);
+      }
+    }
+  } else {
+    await db.from("group_rule_assignments").delete().eq("group_id", groupId);
+  }
+
   if (Array.isArray(ruleIds) && ruleIds.length > 0) {
     const rows = ruleIds.map((rid) => ({ group_id: groupId, rule_id: rid }));
     await db.from("group_rule_assignments").insert(rows);
   }
+
   return { success: true, groupId, count: ruleIds.length };
 }

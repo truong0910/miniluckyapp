@@ -33,22 +33,18 @@ Schema đã có trong `lucky-wheels/supabase/migrations/0001_lucky_wheels.sql`:
 
 Không được xóa khách hàng, campaign, spin event, award hoặc delivery khi thao tác group. Xóa group (nếu giữ API này) chỉ được xóa metadata liên kết group; phải cảnh báo rõ cho Admin. Có thể chọn archive thay vì hard delete nếu cần migration bổ sung.
 
-## Trạng thái code hiện tại
+## Trạng thái code hiện tại (đã kiểm tra)
 
-Backend hiện đã có một phần endpoint:
+Tính năng nhóm khách đã có trong code hiện tại, không còn chỉ là bản thiết kế:
 
-- `GET /api/v1/admin/groups`
-- `POST /api/v1/admin/groups`
-- `POST /api/v1/admin/groups/:id/members` — hiện đang thay toàn bộ danh sách thành viên
-- `POST /api/v1/admin/campaign-rules/:id/assign-groups` — gán group vào rule
+- `backend/src/customer-group-service.js` đã có CRUD group, quản lý thành viên, quản lý rule và xoá liên kết metadata.
+- `backend/src/routes/admin.routes.js` đã có các route group và tất cả đều dùng `requireAdmin`.
+- Admin Web đã có tab **Nhóm khách** trong `admin-web/src/App.jsx`, gồm tạo/đổi tên/xoá group, thêm/xoá thành viên và gán/bỏ gán rule theo campaign.
+- Đã có test nền tại `backend/test/customer-group-service.test.js` và `backend/test/admin-groups.test.js`.
 
-Admin Web hiện chưa có tab Nhóm khách hàng. Cần bổ sung UI và hoàn thiện API/service.
+### Backend service đã có
 
-## Chức năng cần triển khai
-
-### Backend service
-
-Tạo `backend/src/customer-group-service.js` với các hàm:
+`backend/src/customer-group-service.js` hiện có các hàm:
 
 - `listGroups({ db, search })`: danh sách group, số thành viên, thời gian tạo.
 - `createGroup({ db, name })`: tạo group, không cho tên rỗng/trùng.
@@ -62,9 +58,9 @@ Tạo `backend/src/customer-group-service.js` với các hàm:
 - `removeRuleFromGroup({ db, groupId, ruleId })`.
 - `deleteGroup({ db, id })` chỉ xóa liên kết group, không xóa customer/history.
 
-Mọi hàm phải kiểm tra group/customer/rule tồn tại và trả lỗi dễ hiểu.
+Lưu ý: một số kiểm tra tồn tại hiện đang dựa vào foreign key/Supabase error, chưa phải lỗi nghiệp vụ rõ ràng ở service.
 
-### API đề xuất
+### API hiện tại
 
 Tất cả route phải có `requireAdmin`:
 
@@ -73,28 +69,52 @@ Tất cả route phải có `requireAdmin`:
 - `PUT /admin/groups/:id` body `{ "name": "VIP mới" }`
 - `DELETE /admin/groups/:id`
 - `GET /admin/groups/:id/members?page=1&limit=20&search=`
-- `PUT /admin/groups/:id/members` body `{ "customerIds": ["customer-1"] }`
+- `POST /admin/groups/:id/members` body `{ "customerId": "customer-1" }` để thêm một người, hoặc `{ "customerIds": ["customer-1"] }` để thay toàn bộ danh sách
 - `POST /admin/groups/:id/members/:customerId`
 - `DELETE /admin/groups/:id/members/:customerId`
-- `GET /admin/groups/:id/rules`
-- `PUT /admin/groups/:id/rules` body `{ "ruleIds": ["rule-1"] }`
+- `GET /admin/groups/:id/rules?campaignId=...`
+- `POST /admin/groups/:id/rules` body `{ "ruleId": "rule-1" }` để gán một rule, hoặc `{ "ruleIds": ["rule-1"] }` để thay toàn bộ danh sách
+- `POST /admin/groups/:id/rules/:ruleId`
+- `DELETE /admin/groups/:id/rules/:ruleId`
 
 Khi gán rule, phải kiểm tra rule thuộc campaign hợp lệ. Không được gán nhầm rule của campaign khác nếu UI đang chọn campaign hiện tại.
 
-## Admin Web cần bổ sung
+Route cũ `POST /admin/campaign-rules/:id/assign-groups` vẫn còn trong file để tương thích ngược; nên quyết định giữ hay loại bỏ sau khi xác nhận không còn client nào gọi.
 
-Thêm menu **Nhóm khách** trong `admin-web/src/App.jsx`.
+## Điểm cần agent tiếp theo xử lý sau khi review
+
+1. Xoá các route group cũ bị khai báo trùng ở phần sau của `backend/src/routes/admin.routes.js` (khoảng dòng 455 trở đi). Route mới ở phía trên đang được Express ưu tiên, nhưng phần trùng làm code khó bảo trì.
+2. Bổ sung test route/UI và các trường hợp lỗi HTTP thực tế; test hiện tại chủ yếu là service mock và kiểm tra source route.
+3. Sửa tìm kiếm thành viên: `listGroupMembers` đang phân trang trước rồi mới lọc `search` trong JavaScript, nên `total` và số dòng trả về có thể sai khi tìm kiếm.
+4. Cân nhắc kiểm tra rõ group/customer/rule tồn tại trước khi insert và trả lỗi thân thiện, thay vì chỉ chờ lỗi foreign key.
+5. Xác định phạm vi của `replaceGroupRules`: hiện thao tác xoá toàn bộ assignment của group, có thể xoá liên kết thuộc campaign khác. Nếu group dùng chung nhiều campaign thì cần thay theo `campaignId` hoặc ghi rõ đây là hành vi chủ ý.
+6. Chạy lại toàn bộ kiểm thử/build sau các chỉnh sửa:
+
+```powershell
+npm test
+npm run build
+npm run test:db
+```
+
+Kết quả lần kiểm tra hiện tại:
+
+- `npm test`: backend 74 pass, 2 skip; frontend 8 pass.
+- `npm run build`: mini app và Admin Web đều build thành công.
+- `npm run test:db`: 17 pass, 2 skip vì migration `0006` và `0007` chưa áp dụng trên remote test database.
+
+## Admin Web đã có; các điểm cần xác nhận
+
+Menu **Nhóm khách** đã có trong `admin-web/src/App.jsx`. Màn hình hiện đã hỗ trợ:
 
 Màn hình cần có:
 
 1. Danh sách group: tên, số thành viên, số rule được gán.
-2. Tạo group.
-3. Đổi tên group.
-4. Xem/tìm kiếm thành viên.
-5. Thêm hoặc xóa thành viên.
-6. Chọn campaign rồi chọn các rule thuộc campaign đó để gán cho group.
-7. Xác nhận trước khi xóa group hoặc xóa hàng loạt thành viên.
-8. Thông báo rõ lỗi trùng tên, customer không tồn tại và rule không hợp lệ.
+2. Tạo, đổi tên và xoá group.
+3. Xem/tìm kiếm danh sách customer để thêm hoặc xóa thành viên.
+4. Chọn campaign rồi chọn các rule thuộc campaign đó để gán/bỏ gán cho group.
+5. Xác nhận trước khi xoá group.
+
+Nên kiểm tra bổ sung thông báo lỗi customer/rule không hợp lệ và thao tác hàng loạt nếu cần.
 
 Customer selector nên hỗ trợ tìm theo tên/số điện thoại, không bắt Admin nhập `customer_id` thủ công.
 
@@ -126,9 +146,9 @@ Cột group phải được xử lý độc lập với cột mệnh giá vouche
 - Không copy spin event, award, delivery hoặc timestamp lịch sử khi tạo group/clone campaign.
 - Không reset database và không xóa dữ liệu lịch sử.
 
-## Kiểm thử bắt buộc
+## Kiểm thử bắt buộc / còn thiếu
 
-Viết test trước khi triển khai:
+Đã có test service cơ bản và contract route. Cần bổ sung hoặc xác nhận thêm:
 
 - Tạo group và chặn tên rỗng/trùng.
 - Thêm cùng một customer hai lần không tạo bản ghi trùng.
