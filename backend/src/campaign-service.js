@@ -149,3 +149,108 @@ export async function transitionCampaign({ db, id, status }) {
 
   return mapCampaignRow(data);
 }
+
+export async function getCampaignReadiness({ db, id }) {
+  const campaign = await getCampaign({ db, id });
+
+  const [participantsRes, catalogRes, rulesRes, activeCampaignRes] = await Promise.all([
+    db.from("campaign_participants").select("id", { count: "exact", head: true }).eq("campaign_id", id).eq("status", "active"),
+    db.from("reward_catalog").select("id,value,title", { count: "exact" }).eq("active", true),
+    db.from("campaign_rules").select("id,name,priority,active").eq("campaign_id", id).eq("active", true),
+    getActiveCampaign({ db }),
+  ]);
+
+  const participantCount = participantsRes.count || 0;
+  const activeRewardCount = catalogRes.data?.length || 0;
+  const activeRuleCount = rulesRes.data?.length || 0;
+  const currentActiveCampaign = activeCampaignRes;
+  const isAnotherActive = currentActiveCampaign && currentActiveCampaign.id !== id;
+
+  const checks = [
+    {
+      key: "campaign_selected",
+      title: "Đã chọn sự kiện",
+      passed: Boolean(campaign),
+      detail: campaign ? `${campaign.name} (${campaign.code})` : "Chưa chọn sự kiện",
+    },
+    {
+      key: "status_valid",
+      title: "Trạng thái sẵn sàng",
+      passed: campaign.status !== "ended" && campaign.status !== "archived",
+      detail: `Trạng thái hiện tại: ${campaign.status}`,
+    },
+    {
+      key: "single_active",
+      title: "Không xung đột sự kiện khác đang chạy",
+      passed: !isAnotherActive,
+      detail: isAnotherActive ? `Đang có sự kiện '${currentActiveCampaign.name}' đang chạy` : "Sẵn sàng kích hoạt",
+    },
+    {
+      key: "participants_present",
+      title: "Danh sách khách tham gia",
+      passed: participantCount > 0,
+      detail: participantCount > 0 ? `${participantCount} khách đã đăng ký` : "Chưa có khách tham gia",
+    },
+    {
+      key: "rewards_available",
+      title: "Danh mục giải thưởng",
+      passed: activeRewardCount > 0,
+      detail: activeRewardCount > 0 ? `${activeRewardCount} phần quà đang hoạt động` : "Chưa có giải thưởng active",
+    },
+    {
+      key: "rules_configured",
+      title: "Cấu hình mô hình phát thưởng / luật quay",
+      passed: activeRuleCount > 0 || participantCount > 0,
+      detail: activeRuleCount > 0 ? `${activeRuleCount} luật quay đang áp dụng` : "Sử dụng voucher cấp sẵn",
+    },
+  ];
+
+  const passedCount = checks.filter((c) => c.passed).length;
+  const readinessScore = Math.round((passedCount / checks.length) * 100);
+  const canActivate = checks.every((c) => c.passed);
+
+  return {
+    campaign,
+    readinessScore,
+    canActivate,
+    checks,
+    metrics: {
+      participantCount,
+      activeRewardCount,
+      activeRuleCount,
+      isAnotherActive,
+    },
+  };
+}
+
+export async function dryRunSpin({ db, campaignId, phone = "0900000000", spinNumber = 1 }) {
+  const campaign = await getCampaign({ db, id: campaignId });
+  const normalizedPhone = String(phone).trim() || "0900000000";
+
+  const { data: rules } = await db
+    .from("campaign_rules")
+    .select("id,name,priority,scope")
+    .eq("campaign_id", campaignId)
+    .eq("active", true)
+    .order("priority", { ascending: false });
+
+  const { data: rewards } = await db
+    .from("reward_catalog")
+    .select("id,title,value,symbol,active")
+    .eq("active", true);
+
+  const matchedReward = rewards?.[0] || { id: "mock-r1", title: "Quà dùng thử 50k", value: 50000, symbol: "star" };
+
+  return {
+    success: true,
+    dryRun: true,
+    campaignId,
+    campaignName: campaign.name,
+    phone: normalizedPhone,
+    spinNumber,
+    simulatedOutcome: rules?.length > 0 ? "reward" : "better_luck",
+    matchedReward: rules?.length > 0 ? matchedReward : null,
+    rulesEvaluated: rules || [],
+    note: "Đây là chế độ QUAY THỬ (Simulated). Không ghi dữ liệu thật, không trừ kho, không gửi ZNS.",
+  };
+}

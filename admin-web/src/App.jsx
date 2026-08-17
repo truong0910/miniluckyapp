@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, auth, downloadFile, fileToDataUrl, login, logout } from "./api.js";
 import { parseCsvToRows, parseWorkbookToRows } from "./import-parser.js";
+import EventWorkspace from "./features/operator/EventWorkspace.jsx";
+import EventWizard from "./features/operator/EventWizard.jsx";
 
 const EMPTY_REWARD = { codePrefix: "", title: "", value: "", description: "", wheelLabel: "", symbol: "star", active: true };
 const EMPTY_BANNER = { title: "", imageUrl: "", linkUrl: "", active: true, order: 0 };
@@ -943,9 +945,51 @@ function CustomerGroups() {
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(Boolean(auth.token));
+  const [campaigns, setCampaigns] = useState([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState("");
+  const [viewMode, setViewMode] = useState("operator"); // "operator" | "advanced"
+  const [operatorStep, setOperatorStep] = useState("overview");
   const [tab, setTab] = useState("overview");
 
-  const page = useMemo(() => ({
+  const loadCampaigns = async () => {
+    try {
+      const res = await api("/admin/campaigns?includeArchived=true");
+      const list = res.items || [];
+      setCampaigns(list);
+      if (!selectedCampaignId && list.length > 0) {
+        setSelectedCampaignId(list[0].id);
+      }
+    } catch (e) {
+      console.error("Unable to load campaigns", e);
+    }
+  };
+
+  useEffect(() => {
+    if (loggedIn) {
+      loadCampaigns();
+    }
+  }, [loggedIn]);
+
+  const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId) || campaigns[0] || null;
+
+  const handleTransitionStatus = async (campaignId, status) => {
+    try {
+      await api(`/admin/campaigns/${campaignId}/status`, {
+        method: "POST",
+        body: JSON.stringify({ status }),
+      });
+      await loadCampaigns();
+    } catch (e) {
+      alert(`Lỗi chuyển trạng thái: ${e.message}`);
+    }
+  };
+
+  const handleCloneCampaign = (c) => {
+    setOperatorStep("setup");
+    setViewMode("operator");
+  };
+
+  const advancedPage = useMemo(() => ({
     overview: <Overview />,
     campaigns: <Campaigns />,
     participants: <CampaignParticipants />,
@@ -959,5 +1003,42 @@ export default function App() {
   }[tab]), [tab]);
 
   if (!loggedIn) return <Login onLogin={() => setLoggedIn(true)} />;
-  return <Shell tab={tab} setTab={setTab} onLogout={() => { logout(); setLoggedIn(false); }}>{page}</Shell>;
+
+  return (
+    <div className="admin-root-shell">
+      {/* Top Workspace Bar */}
+      <EventWorkspace
+        campaigns={campaigns}
+        selectedCampaignId={selectedCampaignId}
+        onSelectCampaign={setSelectedCampaignId}
+        mode={viewMode}
+        onToggleMode={setViewMode}
+        onNavigateStep={setOperatorStep}
+        onTransitionStatus={handleTransitionStatus}
+        onCloneCampaign={handleCloneCampaign}
+      />
+
+      {/* Operator Wizard Mode */}
+      {viewMode === "operator" ? (
+        <EventWizard
+          activeStep={operatorStep}
+          onSelectStep={setOperatorStep}
+          campaign={selectedCampaign}
+          campaigns={campaigns}
+          onSelectCampaign={setSelectedCampaignId}
+          onCampaignSaved={(newCamp) => {
+            loadCampaigns();
+            if (newCamp?.id) setSelectedCampaignId(newCamp.id);
+          }}
+          onTransitionStatus={handleTransitionStatus}
+          renderAwardsTab={() => <Awards />}
+        />
+      ) : (
+        /* Advanced Console Mode */
+        <Shell tab={tab} setTab={setTab} onLogout={() => { logout(); setLoggedIn(false); }}>
+          {advancedPage}
+        </Shell>
+      )}
+    </div>
+  );
 }

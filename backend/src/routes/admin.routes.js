@@ -6,7 +6,9 @@ import { createDevelopmentAdminToken } from "../auth/admin-session.js";
 import { asyncRoute, mapAssignment, mapBanner, mapCustomer, mapReward, normalizePhone, publicError } from "../utils.js";
 import {
   createCampaign,
+  dryRunSpin,
   getCampaign,
+  getCampaignReadiness,
   listCampaigns,
   transitionCampaign,
   updateCampaign,
@@ -301,6 +303,21 @@ router.get("/campaigns/:id/inventory", requireAdmin, asyncRoute(async (req, res)
 
 router.get("/campaigns/:id/analytics", requireAdmin, asyncRoute(async (req, res) => {
   const result = await getCampaignAnalytics({ db: supabase, campaignId: req.params.id });
+  res.json(result);
+}));
+
+router.get("/campaigns/:id/readiness", requireAdmin, asyncRoute(async (req, res) => {
+  const readiness = await getCampaignReadiness({ db: supabase, id: req.params.id });
+  res.json(readiness);
+}));
+
+router.post("/campaigns/:id/dry-run-spin", requireAdmin, asyncRoute(async (req, res) => {
+  const result = await dryRunSpin({
+    db: supabase,
+    campaignId: req.params.id,
+    phone: req.body?.phone,
+    spinNumber: req.body?.spinNumber,
+  });
   res.json(result);
 }));
 

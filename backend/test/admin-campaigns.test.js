@@ -17,4 +17,6 @@ test("admin campaigns routes are authenticated and delegate to campaign-service"
   assert.match(source, /router\.get\(\s*"\/campaigns\/:id"\s*,\s*requireAdmin/);
   assert.match(source, /router\.put\(\s*"\/campaigns\/:id"\s*,\s*requireAdmin/);
   assert.match(source, /router\.post\(\s*"\/campaigns\/:id\/status"\s*,\s*requireAdmin/);
+  assert.match(source, /router\.get\(\s*"\/campaigns\/:id\/readiness"\s*,\s*requireAdmin/);
+  assert.match(source, /router\.post\(\s*"\/campaigns\/:id\/dry-run-spin"\s*,\s*requireAdmin/);
 });
