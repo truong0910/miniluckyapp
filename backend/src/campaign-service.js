@@ -244,12 +244,54 @@ export async function dryRunSpin({ db, campaignId, phone = "0900000000", spinNum
     .eq("active", true)
     .order("priority", { ascending: false });
 
-  const { data: rewards } = await db
-    .from("reward_catalog")
-    .select("id,title,value,symbol,active")
-    .eq("active", true);
+  let matchedReward = null;
+  let simulatedOutcome = "better_luck";
 
-  const matchedReward = rewards?.[0] || { id: "mock-r1", title: "Quà dùng thử 50k", value: 50000, symbol: "star" };
+  if (rules && rules.length > 0) {
+    const activeRule = rules[0];
+    const { data: spinConfigs } = await db
+      .from("rule_spin_configs")
+      .select("id,spin_number,win_rate,max_wins")
+      .eq("rule_id", activeRule.id)
+      .order("spin_number", { ascending: true });
+
+    const targetConfig = (spinConfigs || []).find((s) => s.spin_number === Number(spinNumber)) || spinConfigs?.[0];
+    const winRate = targetConfig?.win_rate ?? 100;
+
+    if (winRate > 0 && targetConfig?.id) {
+      const { data: spinRewards } = await db
+        .from("rule_spin_rewards")
+        .select("reward_id")
+        .eq("spin_config_id", targetConfig.id);
+
+      const targetRewardId = spinRewards?.[0]?.reward_id;
+      if (targetRewardId) {
+        const { data: rewardData } = await db
+          .from("reward_catalog")
+          .select("id,title,value,symbol,active")
+          .eq("id", targetRewardId)
+          .maybeSingle();
+
+        if (rewardData) {
+          matchedReward = rewardData;
+          simulatedOutcome = "reward";
+        }
+      }
+    }
+  }
+
+  if (!matchedReward) {
+    const { data: fallbackRewards } = await db
+      .from("reward_catalog")
+      .select("id,title,value,symbol,active")
+      .eq("active", true)
+      .order("value", { ascending: false });
+
+    if (rules?.length > 0 && fallbackRewards?.[0]) {
+      matchedReward = fallbackRewards[0];
+      simulatedOutcome = "reward";
+    }
+  }
 
   return {
     success: true,
@@ -258,9 +300,9 @@ export async function dryRunSpin({ db, campaignId, phone = "0900000000", spinNum
     campaignName: campaign.name,
     phone: normalizedPhone,
     spinNumber,
-    simulatedOutcome: rules?.length > 0 ? "reward" : "better_luck",
-    matchedReward: rules?.length > 0 ? matchedReward : null,
+    simulatedOutcome,
+    matchedReward,
     rulesEvaluated: rules || [],
-    note: "Đây là chế độ QUAY THỬ (Simulated). Không ghi dữ liệu thật, không trừ kho, không gửi ZNS.",
+    note: "Đây là chế độ QUAY THỬ (Simulated). Không ghi dữ liệu thật, không trừ tồn kho, không phát hành voucher thật.",
   };
 }
