@@ -47,33 +47,45 @@ function buildWheelSegments(customer, catalog) {
 }
 
 async function loadParticipantResponse(row, session) {
-  const customer = await loadCustomer(row);
-  const activeCampaign = await getActiveCampaign({ db: supabase });
+  const [customer, activeCampaign, catalogResult] = await Promise.all([
+    loadCustomer(row),
+    getActiveCampaign({ db: supabase }),
+    supabase
+      .from("reward_catalog")
+      .select("id,code_prefix,title,value,description,wheel_label,symbol,active")
+      .eq("active", true)
+      .order("value", { ascending: false }),
+  ]);
+
+  if (catalogResult.error) throw catalogResult.error;
 
   let spinsTotal = customer.totalSpins;
   let spinCount = 0;
 
   if (activeCampaign?.id) {
-    const { data: partRow } = await supabase
-      .from("campaign_participants")
-      .select("spin_quota,status")
-      .eq("campaign_id", activeCampaign.id)
-      .eq("customer_id", row.id)
-      .maybeSingle();
+    const [partResult, countResult] = await Promise.all([
+      supabase
+        .from("campaign_participants")
+        .select("spin_quota,status")
+        .eq("campaign_id", activeCampaign.id)
+        .eq("customer_id", row.id)
+        .maybeSingle(),
+      supabase
+        .from("spin_events")
+        .select("id", { count: "exact", head: true })
+        .eq("customer_id", row.id)
+        .eq("campaign_id", activeCampaign.id),
+    ]);
 
-    if (partRow) {
-      spinsTotal = Number(partRow.spin_quota || 0);
+    if (partResult.error) throw partResult.error;
+    if (countResult.error) throw countResult.error;
+
+    if (partResult.data) {
+      spinsTotal = Number(partResult.data.spin_quota || 0);
     } else if (activeCampaign.id !== "00000000-0000-0000-0000-000000000001") {
       spinsTotal = 0;
     }
-
-    const { count, error: countError } = await supabase
-      .from("spin_events")
-      .select("id", { count: "exact", head: true })
-      .eq("customer_id", row.id)
-      .eq("campaign_id", activeCampaign.id);
-    if (countError) throw countError;
-    spinCount = Number(count || 0);
+    spinCount = Number(countResult.count || 0);
   } else {
     const { count, error: countError } = await supabase
       .from("spin_events")
@@ -82,13 +94,6 @@ async function loadParticipantResponse(row, session) {
     if (countError) throw countError;
     spinCount = Number(count || 0);
   }
-
-  const catalogResult = await supabase
-    .from("reward_catalog")
-    .select("id,code_prefix,title,value,description,wheel_label,symbol,active")
-    .eq("active", true)
-    .order("value", { ascending: false });
-  if (catalogResult.error) throw catalogResult.error;
 
   const participant = {
     ...customer,
