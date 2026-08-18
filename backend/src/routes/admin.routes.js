@@ -161,9 +161,28 @@ async function loadAdminCustomer(id) {
   const { data: customer, error } = await supabase.from("customers").select("id,name,phone,sex,job,total_spins,deleted_at").eq("id", id).maybeSingle();
   if (error) throw error;
   if (!customer) throw publicError("Không tìm thấy khách hàng", 404);
-  const { data: rewards, error: rewardError } = await supabase.from("customer_rewards").select("code,title,value,description,wheel_label,result,created_at").eq("customer_id", id).order("created_at", { ascending: true });
-  if (rewardError) throw rewardError;
-  return mapCustomer(customer, (rewards || []).map(mapAssignment));
+
+  const [legacyRes, awardsRes] = await Promise.all([
+    supabase.from("customer_rewards").select("code,title,value,description,wheel_label,result,created_at").eq("customer_id", id).order("created_at", { ascending: true }),
+    supabase.from("awards").select("code,title_snapshot,value_snapshot,description_snapshot,result,issued_at").eq("customer_id", id).order("issued_at", { ascending: true }),
+  ]);
+
+  if (legacyRes.error) throw legacyRes.error;
+  if (awardsRes.error) throw awardsRes.error;
+
+  const legacyList = (legacyRes.data || []).map(mapAssignment);
+  const awardList = (awardsRes.data || []).map((row) => ({
+    code: row.code,
+    title: row.title_snapshot || row.code,
+    value: Number(row.value_snapshot || 0),
+    description: row.description_snapshot || "",
+    wheelLabel: row.title_snapshot,
+    result: row.result || ["star", "star", "star"],
+    createdAt: row.issued_at,
+  }));
+
+  const allRewards = [...legacyList, ...awardList];
+  return mapCustomer(customer, allRewards);
 }
 
 router.get("/customers", requireAdmin, asyncRoute(async (req, res) => {
@@ -172,8 +191,6 @@ router.get("/customers", requireAdmin, asyncRoute(async (req, res) => {
   if (search) query = query.or(`phone.ilike.%${search}%,name.ilike.%${search}%`);
   const { data, error } = await query;
   if (error) throw error;
-  // Pass the customer id explicitly. Array#map otherwise passes the whole row
-  // as the first argument, which makes the follow-up lookup return a false 404.
   const items = await Promise.all((data || []).map((row) => loadAdminCustomer(row.id)));
   res.json({ items });
 }));
@@ -186,10 +203,26 @@ router.post("/customers", requireAdmin, asyncRoute(async (req, res) => {
   const record = { id, phone, name: String(body.name || `Khách hàng ${phone}`).trim(), sex: body.sex || "other", job: body.job || "other", total_spins: Math.max(0, Number(body.totalSpins || 0)), deleted_at: null };
   const { error } = await supabase.from("customers").upsert(record);
   if (error) throw error;
-  if (Array.isArray(body.rewards)) {
+  if (Array.isArray(body.rewards) && body.rewards.length > 0) {
     await supabase.from("customer_rewards").delete().eq("customer_id", id);
     const assignments = body.rewards.map((item) => ({ customer_id: id, code: String(item.reward?.code || item.code), title: String(item.reward?.title || item.title), value: Number(item.reward?.value || item.value), description: String(item.reward?.description || item.description || ""), wheel_label: item.reward?.wheelLabel || item.wheelLabel || null, result: item.result || ["star", "star", "star"] })).filter((item) => item.code && item.value > 0);
     if (assignments.length) await supabase.from("customer_rewards").insert(assignments);
+
+    for (const item of body.rewards) {
+      const code = String(item.code || item.reward?.code || `VOUCHER-${Date.now()}`);
+      const title = String(item.title || item.reward?.title || "Voucher quà tặng");
+      const value = Number(item.value || item.reward?.value || 0);
+      const description = String(item.description || item.reward?.description || "");
+      await supabase.from("awards").insert({
+        customer_id: id,
+        code,
+        title_snapshot: title,
+        value_snapshot: value,
+        description_snapshot: description,
+        result: ["star", "star", "star"],
+        status: "issued",
+      });
+    }
   }
   res.status(201).json(await loadAdminCustomer(id));
 }));
@@ -200,10 +233,26 @@ router.put("/customers/:id", requireAdmin, asyncRoute(async (req, res) => {
   if (!patch.name || !/^0(3|5|7|8|9)\d{8}$/.test(patch.phone)) throw publicError("Tên hoặc số điện thoại không hợp lệ");
   const { error } = await supabase.from("customers").update(patch).eq("id", req.params.id);
   if (error) throw error;
-  if (Array.isArray(body.rewards)) {
+  if (Array.isArray(body.rewards) && body.rewards.length > 0) {
     await supabase.from("customer_rewards").delete().eq("customer_id", req.params.id);
     const assignments = body.rewards.map((item) => ({ customer_id: req.params.id, code: String(item.reward?.code || item.code), title: String(item.reward?.title || item.title), value: Number(item.reward?.value || item.value), description: String(item.reward?.description || item.description || ""), wheel_label: item.reward?.wheelLabel || item.wheelLabel || null, result: item.result || ["star", "star", "star"] })).filter((item) => item.code && item.value > 0);
     if (assignments.length) await supabase.from("customer_rewards").insert(assignments);
+
+    for (const item of body.rewards) {
+      const code = String(item.code || item.reward?.code || `VOUCHER-${Date.now()}`);
+      const title = String(item.title || item.reward?.title || "Voucher quà tặng");
+      const value = Number(item.value || item.reward?.value || 0);
+      const description = String(item.description || item.reward?.description || "");
+      await supabase.from("awards").insert({
+        customer_id: req.params.id,
+        code,
+        title_snapshot: title,
+        value_snapshot: value,
+        description_snapshot: description,
+        result: ["star", "star", "star"],
+        status: "issued",
+      });
+    }
   }
   res.json(await loadAdminCustomer(req.params.id));
 }));
