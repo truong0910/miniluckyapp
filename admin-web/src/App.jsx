@@ -49,7 +49,7 @@ function Login({ onLogin }) {
   );
 }
 
-function Shell({ tab, setTab, onLogout, children }) {
+function Shell({ tab, setTab, onViewOperator, onLogout, children }) {
   return (
     <div className="app-shell">
       <aside>
@@ -62,6 +62,31 @@ function Shell({ tab, setTab, onLogout, children }) {
             <small>Hệ thống Quản trị</small>
           </div>
         </div>
+
+        <button
+          style={{
+            background: "linear-gradient(135deg, #e11b22, #b91c1c)",
+            color: "#fff",
+            fontWeight: "800",
+            fontSize: "12px",
+            padding: "10px 12px",
+            borderRadius: "10px",
+            border: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            cursor: "pointer",
+            marginBottom: "14px",
+            width: "100%",
+            justifyContent: "center",
+            boxShadow: "0 4px 12px rgba(225, 27, 34, 0.2)",
+          }}
+          onClick={onViewOperator}
+          title="Bấm để chuyển về Chế độ Quy trình Vận hành Sự kiện 6 bước"
+        >
+          ⚡ Quy trình Vận hành (6 bước)
+        </button>
+
         <nav>
           {[
             ["overview", "Tổng quan"],
@@ -530,7 +555,7 @@ function CampaignParticipants() {
                     <td>
                       {item.importedGroup || item.groupName ? (
                         <span style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", display: "inline-block" }}>
-                          🏷️ {item.importedGroup || item.groupName}
+                          {item.importedGroup || item.groupName}
                         </span>
                       ) : (
                         "—"
@@ -556,7 +581,7 @@ function Banners() {
   const save = async (event) => { event.preventDefault(); setSaving(true); setError(""); try { const body = { ...form }; const path = editing ? `/admin/banners/${editing}` : "/admin/banners"; await api(path, { method: editing ? "PUT" : "POST", body: JSON.stringify(body) }); setForm(EMPTY_BANNER); setEditing(null); await load(); } catch (e) { setError(e.message); } finally { setSaving(false); } };
   const upload = async (event) => { const file = event.target.files?.[0]; if (!file) return; if (file.size > 8_000_000) { setError("Ảnh tối đa 8MB"); return; } const imageData = await fileToDataUrl(file); setForm((x) => ({ ...x, imageData, imageUrl: "" })); };
   const remove = async (id) => { if (!confirm("Xóa banner này?")) return; try { await api(`/admin/banners/${id}`, { method: "DELETE" }); await load(); } catch (e) { setError(e.message); } };
-  return <><Header title="Quản lý banner" subtitle="Quản lý hình ảnh banner truyền thông hiển thị trên trang chủ Mini App." />{error && <div className="error">{error}</div>}<div className="split"><form className="panel form" onSubmit={save}><h2>{editing ? "Sửa banner" : "Thêm banner"}</h2><label>Tiêu đề<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label><label>URL ảnh<input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value, imageData: undefined })} placeholder="https://..." /></label><label>Hoặc tải file<input type="file" accept="image/*" onChange={upload} /></label>{(form.imageUrl || form.imageData) && <img className="banner-preview" src={form.imageData || form.imageUrl} /> }<label>Link khi bấm<input value={form.linkUrl} onChange={(e) => setForm({ ...form, linkUrl: e.target.value })} /></label><label className="check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Hiển thị</label><div className="actions"><button className="primary" disabled={saving}>{saving ? "Đang lưu…" : editing ? "Lưu thay đổi" : "Thêm banner"}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY_BANNER); }}>Hủy</button>}</div></form><section className="panel"><h2>Danh sách ({items.length})</h2><div className="items">{items.map((item) => <article className="item" key={item.id}><img src={item.imageUrl} /><div><strong>{item.title}</strong><small>{item.active ? "Đang hiển thị" : "Đang tắt"}</small><div className="actions"><button onClick={() => { setEditing(item.id); setForm(item); }}>Sửa</button><button className="danger" onClick={() => remove(item.id)}>Xóa</button></div></div></article>)}</div></section></div></>;
+  return <><Header title="Quản lý banner" subtitle="Quản lý hình ảnh banner truyền thông hiển thị trên trang chủ Mini App." />{error && <div className="error">{error}</div>}<div className="split"><form className="panel form" onSubmit={save}><h2>{editing ? "Sửa banner" : "Thêm banner"}</h2><label>Tiêu đề<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label><label>URL ảnh<input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value, imageData: undefined })} placeholder="https://..." /></label><label>Hoặc tải file<input type="file" accept="image/*" onChange={upload} /></label>{(form.imageUrl || form.imageData) && <img className="banner-preview" src={form.imageData || form.imageUrl} />}<label>Link khi bấm<input value={form.linkUrl} onChange={(e) => setForm({ ...form, linkUrl: e.target.value })} /></label><label className="check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Hiển thị</label><div className="actions"><button className="primary" disabled={saving}>{saving ? "Đang lưu…" : editing ? "Lưu thay đổi" : "Thêm banner"}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY_BANNER); }}>Hủy</button>}</div></form><section className="panel"><h2>Danh sách ({items.length})</h2><div className="items">{items.map((item) => <article className="item" key={item.id}><img src={item.imageUrl} /><div><strong>{item.title}</strong><small>{item.active ? "Đang hiển thị" : "Đang tắt"}</small><div className="actions"><button onClick={() => { setEditing(item.id); setForm(item); }}>Sửa</button><button className="danger" onClick={() => remove(item.id)}>Xóa</button></div></div></article>)}</div></section></div></>;
 }
 
 function Rewards() {
@@ -1527,19 +1552,19 @@ function CustomerGroups() {
   useEffect(() => { void loadMembersAndRules(); }, [selectedGroupId]);
 
   useEffect(() => {
-    api("/admin/customers").then((r) => setAllCustomers(r.items || [])).catch(() => {});
+    api("/admin/customers").then((r) => setAllCustomers(r.items || [])).catch(() => { });
     api("/admin/campaigns").then((r) => {
       const available = r.items || [];
       setCampaigns(available);
       if (!selectedCampaignId && available[0]) setSelectedCampaignId(available[0].id);
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   useEffect(() => {
     if (!selectedCampaignId) return;
     api(`/admin/campaign-rules?campaignId=${encodeURIComponent(selectedCampaignId)}`)
       .then((r) => setCampaignRules(r.items || []))
-      .catch(() => {});
+      .catch(() => { });
   }, [selectedCampaignId]);
 
   const handleCreateGroup = async (e) => {
@@ -1912,36 +1937,37 @@ export default function App() {
 
   return (
     <div className="admin-root-shell">
-      {/* Top Workspace Bar */}
-      <EventWorkspace
-        campaigns={campaigns}
-        selectedCampaignId={selectedCampaignId}
-        onSelectCampaign={setSelectedCampaignId}
-        mode={viewMode}
-        onToggleMode={setViewMode}
-        onNavigateStep={setOperatorStep}
-        onTransitionStatus={handleTransitionStatus}
-        onCloneCampaign={handleCloneCampaign}
-      />
-
       {/* Operator Wizard Mode */}
       {viewMode === "operator" ? (
-        <EventWizard
-          activeStep={operatorStep}
-          onSelectStep={setOperatorStep}
-          campaign={selectedCampaign}
-          campaigns={campaigns}
-          onSelectCampaign={setSelectedCampaignId}
-          onCampaignSaved={(newCamp) => {
-            loadCampaigns();
-            if (newCamp?.id) setSelectedCampaignId(newCamp.id);
-          }}
-          onTransitionStatus={handleTransitionStatus}
-          renderAwardsTab={() => <Awards />}
-        />
+        <>
+          {/* Top Workspace Bar */}
+          <EventWorkspace
+            campaigns={campaigns}
+            selectedCampaignId={selectedCampaignId}
+            onSelectCampaign={setSelectedCampaignId}
+            mode={viewMode}
+            onToggleMode={setViewMode}
+            onNavigateStep={setOperatorStep}
+            onTransitionStatus={handleTransitionStatus}
+            onCloneCampaign={handleCloneCampaign}
+          />
+          <EventWizard
+            activeStep={operatorStep}
+            onSelectStep={setOperatorStep}
+            campaign={selectedCampaign}
+            campaigns={campaigns}
+            onSelectCampaign={setSelectedCampaignId}
+            onCampaignSaved={(newCamp) => {
+              loadCampaigns();
+              if (newCamp?.id) setSelectedCampaignId(newCamp.id);
+            }}
+            onTransitionStatus={handleTransitionStatus}
+            renderAwardsTab={() => <Awards />}
+          />
+        </>
       ) : (
         /* Advanced Console Mode */
-        <Shell tab={tab} setTab={setTab} onLogout={() => { logout(); setLoggedIn(false); }}>
+        <Shell tab={tab} setTab={setTab} onViewOperator={() => setViewMode("operator")} onLogout={() => { logout(); setLoggedIn(false); }}>
           {advancedPage}
         </Shell>
       )}
