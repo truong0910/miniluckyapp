@@ -49,7 +49,7 @@ function Login({ onLogin }) {
   );
 }
 
-function Shell({ tab, setTab, onViewOperator, onLogout, children }) {
+function Shell({ tab, setTab, onLogout, children }) {
   return (
     <div className="app-shell">
       <aside>
@@ -62,30 +62,6 @@ function Shell({ tab, setTab, onViewOperator, onLogout, children }) {
             <small>Hệ thống Quản trị</small>
           </div>
         </div>
-
-        <button
-          style={{
-            background: "linear-gradient(135deg, #e11b22, #b91c1c)",
-            color: "#fff",
-            fontWeight: "800",
-            fontSize: "12px",
-            padding: "10px 12px",
-            borderRadius: "10px",
-            border: 0,
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            cursor: "pointer",
-            marginBottom: "14px",
-            width: "100%",
-            justifyContent: "center",
-            boxShadow: "0 4px 12px rgba(225, 27, 34, 0.2)",
-          }}
-          onClick={onViewOperator}
-          title="Bấm để chuyển về Chế độ Quy trình Vận hành Sự kiện 6 bước"
-        >
-          ⚡ Quy trình Vận hành (6 bước)
-        </button>
 
         <nav>
           {[
@@ -1872,7 +1848,7 @@ export default function App() {
   const [loggedIn, setLoggedIn] = useState(Boolean(auth.token));
   const [campaigns, setCampaigns] = useState([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
-  const [viewMode, setViewMode] = useState("operator"); // "operator" | "advanced"
+  const [viewMode, setViewMode] = useState("advanced"); // Default to clean Advanced Console mode
   const [operatorStep, setOperatorStep] = useState("overview");
   const [tab, setTab] = useState("overview");
 
@@ -1937,10 +1913,8 @@ export default function App() {
 
   return (
     <div className="admin-root-shell">
-      {/* Operator Wizard Mode */}
       {viewMode === "operator" ? (
         <>
-          {/* Top Workspace Bar */}
           <EventWorkspace
             campaigns={campaigns}
             selectedCampaignId={selectedCampaignId}
@@ -1966,8 +1940,7 @@ export default function App() {
           />
         </>
       ) : (
-        /* Advanced Console Mode */
-        <Shell tab={tab} setTab={setTab} onViewOperator={() => setViewMode("operator")} onLogout={() => { logout(); setLoggedIn(false); }}>
+        <Shell tab={tab} setTab={setTab} onLogout={() => { logout(); setLoggedIn(false); }}>
           {advancedPage}
         </Shell>
       )}
