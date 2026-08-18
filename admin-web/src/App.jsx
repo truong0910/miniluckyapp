@@ -1381,19 +1381,33 @@ function CampaignRules() {
               </button>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               {rewardItems.map((item, idx) => (
-                <div key={idx} style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center", background: "#f8fafc", padding: "8px", borderRadius: "8px", border: "1px solid #f1f5f9", minWidth: 0 }}>
-                  <select style={{ flex: "1 1 140px", minWidth: 0, padding: "5px 6px", fontSize: "11px", boxSizing: "border-box" }} value={item.rewardId || rewards[0]?.id || ""} onChange={(e) => handleUpdateRewardRow(idx, "rewardId", e.target.value)} required>
-                    {rewards.map((r) => (
-                      <option key={r.id} value={r.id}>{r.title} ({r.value ? Number(r.value).toLocaleString("vi-VN") + "đ" : ""})</option>
-                    ))}
-                  </select>
-                  <input type="number" min="0" max="100" placeholder="Tỷ lệ %" style={{ flex: "1 1 70px", minWidth: 0, padding: "5px 6px", fontSize: "11px", boxSizing: "border-box" }} value={item.probability} onChange={(e) => handleUpdateRewardRow(idx, "probability", Number(e.target.value))} required />
-                  <input type="number" min="1" placeholder="Số lượng" style={{ flex: "1 1 70px", minWidth: 0, padding: "5px 6px", fontSize: "11px", boxSizing: "border-box" }} value={item.quantity} onChange={(e) => handleUpdateRewardRow(idx, "quantity", Number(e.target.value))} required />
-                  {rewardItems.length > 1 && (
-                    <button type="button" className="danger" style={{ padding: "4px 8px", fontSize: "10px" }} onClick={() => handleRemoveRewardRow(idx)}>Xóa</button>
-                  )}
+                <div key={idx} style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr auto", gap: "8px", alignItems: "flex-end", background: "#f8fafc", padding: "10px", borderRadius: "10px", border: "1px solid #f1f5f9", minWidth: 0 }}>
+                  <div style={{ minWidth: 0 }}>
+                    <label style={{ fontSize: "11px", color: "#475569", fontWeight: "700", display: "block", marginBottom: "4px" }}>Tên Giải thưởng {idx + 1}</label>
+                    <select style={{ width: "100%", padding: "6px 8px", fontSize: "11px", boxSizing: "border-box" }} value={item.rewardId || rewards[0]?.id || ""} onChange={(e) => handleUpdateRewardRow(idx, "rewardId", e.target.value)} required>
+                      {rewards.map((r) => (
+                        <option key={r.id} value={r.id}>{r.title} ({r.value ? Number(r.value).toLocaleString("vi-VN") + "đ" : ""})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ minWidth: 0 }}>
+                    <label style={{ fontSize: "11px", color: "#475569", fontWeight: "700", display: "block", marginBottom: "4px" }}>Tỷ lệ trúng (%)</label>
+                    <input type="number" min="0" max="100" placeholder="VD: 100" style={{ width: "100%", padding: "6px 8px", fontSize: "11px", boxSizing: "border-box" }} value={item.probability} onChange={(e) => handleUpdateRewardRow(idx, "probability", Number(e.target.value))} required />
+                  </div>
+
+                  <div style={{ minWidth: 0 }}>
+                    <label style={{ fontSize: "11px", color: "#475569", fontWeight: "700", display: "block", marginBottom: "4px" }}>Số lượng quà</label>
+                    <input type="number" min="1" placeholder="VD: 10" style={{ width: "100%", padding: "6px 8px", fontSize: "11px", boxSizing: "border-box" }} value={item.quantity} onChange={(e) => handleUpdateRewardRow(idx, "quantity", Number(e.target.value))} required />
+                  </div>
+
+                  <div style={{ paddingBottom: "2px" }}>
+                    {rewardItems.length > 1 && (
+                      <button type="button" className="danger" style={{ padding: "6px 10px", fontSize: "11px", borderRadius: "6px" }} onClick={() => handleRemoveRewardRow(idx)}>Xóa</button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
