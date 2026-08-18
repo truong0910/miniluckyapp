@@ -854,18 +854,18 @@ function Awards() {
             <input placeholder="Tìm theo mã voucher hoặc tên quà" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
           </div>
         </div>
-        <div className="table-wrap">
-          <table>
+        <div className="table-wrap" style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", tableLayout: "auto", minWidth: "900px" }}>
             <thead>
               <tr>
-                <th>Mã Voucher</th>
-                <th>Tên Khách hàng</th>
-                <th>Số điện thoại</th>
-                <th>Phần thưởng</th>
-                <th>Giá trị</th>
-                <th>Trạng thái</th>
-                <th>Ngày cấp</th>
-                <th>Vận hành</th>
+                <th style={{ width: "180px" }}>Mã Voucher</th>
+                <th style={{ width: "150px" }}>Tên Khách hàng</th>
+                <th style={{ width: "120px" }}>Số điện thoại</th>
+                <th style={{ width: "160px" }}>Phần thưởng</th>
+                <th style={{ width: "110px" }}>Giá trị</th>
+                <th style={{ width: "110px" }}>Trạng thái</th>
+                <th style={{ width: "140px" }}>Ngày cấp</th>
+                <th style={{ width: "180px" }}>Vận hành</th>
               </tr>
             </thead>
             <tbody>
@@ -875,13 +875,51 @@ function Awards() {
                 <tr><td colSpan="8" style={{ textAlign: "center", padding: "24px" }}>Không tìm thấy voucher nào.</td></tr>
               ) : items.map((item) => (
                 <tr key={item.id}>
-                  <td><strong style={{ fontFamily: "monospace" }}>{item.code}</strong></td>
-                  <td>{item.customerName}</td>
+                  <td>
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        background: "#f1f5f9",
+                        padding: "4px 8px",
+                        borderRadius: "6px",
+                        border: "1px solid #cbd5e1",
+                        maxWidth: "180px",
+                        cursor: "pointer",
+                      }}
+                      title={`Bấm để sao chép: ${item.code}`}
+                      onClick={() => {
+                        if (navigator?.clipboard?.writeText) {
+                          navigator.clipboard.writeText(item.code);
+                          setSuccessMsg(`Đã sao chép mã voucher [${item.code}]!`);
+                        }
+                      }}
+                    >
+                      <code
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: "700",
+                          color: "#0f172a",
+                          fontFamily: "monospace",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          display: "inline-block",
+                          maxWidth: "140px",
+                        }}
+                      >
+                        {item.code}
+                      </code>
+                      <span style={{ fontSize: "11px", color: "#64748b", flexShrink: 0 }}>📋</span>
+                    </div>
+                  </td>
+                  <td><strong>{item.customerName}</strong></td>
                   <td>{item.customerPhone || item.customerId}</td>
                   <td>{item.title}</td>
-                  <td>{item.value ? `${item.value.toLocaleString("vi-VN")}đ` : "—"}</td>
+                  <td><strong>{item.value ? `${item.value.toLocaleString("vi-VN")}đ` : "—"}</strong></td>
                   <td><span className={`badge status-${item.status}`}>{item.status}</span></td>
-                  <td>{item.issuedAt ? new Date(item.issuedAt).toLocaleString("vi-VN") : "—"}</td>
+                  <td><small>{item.issuedAt ? new Date(item.issuedAt).toLocaleString("vi-VN") : "—"}</small></td>
                   <td style={{ whiteSpace: "nowrap" }}>
                     {item.status !== "redeemed" && (item.status === "issued" || item.status === "delivered") && (
                       <button className="primary" style={{ padding: "4px 8px", fontSize: "11px", marginRight: "4px" }} onClick={() => openRedeemModal(item)}>Đổi thưởng</button>
