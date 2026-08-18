@@ -205,25 +205,24 @@ router.post("/customers", requireAdmin, asyncRoute(async (req, res) => {
   if (error) throw error;
   if (Array.isArray(body.rewards)) {
     await supabase.from("customer_rewards").delete().eq("customer_id", id);
-    await supabase.from("awards").delete().eq("customer_id", id).is("spin_event_id", null);
-
-    const assignments = body.rewards.map((item) => ({ customer_id: id, code: String(item.reward?.code || item.code), title: String(item.reward?.title || item.title), value: Number(item.reward?.value || item.value), description: String(item.reward?.description || item.description || ""), wheel_label: item.reward?.wheelLabel || item.wheelLabel || null, result: item.result || ["star", "star", "star"] })).filter((item) => item.code && item.value > 0);
-    if (assignments.length) await supabase.from("customer_rewards").insert(assignments);
-
-    for (const item of body.rewards) {
-      const code = String(item.code || item.reward?.code || `VOUCHER-${Date.now()}`);
-      const title = String(item.title || item.reward?.title || "Voucher quà tặng");
-      const value = Number(item.value || item.reward?.value || 0);
+    const assignments = body.rewards.map((item) => {
+      const code = String(item.code || item.reward?.code || item.codePrefix || item.reward?.codePrefix || item.id || `VOUCHER-${Date.now()}`);
+      const title = String(item.title || item.reward?.title || "Voucher quà tặng").trim();
+      const value = Math.max(1, Number(item.value ?? item.reward?.value ?? 1));
       const description = String(item.description || item.reward?.description || "");
-      await supabase.from("awards").insert({
+      return {
         customer_id: id,
         code,
-        title_snapshot: title,
-        value_snapshot: value,
-        description_snapshot: description,
+        title,
+        value,
+        description,
+        wheel_label: title,
         result: ["star", "star", "star"],
-        status: "issued",
-      });
+      };
+    }).filter((item) => item.title.length > 0);
+
+    if (assignments.length > 0) {
+      await supabase.from("customer_rewards").insert(assignments);
     }
   }
   res.status(201).json(await loadAdminCustomer(id));
@@ -237,25 +236,24 @@ router.put("/customers/:id", requireAdmin, asyncRoute(async (req, res) => {
   if (error) throw error;
   if (Array.isArray(body.rewards)) {
     await supabase.from("customer_rewards").delete().eq("customer_id", req.params.id);
-    await supabase.from("awards").delete().eq("customer_id", req.params.id).is("spin_event_id", null);
-
-    const assignments = body.rewards.map((item) => ({ customer_id: req.params.id, code: String(item.reward?.code || item.code), title: String(item.reward?.title || item.title), value: Number(item.reward?.value || item.value), description: String(item.reward?.description || item.description || ""), wheel_label: item.reward?.wheelLabel || item.wheelLabel || null, result: item.result || ["star", "star", "star"] })).filter((item) => item.code && item.value > 0);
-    if (assignments.length) await supabase.from("customer_rewards").insert(assignments);
-
-    for (const item of body.rewards) {
-      const code = String(item.code || item.reward?.code || `VOUCHER-${Date.now()}`);
-      const title = String(item.title || item.reward?.title || "Voucher quà tặng");
-      const value = Number(item.value || item.reward?.value || 0);
+    const assignments = body.rewards.map((item) => {
+      const code = String(item.code || item.reward?.code || item.codePrefix || item.reward?.codePrefix || item.id || `VOUCHER-${Date.now()}`);
+      const title = String(item.title || item.reward?.title || "Voucher quà tặng").trim();
+      const value = Math.max(1, Number(item.value ?? item.reward?.value ?? 1));
       const description = String(item.description || item.reward?.description || "");
-      await supabase.from("awards").insert({
+      return {
         customer_id: req.params.id,
         code,
-        title_snapshot: title,
-        value_snapshot: value,
-        description_snapshot: description,
+        title,
+        value,
+        description,
+        wheel_label: title,
         result: ["star", "star", "star"],
-        status: "issued",
-      });
+      };
+    }).filter((item) => item.title.length > 0);
+
+    if (assignments.length > 0) {
+      await supabase.from("customer_rewards").insert(assignments);
     }
   }
   res.json(await loadAdminCustomer(req.params.id));
