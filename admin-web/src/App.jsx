@@ -208,6 +208,17 @@ function Campaigns() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const [statusModal, setStatusModal] = useState({
+    isOpen: false,
+    id: null,
+    name: "",
+    newStatus: "",
+    title: "",
+    message: "",
+    variant: "primary",
+    confirmText: "Xác nhận",
+  });
+
   const load = async () => {
     try {
       const result = await api("/admin/campaigns?includeArchived=true");
@@ -257,18 +268,59 @@ function Campaigns() {
     }
   };
 
-  const setStatus = async (id, newStatus) => {
+  const promptStatusChange = (campaign, newStatus) => {
+    let title = "Xác nhận chuyển trạng thái";
+    let message = "";
+    let variant = "primary";
+    let confirmText = "Xác nhận";
+
     if (newStatus === "active") {
-      if (!confirm("Bạn có chắc chắn muốn KÍCH HOẠT sự kiện này?\nLưu ý: Nếu có sự kiện khác đang diễn ra, hệ thống sẽ báo lỗi và yêu cầu tạm dừng sự kiện đó trước.")) return;
+      title = "🚀 Xác nhận Kích hoạt sự kiện";
+      message = `Bạn có chắc chắn muốn KÍCH HOẠT sự kiện '${campaign.name}'?\nLưu ý: Nếu có sự kiện khác đang diễn ra, hệ thống sẽ báo lỗi và yêu cầu bạn tạm dừng sự kiện đó trước.`;
+      variant = "primary";
+      confirmText = "Kích hoạt sự kiện";
+    } else if (newStatus === "paused") {
+      title = "⏸️ Xác nhận Tạm dừng sự kiện";
+      message = `Bạn có chắc chắn muốn TẠM DỪNG sự kiện '${campaign.name}'?\nLưu ý: Khách hàng sẽ tạm thời không thể tham gia quay thưởng trong thời gian tạm dừng.`;
+      variant = "warning";
+      confirmText = "Tạm dừng sự kiện";
     } else if (newStatus === "ended") {
-      if (!confirm("Bạn có chắc chắn muốn KẾT THÚC sự kiện này?\nLưu ý: Thao tác này sẽ khóa nhận lượt quay mới.")) return;
+      title = "🛑 Xác nhận Kết thúc sự kiện";
+      message = `Bạn có chắc chắn muốn KẾT THÚC sự kiện '${campaign.name}'?\nLưu ý: Thao tác này sẽ chính thức đóng cổng quay thưởng.`;
+      variant = "danger";
+      confirmText = "Kết thúc sự kiện";
+    } else if (newStatus === "archived") {
+      title = "📦 Xác nhận Lưu trữ sự kiện";
+      message = `Bạn có chắc chắn muốn LƯU TRỮ sự kiện '${campaign.name}'?`;
+      variant = "danger";
+      confirmText = "Lưu trữ sự kiện";
     }
+
+    setStatusModal({
+      isOpen: true,
+      id: campaign.id,
+      name: campaign.name,
+      newStatus,
+      title,
+      message,
+      variant,
+      confirmText,
+    });
+  };
+
+  const handleExecuteStatusChange = async () => {
+    if (!statusModal.id || !statusModal.newStatus) return;
     setError("");
     try {
-      await api(`/admin/campaigns/${id}/status`, { method: "POST", body: JSON.stringify({ status: newStatus }) });
+      await api(`/admin/campaigns/${statusModal.id}/status`, {
+        method: "POST",
+        body: JSON.stringify({ status: statusModal.newStatus }),
+      });
+      setStatusModal({ isOpen: false, id: null, name: "", newStatus: "", title: "", message: "", variant: "primary", confirmText: "" });
       await load();
     } catch (e) {
       setError(e.message);
+      setStatusModal((prev) => ({ ...prev, isOpen: false }));
     }
   };
 
@@ -328,25 +380,25 @@ function Campaigns() {
                   {item.status === "draft" && (
                     <>
                       <button onClick={() => { setEditing(item.id); setForm(item); }}>Sửa</button>
-                      <button className="primary" onClick={() => setStatus(item.id, "active")}>Kích hoạt</button>
-                      <button className="danger" onClick={() => setStatus(item.id, "archived")}>Lưu trữ</button>
+                      <button className="primary" onClick={() => promptStatusChange(item, "active")}>Kích hoạt</button>
+                      <button className="danger" onClick={() => promptStatusChange(item, "archived")}>Lưu trữ</button>
                     </>
                   )}
                   {item.status === "active" && (
                     <>
-                      <button onClick={() => setStatus(item.id, "paused")}>Tạm dừng</button>
-                      <button className="danger" onClick={() => setStatus(item.id, "ended")}>Kết thúc</button>
+                      <button onClick={() => promptStatusChange(item, "paused")}>Tạm dừng</button>
+                      <button className="danger" onClick={() => promptStatusChange(item, "ended")}>Kết thúc</button>
                     </>
                   )}
                   {item.status === "paused" && (
                     <>
-                      <button className="primary" onClick={() => setStatus(item.id, "active")}>Kích hoạt lại</button>
-                      <button className="danger" onClick={() => setStatus(item.id, "ended")}>Kết thúc</button>
-                      <button onClick={() => setStatus(item.id, "archived")}>Lưu trữ</button>
+                      <button className="primary" onClick={() => promptStatusChange(item, "active")}>Kích hoạt lại</button>
+                      <button className="danger" onClick={() => promptStatusChange(item, "ended")}>Kết thúc</button>
+                      <button onClick={() => promptStatusChange(item, "archived")}>Lưu trữ</button>
                     </>
                   )}
                   {item.status === "ended" && (
-                    <button onClick={() => setStatus(item.id, "archived")}>Lưu trữ</button>
+                    <button onClick={() => promptStatusChange(item, "archived")}>Lưu trữ</button>
                   )}
                 </div>
               </article>
@@ -354,6 +406,17 @@ function Campaigns() {
           </div>
         </section>
       </div>
+
+      <ConfirmModal
+        isOpen={statusModal.isOpen}
+        title={statusModal.title}
+        message={statusModal.message}
+        variant={statusModal.variant}
+        confirmText={statusModal.confirmText}
+        cancelText="Hủy bỏ"
+        onConfirm={handleExecuteStatusChange}
+        onCancel={() => setStatusModal((prev) => ({ ...prev, isOpen: false }))}
+      />
     </>
   );
 }
