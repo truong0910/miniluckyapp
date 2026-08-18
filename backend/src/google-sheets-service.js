@@ -67,21 +67,26 @@ export async function loadGoogleSheetsSyncContext({ db, spin, customerId }) {
   return { customer: customerResult.data, award: awardResult.data, campaign };
 }
 
-export async function postSpinToGoogleSheets({ payload, webhookUrl, fetchImpl = fetch, timeoutMs = 5000 }) {
+export async function postSpinToGoogleSheets({ payload, webhookUrl, webhookSecret = "", fetchImpl = fetch, timeoutMs = 5000 }) {
   const url = String(webhookUrl || "").trim();
   if (!url) return { status: "disabled" };
   if (!payload?.spinId) throw syncError("Google Sheets sync requires spinId", 422);
+
+  const headers = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    "X-Idempotency-Key": payload.spinId,
+  };
+  if (webhookSecret) {
+    headers["X-Webhook-Secret"] = webhookSecret;
+  }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), Math.max(250, Number(timeoutMs) || 5000));
   try {
     const response = await fetchImpl(url, {
       method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "X-Idempotency-Key": payload.spinId,
-      },
+      headers,
       body: JSON.stringify(payload),
       signal: controller.signal,
     });
@@ -105,6 +110,7 @@ export async function syncSpinToGoogleSheets({ db, spin, customerId, config, fet
   return postSpinToGoogleSheets({
     payload,
     webhookUrl: config.googleSheetsWebhookUrl,
+    webhookSecret: config.googleSheetsWebhookSecret || "",
     fetchImpl,
     timeoutMs: config.googleSheetsWebhookTimeoutMs,
   });

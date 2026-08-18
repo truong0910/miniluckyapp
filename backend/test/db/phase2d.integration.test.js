@@ -69,6 +69,9 @@ test(
       assert.ifError(err2);
       secondId = cmp2.id;
 
+      // Pause any pre-existing active campaign in test DB to isolate test run
+      await db.from("campaigns").update({ status: "paused" }).eq("status", "active");
+
       // 1. Activate first campaign
       const { data: active1, error: actErr1 } = await db.rpc("transition_campaign", {
         p_campaign_id: firstId,

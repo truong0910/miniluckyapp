@@ -30,6 +30,18 @@ function doPost(e) {
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
+    // Secret verification: check ScriptProperties or query/header param
+    var expectedSecret = PropertiesService.getScriptProperties().getProperty("WEBHOOK_SECRET");
+    if (expectedSecret) {
+      var headerSecret = (e && e.parameter && e.parameter.secret) || "";
+      if (!headerSecret && e && e.headers) {
+        headerSecret = e.headers["X-Webhook-Secret"] || e.headers["x-webhook-secret"] || "";
+      }
+      if (headerSecret !== expectedSecret) {
+        return jsonResponse({ status: "error", message: "Unauthorized webhook secret" });
+      }
+    }
+
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName("Trang tính1") || ss.getActiveSheet();
     var data = JSON.parse((e && e.postData && e.postData.contents) || "{}");
