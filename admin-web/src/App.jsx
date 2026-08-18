@@ -9,7 +9,7 @@ import LogoImg from "./assets/logo.png";
 
 const EMPTY_REWARD = { codePrefix: "", title: "", value: "", description: "", wheelLabel: "", symbol: "star", active: true };
 const EMPTY_BANNER = { title: "", imageUrl: "", linkUrl: "", active: true, order: 0 };
-const EMPTY_CAMPAIGN = { code: "", name: "", startsAt: "", endsAt: "", timezone: "Asia/Ho_Chi_Minh" };
+const EMPTY_CAMPAIGN = { code: "", name: "", startsAt: "", endsAt: "", timezone: "Asia/Ho_Chi_Minh", allowUnlisted: false, unlistedSpinQuota: 1 };
 
 function Login({ onLogin }) {
   const [email, setEmail] = useState("");
@@ -337,6 +337,33 @@ function Campaigns() {
             <label>Bắt đầu<input type="datetime-local" value={form.startsAt ? form.startsAt.slice(0, 16) : ""} onChange={(e) => setForm({ ...form, startsAt: e.target.value })} /></label>
             <label>Kết thúc<input type="datetime-local" value={form.endsAt ? form.endsAt.slice(0, 16) : ""} onChange={(e) => setForm({ ...form, endsAt: e.target.value })} /></label>
           </div>
+
+          {/* UNLISTED CUSTOMER POLICY CONTROLS */}
+          <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0", marginTop: "10px", display: "grid", gap: "8px" }}>
+            <label className="check" style={{ fontWeight: "700", color: "#1e293b", cursor: "pointer", margin: 0 }}>
+              <input
+                type="checkbox"
+                checked={form.allowUnlisted ?? false}
+                onChange={(e) => setForm({ ...form, allowUnlisted: e.target.checked })}
+              />
+              🔓 Cho phép Khách hàng ngoài danh sách (Khách vãng lai) tham gia quay
+            </label>
+
+            {form.allowUnlisted && (
+              <label style={{ fontSize: "12px", color: "#475569", margin: 0 }}>
+                Số lượt quay cấp mặc định cho khách vãng lai:
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={form.unlistedSpinQuota ?? 1}
+                  onChange={(e) => setForm({ ...form, unlistedSpinQuota: Number(e.target.value) })}
+                  style={{ width: "100%", marginTop: "4px" }}
+                />
+              </label>
+            )}
+          </div>
+
           <div className="actions">
             <button className="primary" disabled={saving}>{saving ? "Đang lưu…" : editing ? "Lưu thay đổi" : "Thêm sự kiện"}</button>
             {editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY_CAMPAIGN); }}>Hủy</button>}
@@ -371,6 +398,9 @@ function Campaigns() {
                     <span className={`badge status-${item.status}`}>{item.status}</span>
                   </div>
                   <small>Mã: <code>{item.code}</code> · Múi giờ: {item.timezone}</small>
+                  <small style={{ color: item.allowUnlisted ? "#0369a1" : "#64748b", fontWeight: "600" }}>
+                    {item.allowUnlisted ? `🔓 Khách ngoài danh sách: Cho phép quay (${item.unlistedSpinQuota || 1} lượt)` : "🔒 Khách ngoài danh sách: Không cho phép"}
+                  </small>
                   {(item.startsAt || item.endsAt) && (
                     <small>Thời gian: {item.startsAt ? new Date(item.startsAt).toLocaleString("vi-VN") : "Bắt đầu mở"} → {item.endsAt ? new Date(item.endsAt).toLocaleString("vi-VN") : "Không giới hạn"}</small>
                   )}
@@ -425,6 +455,7 @@ function CampaignParticipants() {
   const [campaigns, setCampaigns] = useState([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [participants, setParticipants] = useState([]);
+  const [rewards, setRewards] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
@@ -432,11 +463,25 @@ function CampaignParticipants() {
   const [importRowsJson, setImportRowsJson] = useState("");
   const [importResult, setImportResult] = useState(null);
 
+  const [manualAwardModal, setManualAwardModal] = useState({
+    isOpen: false,
+    customerId: "",
+    customerName: "",
+    rewardId: "",
+    voucherCode: "",
+    reason: "Cấp bổ sung từ Admin",
+    saving: false,
+  });
+
   useEffect(() => {
     api("/admin/campaigns").then((r) => {
       setCampaigns(r.items || []);
       if (r.items?.[0]) setSelectedCampaignId(r.items[0].id);
     }).catch((e) => setError(e.message));
+
+    api("/admin/rewards").then((r) => {
+      setRewards(r.items || []);
+    }).catch(() => {});
   }, []);
 
   const load = async () => {
@@ -503,6 +548,29 @@ function CampaignParticipants() {
       }
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const handleExecuteManualAward = async (e) => {
+    e.preventDefault();
+    if (!manualAwardModal.customerId || !manualAwardModal.rewardId) return;
+    setManualAwardModal((prev) => ({ ...prev, saving: true }));
+    setError("");
+    try {
+      await api(`/admin/campaigns/${selectedCampaignId}/participants/${manualAwardModal.customerId}/manual-awards`, {
+        method: "POST",
+        body: JSON.stringify({
+          rewardId: manualAwardModal.rewardId,
+          voucherCode: manualAwardModal.voucherCode,
+          reason: manualAwardModal.reason,
+        }),
+      });
+      setManualAwardModal({ isOpen: false, customerId: "", customerName: "", rewardId: "", voucherCode: "", reason: "Cấp bổ sung từ Admin", saving: false });
+      await load();
+      alert("Đã cấp phần quà / voucher thành công cho khách hàng!");
+    } catch (err) {
+      setError(`Lỗi cấp quà: ${err.message}`);
+      setManualAwardModal((prev) => ({ ...prev, saving: false }));
     }
   };
 
@@ -578,13 +646,14 @@ function CampaignParticipants() {
                 <th>Ghi chú / Nhóm</th>
                 <th>Trạng thái</th>
                 <th>Ngày tạo</th>
+                <th>Thao tác</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="6" style={{ textAlign: "center", padding: "24px" }}>Đang tải...</td></tr>
+                <tr><td colSpan="7" style={{ textAlign: "center", padding: "24px" }}>Đang tải...</td></tr>
               ) : participants.length === 0 ? (
-                <tr><td colSpan="6" style={{ textAlign: "center", padding: "24px" }}>Sự kiện chưa có khách hàng nào. Bấm "Nhập danh sách Excel" để thêm.</td></tr>
+                <tr><td colSpan="7" style={{ textAlign: "center", padding: "24px" }}>Sự kiện chưa có khách hàng nào. Bấm "Nhập danh sách Excel" để thêm.</td></tr>
               ) : (
                 participants.map((item) => (
                   <tr key={item.id}>
@@ -602,6 +671,26 @@ function CampaignParticipants() {
                     </td>
                     <td><span className={`badge status-${item.status}`}>{item.status}</span></td>
                     <td>{new Date(item.createdAt).toLocaleString("vi-VN")}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="primary"
+                        style={{ padding: "4px 10px", fontSize: "11px", borderRadius: "6px" }}
+                        onClick={() =>
+                          setManualAwardModal({
+                            isOpen: true,
+                            customerId: item.customerId,
+                            customerName: item.customerName,
+                            rewardId: rewards[0]?.id || "",
+                            voucherCode: "",
+                            reason: "Cấp bổ sung từ Admin",
+                            saving: false,
+                          })
+                        }
+                      >
+                        🎁 Cấp quà
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -609,6 +698,70 @@ function CampaignParticipants() {
           </table>
         </div>
       </section>
+
+      {/* MANUAL AWARD GRANT MODAL */}
+      {manualAwardModal.isOpen && (
+        <div className="modal-overlay" onClick={() => setManualAwardModal((prev) => ({ ...prev, isOpen: false }))}>
+          <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "480px" }}>
+            <div className="modal-header">
+              <h3 className="modal-title">🎁 Cấp phần quà bổ sung cho {manualAwardModal.customerName}</h3>
+              <button type="button" className="modal-close-btn" onClick={() => setManualAwardModal((prev) => ({ ...prev, isOpen: false }))}>
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleExecuteManualAward} style={{ display: "grid", gap: "12px", padding: "16px" }}>
+              <label>
+                Chọn Giải thưởng *
+                <select
+                  value={manualAwardModal.rewardId}
+                  onChange={(e) => setManualAwardModal({ ...manualAwardModal, rewardId: e.target.value })}
+                  required
+                  style={{ width: "100%", marginTop: "4px", padding: "8px" }}
+                >
+                  {rewards.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.title} ({r.value ? Number(r.value).toLocaleString("vi-VN") + "đ" : ""})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Mã Voucher (Tùy chọn - để trống để hệ thống tự tạo)
+                <input
+                  type="text"
+                  placeholder="VD: VOUCHER_100K_ABC"
+                  value={manualAwardModal.voucherCode}
+                  onChange={(e) => setManualAwardModal({ ...manualAwardModal, voucherCode: e.target.value })}
+                  style={{ width: "100%", marginTop: "4px" }}
+                />
+              </label>
+
+              <label>
+                Ghi chú / Lý do cấp *
+                <input
+                  type="text"
+                  placeholder="VD: Cấp bổ sung từ Admin"
+                  value={manualAwardModal.reason}
+                  onChange={(e) => setManualAwardModal({ ...manualAwardModal, reason: e.target.value })}
+                  required
+                  style={{ width: "100%", marginTop: "4px" }}
+                />
+              </label>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "12px" }}>
+                <button type="button" onClick={() => setManualAwardModal((prev) => ({ ...prev, isOpen: false }))} disabled={manualAwardModal.saving}>
+                  Hủy
+                </button>
+                <button type="submit" className="primary" disabled={manualAwardModal.saving}>
+                  {manualAwardModal.saving ? "Đang cấp…" : "Xác nhận Cấp quà"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }
