@@ -203,8 +203,10 @@ router.post("/customers", requireAdmin, asyncRoute(async (req, res) => {
   const record = { id, phone, name: String(body.name || `Khách hàng ${phone}`).trim(), sex: body.sex || "other", job: body.job || "other", total_spins: Math.max(0, Number(body.totalSpins || 0)), deleted_at: null };
   const { error } = await supabase.from("customers").upsert(record);
   if (error) throw error;
-  if (Array.isArray(body.rewards) && body.rewards.length > 0) {
+  if (Array.isArray(body.rewards)) {
     await supabase.from("customer_rewards").delete().eq("customer_id", id);
+    await supabase.from("awards").delete().eq("customer_id", id).is("spin_event_id", null);
+
     const assignments = body.rewards.map((item) => ({ customer_id: id, code: String(item.reward?.code || item.code), title: String(item.reward?.title || item.title), value: Number(item.reward?.value || item.value), description: String(item.reward?.description || item.description || ""), wheel_label: item.reward?.wheelLabel || item.wheelLabel || null, result: item.result || ["star", "star", "star"] })).filter((item) => item.code && item.value > 0);
     if (assignments.length) await supabase.from("customer_rewards").insert(assignments);
 
@@ -233,8 +235,10 @@ router.put("/customers/:id", requireAdmin, asyncRoute(async (req, res) => {
   if (!patch.name || !/^0(3|5|7|8|9)\d{8}$/.test(patch.phone)) throw publicError("Tên hoặc số điện thoại không hợp lệ");
   const { error } = await supabase.from("customers").update(patch).eq("id", req.params.id);
   if (error) throw error;
-  if (Array.isArray(body.rewards) && body.rewards.length > 0) {
+  if (Array.isArray(body.rewards)) {
     await supabase.from("customer_rewards").delete().eq("customer_id", req.params.id);
+    await supabase.from("awards").delete().eq("customer_id", req.params.id).is("spin_event_id", null);
+
     const assignments = body.rewards.map((item) => ({ customer_id: req.params.id, code: String(item.reward?.code || item.code), title: String(item.reward?.title || item.title), value: Number(item.reward?.value || item.value), description: String(item.reward?.description || item.description || ""), wheel_label: item.reward?.wheelLabel || item.wheelLabel || null, result: item.result || ["star", "star", "star"] })).filter((item) => item.code && item.value > 0);
     if (assignments.length) await supabase.from("customer_rewards").insert(assignments);
 

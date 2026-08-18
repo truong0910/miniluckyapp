@@ -838,7 +838,7 @@ function Customers() {
       const rewardObj = rewards.find((r) => r.id === form.selectedRewardId);
       const payloadRewards = rewardObj
         ? [{ code: rewardObj.codePrefix || rewardObj.id, title: rewardObj.title, value: rewardObj.value, description: rewardObj.description }]
-        : undefined;
+        : [];
 
       if (editingId) {
         await api(`/admin/customers/${editingId}`, {
