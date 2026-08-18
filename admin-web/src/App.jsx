@@ -1253,12 +1253,13 @@ function CampaignRules() {
       <Header title="Quản lý Luật quay nâng cao" subtitle="Cấu hình đa lượt quay, tỷ lệ trúng và cơ cấu đa giải thưởng theo sự kiện." />
       {error && <UiAlert type="error" onClose={() => setError("")}>{error}</UiAlert>}
       {successMsg && <UiAlert type="success" onClose={() => setSuccessMsg("")}>{successMsg}</UiAlert>}
-      <div className="split mt-4">
-        <form className="panel form" onSubmit={save}>
+      <div className="split mt-4" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "20px", alignItems: "start" }}>
+        <form className="panel form" style={{ minWidth: 0, width: "100%", boxSizing: "border-box" }} onSubmit={save}>
           <h2>{editing ? "Sửa Luật quay" : "Tạo Luật quay mới"}</h2>
-          <label>
+          <label style={{ minWidth: 0 }}>
             Sự kiện áp dụng *
             <select
+              style={{ width: "100%", maxWidth: "100%", textOverflow: "ellipsis", boxSizing: "border-box" }}
               value={campaignId}
               onChange={(e) => {
                 setCampaignId(e.target.value);
@@ -1275,9 +1276,10 @@ function CampaignRules() {
             </select>
           </label>
 
-          <label>
+          <label style={{ minWidth: 0 }}>
             Tên mô tả luật quay *
             <input
+              style={{ width: "100%", maxWidth: "100%", boxSizing: "border-box" }}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="VD: Luật trúng 100% cho lượt quay 1-5"
@@ -1285,19 +1287,20 @@ function CampaignRules() {
             />
           </label>
 
-          <div className="two">
-            <label>
+          <div className="two" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "10px", minWidth: 0 }}>
+            <label style={{ minWidth: 0 }}>
               Mã luật (Code)
               <input
+                style={{ width: "100%", maxWidth: "100%", boxSizing: "border-box" }}
                 value={form.code}
                 onChange={(e) => setForm({ ...form, code: e.target.value })}
                 placeholder="VD: DEFAULT_2026"
               />
             </label>
 
-            <label>
+            <label style={{ minWidth: 0 }}>
               Phạm vi áp dụng *
-              <select value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })}>
+              <select style={{ width: "100%", maxWidth: "100%", boxSizing: "border-box" }} value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })}>
                 <option value="default">Tất cả khách hàng (Default)</option>
                 <option value="user">Khách hàng chỉ định (User)</option>
                 <option value="group">Nhóm khách hàng (Group)</option>
@@ -1306,7 +1309,7 @@ function CampaignRules() {
           </div>
 
           {/* MULTI-SPIN CONTROLS */}
-          <div style={{ background: "#f8fafc", padding: "14px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+          <div style={{ background: "#f8fafc", padding: "14px", borderRadius: "12px", border: "1px solid #e2e8f0", minWidth: 0 }}>
             <label style={{ fontWeight: "700", marginBottom: "8px", display: "block" }}>Lượt quay áp dụng *</label>
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
               <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}>
@@ -1326,9 +1329,9 @@ function CampaignRules() {
             </div>
 
             {spinMode === "range" && (
-              <div className="two">
-                <label>Từ lượt: <input type="number" min="1" max="50" value={rangeStart} onChange={(e) => setRangeStart(Number(e.target.value))} /></label>
-                <label>Đến lượt: <input type="number" min="1" max="50" value={rangeEnd} onChange={(e) => setRangeEnd(Number(e.target.value))} /></label>
+              <div className="two" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <label>Từ lượt: <input type="number" min="1" max="50" style={{ width: "100%" }} value={rangeStart} onChange={(e) => setRangeStart(Number(e.target.value))} /></label>
+                <label>Đến lượt: <input type="number" min="1" max="50" style={{ width: "100%" }} value={rangeEnd} onChange={(e) => setRangeEnd(Number(e.target.value))} /></label>
               </div>
             )}
 
@@ -1357,20 +1360,20 @@ function CampaignRules() {
             )}
           </div>
 
-          <div className="two">
-            <label>
+          <div className="two" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: "10px", minWidth: 0 }}>
+            <label style={{ minWidth: 0 }}>
               Tỷ lệ thắng lượt (%) *
-              <input type="number" min="0" max="100" value={form.winRate} onChange={(e) => setForm({ ...form, winRate: Number(e.target.value) })} required />
+              <input type="number" min="0" max="100" style={{ width: "100%" }} value={form.winRate} onChange={(e) => setForm({ ...form, winRate: Number(e.target.value) })} required />
             </label>
 
-            <label>
+            <label style={{ minWidth: 0 }}>
               Độ ưu tiên (Priority)
-              <input type="number" value={form.priority} onChange={(e) => setForm({ ...form, priority: Number(e.target.value) })} />
+              <input type="number" style={{ width: "100%" }} value={form.priority} onChange={(e) => setForm({ ...form, priority: Number(e.target.value) })} />
             </label>
           </div>
 
           {/* MULTI-REWARD CONTROLS */}
-          <div style={{ background: "#fff", padding: "14px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+          <div style={{ background: "#fff", padding: "14px", borderRadius: "12px", border: "1px solid #e2e8f0", minWidth: 0 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
               <label style={{ fontWeight: "700", margin: 0 }}>Cơ cấu Giải thưởng trong luật *</label>
               <button type="button" className="btn-link" style={{ fontSize: "11px", fontWeight: "800", color: "#e11b22", background: "none", border: 0, cursor: "pointer" }} onClick={handleAddRewardRow}>
@@ -1380,14 +1383,14 @@ function CampaignRules() {
 
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               {rewardItems.map((item, idx) => (
-                <div key={idx} style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr auto", gap: "6px", alignItems: "center", background: "#f8fafc", padding: "8px", borderRadius: "8px", border: "1px solid #f1f5f9" }}>
-                  <select style={{ padding: "4px 6px", fontSize: "11px" }} value={item.rewardId || rewards[0]?.id || ""} onChange={(e) => handleUpdateRewardRow(idx, "rewardId", e.target.value)} required>
+                <div key={idx} style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center", background: "#f8fafc", padding: "8px", borderRadius: "8px", border: "1px solid #f1f5f9", minWidth: 0 }}>
+                  <select style={{ flex: "1 1 140px", minWidth: 0, padding: "5px 6px", fontSize: "11px", boxSizing: "border-box" }} value={item.rewardId || rewards[0]?.id || ""} onChange={(e) => handleUpdateRewardRow(idx, "rewardId", e.target.value)} required>
                     {rewards.map((r) => (
                       <option key={r.id} value={r.id}>{r.title} ({r.value ? Number(r.value).toLocaleString("vi-VN") + "đ" : ""})</option>
                     ))}
                   </select>
-                  <input type="number" min="0" max="100" placeholder="Tỷ lệ %" style={{ padding: "4px 6px", fontSize: "11px" }} value={item.probability} onChange={(e) => handleUpdateRewardRow(idx, "probability", Number(e.target.value))} required />
-                  <input type="number" min="1" placeholder="Số lượng" style={{ padding: "4px 6px", fontSize: "11px" }} value={item.quantity} onChange={(e) => handleUpdateRewardRow(idx, "quantity", Number(e.target.value))} required />
+                  <input type="number" min="0" max="100" placeholder="Tỷ lệ %" style={{ flex: "1 1 70px", minWidth: 0, padding: "5px 6px", fontSize: "11px", boxSizing: "border-box" }} value={item.probability} onChange={(e) => handleUpdateRewardRow(idx, "probability", Number(e.target.value))} required />
+                  <input type="number" min="1" placeholder="Số lượng" style={{ flex: "1 1 70px", minWidth: 0, padding: "5px 6px", fontSize: "11px", boxSizing: "border-box" }} value={item.quantity} onChange={(e) => handleUpdateRewardRow(idx, "quantity", Number(e.target.value))} required />
                   {rewardItems.length > 1 && (
                     <button type="button" className="danger" style={{ padding: "4px 8px", fontSize: "10px" }} onClick={() => handleRemoveRewardRow(idx)}>Xóa</button>
                   )}
@@ -1396,9 +1399,9 @@ function CampaignRules() {
             </div>
           </div>
 
-          <label>
+          <label style={{ minWidth: 0 }}>
             Giới hạn tổng số lần trúng tối đa
-            <input type="number" min="0" value={form.maxTotalWins} onChange={(e) => setForm({ ...form, maxTotalWins: e.target.value })} placeholder="Không giới hạn" />
+            <input type="number" min="0" style={{ width: "100%" }} value={form.maxTotalWins} onChange={(e) => setForm({ ...form, maxTotalWins: e.target.value })} placeholder="Không giới hạn" />
           </label>
 
           <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
@@ -1416,17 +1419,17 @@ function CampaignRules() {
           </div>
         </form>
 
-        <section className="panel">
+        <section className="panel" style={{ minWidth: 0, width: "100%", boxSizing: "border-box" }}>
           <h2>Danh sách luật quay ({items.length})</h2>
           <div className="items">
             {items.map((item) => {
               const spinNums = (item.spins || []).map((s) => s.spin_number ?? s.spinNumber).filter(Boolean);
               const spinSummary = spinNums.length >= 10 ? "Tất cả các lượt (1 - 10)" : `Lượt: ${spinNums.join(", ")}`;
               return (
-                <article className="item reward-item" key={item.id}>
-                  <div>
-                    <strong>{item.name}</strong>
-                    <small>Mã: <code>{item.code}</code> · {spinSummary} · Ưu tiên: {item.priority} · {item.active ? "Đang bật" : "Tắt"}</small>
+                <article className="item reward-item" key={item.id} style={{ minWidth: 0, flexWrap: "wrap" }}>
+                  <div style={{ minWidth: 0 }}>
+                    <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</strong>
+                    <small style={{ wordBreak: "break-all" }}>Mã: <code>{item.code}</code> · {spinSummary} · Ưu tiên: {item.priority} · {item.active ? "Đang bật" : "Tắt"}</small>
                     <small>{item.spins?.length || 0} cấu hình lượt quay</small>
                   </div>
                   <div className="actions">
