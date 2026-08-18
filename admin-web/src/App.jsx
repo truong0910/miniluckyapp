@@ -792,7 +792,7 @@ function Customers() {
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
-  const [form, setForm] = useState({ name: "", phone: "", totalSpins: 5 });
+  const [form, setForm] = useState({ name: "", phone: "", totalSpins: 5, selectedRewardId: "" });
   const [editingId, setEditingId] = useState(null);
 
   const [manualAwardModal, setManualAwardModal] = useState({
@@ -835,20 +835,25 @@ function Customers() {
     setError("");
     setSuccessMsg("");
     try {
+      const rewardObj = rewards.find((r) => r.id === form.selectedRewardId);
+      const payloadRewards = rewardObj
+        ? [{ code: rewardObj.codePrefix || rewardObj.id, title: rewardObj.title, value: rewardObj.value, description: rewardObj.description }]
+        : undefined;
+
       if (editingId) {
         await api(`/admin/customers/${editingId}`, {
           method: "PUT",
-          body: JSON.stringify({ ...form, totalSpins: Number(form.totalSpins) }),
+          body: JSON.stringify({ ...form, totalSpins: Number(form.totalSpins), rewards: payloadRewards }),
         });
-        setSuccessMsg("Đã cập nhật thông tin khách hàng thành công!");
+        setSuccessMsg("Đã cập nhật thông tin khách hàng & voucher thành công!");
       } else {
         await api("/admin/customers", {
           method: "POST",
-          body: JSON.stringify({ ...form, totalSpins: Number(form.totalSpins) }),
+          body: JSON.stringify({ ...form, totalSpins: Number(form.totalSpins), rewards: payloadRewards }),
         });
-        setSuccessMsg("Đã thêm khách hàng thành công!");
+        setSuccessMsg("Đã thêm khách hàng & voucher thành công!");
       }
-      setForm({ name: "", phone: "", totalSpins: 5 });
+      setForm({ name: "", phone: "", totalSpins: 5, selectedRewardId: "" });
       setEditingId(null);
       await load();
     } catch (e) {
@@ -858,10 +863,13 @@ function Customers() {
 
   const startEdit = (item) => {
     setEditingId(item.id);
+    const existingRewardId = item.rewards?.[0]?.code || "";
+    const matched = rewards.find((r) => r.codePrefix === existingRewardId || r.id === existingRewardId || r.title === item.rewards?.[0]?.title);
     setForm({
       name: item.name || "",
       phone: item.phone || "",
       totalSpins: item.totalSpins ?? 5,
+      selectedRewardId: matched?.id || "",
     });
   };
 
@@ -929,13 +937,25 @@ function Customers() {
             value={form.totalSpins}
             onChange={(e) => setForm({ ...form, totalSpins: e.target.value })}
           />
+          <select
+            value={form.selectedRewardId}
+            onChange={(e) => setForm({ ...form, selectedRewardId: e.target.value })}
+            style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #ccc" }}
+          >
+            <option value="">-- Gán Voucher / Quà tặng (Tùy chọn) --</option>
+            {rewards.map((r) => (
+              <option key={r.id} value={r.id}>
+                🎁 {r.title} ({r.value ? Number(r.value).toLocaleString("vi-VN") + "đ" : ""})
+              </option>
+            ))}
+          </select>
           <button className="primary">{editingId ? "Cập nhật" : "Thêm"}</button>
           {editingId && (
             <button
               type="button"
               onClick={() => {
                 setEditingId(null);
-                setForm({ name: "", phone: "", totalSpins: 5 });
+                setForm({ name: "", phone: "", totalSpins: 5, selectedRewardId: "" });
               }}
             >
               Hủy
@@ -969,7 +989,15 @@ function Customers() {
                   <td>{item.name}</td>
                   <td>{item.phone}</td>
                   <td>{item.totalSpins}</td>
-                  <td>{item.rewards?.length || 0}</td>
+                  <td>
+                    {item.rewards?.length > 0 ? (
+                      <span style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", display: "inline-block" }}>
+                        🎁 {item.rewards.map((r) => r.title).join(", ")}
+                      </span>
+                    ) : (
+                      <span style={{ color: "#94a3b8" }}>—</span>
+                    )}
+                  </td>
                   <td style={{ whiteSpace: "nowrap" }}>
                     <button
                       className="btn-action secondary"
@@ -995,7 +1023,7 @@ function Customers() {
                         })
                       }
                     >
-                      Cấp quà
+                      🎁 Cấp quà
                     </button>
                     <button className="danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => remove(item.id)}>
                       Ẩn

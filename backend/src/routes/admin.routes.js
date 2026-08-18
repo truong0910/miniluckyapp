@@ -200,6 +200,11 @@ router.put("/customers/:id", requireAdmin, asyncRoute(async (req, res) => {
   if (!patch.name || !/^0(3|5|7|8|9)\d{8}$/.test(patch.phone)) throw publicError("Tên hoặc số điện thoại không hợp lệ");
   const { error } = await supabase.from("customers").update(patch).eq("id", req.params.id);
   if (error) throw error;
+  if (Array.isArray(body.rewards)) {
+    await supabase.from("customer_rewards").delete().eq("customer_id", req.params.id);
+    const assignments = body.rewards.map((item) => ({ customer_id: req.params.id, code: String(item.reward?.code || item.code), title: String(item.reward?.title || item.title), value: Number(item.reward?.value || item.value), description: String(item.reward?.description || item.description || ""), wheel_label: item.reward?.wheelLabel || item.wheelLabel || null, result: item.result || ["star", "star", "star"] })).filter((item) => item.code && item.value > 0);
+    if (assignments.length) await supabase.from("customer_rewards").insert(assignments);
+  }
   res.json(await loadAdminCustomer(req.params.id));
 }));
 
