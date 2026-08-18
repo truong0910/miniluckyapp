@@ -1049,15 +1049,408 @@ function Rules() {
 }
 
 function CampaignRules() {
-  const EMPTY = { name: "", code: "", scope: "default", priority: 0, spinNumber: 1, winRate: 0, rewardId: "", probability: 100, quantity: 1, maxTotalWins: "", oaRequired: false, active: true };
-  const [items, setItems] = useState([]); const [rewards, setRewards] = useState([]); const [campaigns, setCampaigns] = useState([]); const [campaignId, setCampaignId] = useState(""); const [form, setForm] = useState(EMPTY); const [editing, setEditing] = useState(null); const [error, setError] = useState("");
-  const load = async () => { try { const query = campaignId ? `?campaignId=${encodeURIComponent(campaignId)}` : ""; const [rules, catalog] = await Promise.all([api(`/admin/campaign-rules${query}`), api("/admin/rewards")]); setItems(rules.items || []); setRewards(catalog.items || []); if (!form.rewardId && catalog.items?.[0]) setForm((x) => ({ ...x, rewardId: catalog.items[0].id })); } catch (e) { setError(e.message); } };
-  useEffect(() => { api("/admin/campaigns").then((result) => { const available = result.items || []; setCampaigns(available); if (!campaignId && available[0]) setCampaignId(available[0].id); }).catch((e) => setError(e.message)); }, []);
-  useEffect(() => { void load(); }, [campaignId]);
-  const save = async (event) => { event.preventDefault(); setError(""); try { const body = { campaignId, name: form.name, code: form.code, scope: form.scope, priority: Number(form.priority), maxTotalWins: form.maxTotalWins, oaRequired: form.oaRequired, active: form.active, spins: [{ spinNumber: Number(form.spinNumber), winRate: Number(form.winRate), rewards: [{ rewardId: form.rewardId, probability: Number(form.probability), quantity: Number(form.quantity), remainingQuantity: Number(form.quantity) }] }] }; await api(editing ? `/admin/campaign-rules/${editing}` : "/admin/campaign-rules", { method: editing ? "PUT" : "POST", body: JSON.stringify(body) }); setForm(EMPTY); setEditing(null); await load(); } catch (e) { setError(e.message); } };
-  const edit = (item) => { const spin = item.spins?.[0]; const reward = spin?.rewards?.[0]; setEditing(item.id); setForm({ ...EMPTY, name: item.name, code: item.code, scope: item.scope, priority: item.priority, maxTotalWins: item.max_total_wins ?? "", oaRequired: item.oa_required, active: item.active, spinNumber: spin?.spin_number || 1, winRate: spin?.win_rate || 0, rewardId: reward?.reward_id || rewards[0]?.id || "", probability: reward?.probability || 100, quantity: reward?.quantity || 1 }); };
-  const remove = async (id) => { if (!confirm("Xóa rule này?")) return; try { await api(`/admin/campaign-rules/${id}`, { method: "DELETE" }); await load(); } catch (e) { setError(e.message); } };
-  return <><Header title="Luật quay" subtitle="Cấu hình tỷ lệ thắng từng lượt, tỷ lệ từng quà, số lượng, giới hạn và điều kiện OA." />{error && <div className="error">{error}</div>}<div className="split"><form className="panel form" onSubmit={save}><h2>{editing ? "Sửa rule" : "Tạo rule"}</h2><label>Sự kiện<select value={campaignId} onChange={(e) => { setCampaignId(e.target.value); setEditing(null); setForm(EMPTY); }} required>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name} ({campaign.code})</option>)}</select></label><label>Tên rule<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></label><label>Mã rule<input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="DEFAULT_2026" /></label><div className="two"><label>Phạm vi<select value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })}><option value="default">Default</option><option value="user">Khách hàng</option><option value="group">Nhóm khách</option></select></label><label>Độ ưu tiên<input type="number" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} /></label></div><div className="two"><label>Lượt thứ<input type="number" min="1" value={form.spinNumber} onChange={(e) => setForm({ ...form, spinNumber: e.target.value })} /></label><label>Tỷ lệ thắng lượt (%)<input type="number" min="0" max="100" value={form.winRate} onChange={(e) => setForm({ ...form, winRate: e.target.value })} /></label></div><label>Giải thưởng<select value={form.rewardId} onChange={(e) => setForm({ ...form, rewardId: e.target.value })}>{rewards.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label><div className="two"><label>Tỷ lệ quà (%)<input type="number" min="0" max="100" value={form.probability} onChange={(e) => setForm({ ...form, probability: e.target.value })} /></label><label>Số lượng quà<input type="number" min="1" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} /></label></div><label>Giới hạn tổng số lần trúng<input type="number" min="0" value={form.maxTotalWins} onChange={(e) => setForm({ ...form, maxTotalWins: e.target.value })} placeholder="Không giới hạn" /></label><label className="check"><input type="checkbox" checked={form.oaRequired} onChange={(e) => setForm({ ...form, oaRequired: e.target.checked })} /> Bắt buộc theo dõi OA</label><label className="check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Đang áp dụng</label><div className="actions"><button className="primary">{editing ? "Lưu rule" : "Tạo rule"}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY); }}>Hủy</button>}</div></form><section className="panel"><h2>Danh sách rule ({items.length})</h2><div className="items">{items.map((item) => <article className="item reward-item" key={item.id}><div><strong>{item.name}</strong><small>{item.scope} · ưu tiên {item.priority} · {item.active ? "Đang bật" : "Đang tắt"}</small><small>{item.spins?.length || 0} cấu hình lượt quay</small></div><div className="actions"><button onClick={() => edit(item)}>Sửa</button><button className="danger" onClick={() => remove(item.id)}>Xóa</button></div></article>)}</div></section></div></>;
+  const EMPTY = {
+    name: "",
+    code: "",
+    scope: "default",
+    priority: 100,
+    winRate: 100,
+    maxTotalWins: "",
+    oaRequired: false,
+    active: true,
+  };
+
+  const [items, setItems] = useState([]);
+  const [rewards, setRewards] = useState([]);
+  const [campaigns, setCampaigns] = useState([]);
+  const [campaignId, setCampaignId] = useState("");
+  const [form, setForm] = useState(EMPTY);
+
+  // Multi-spin state
+  const [spinMode, setSpinMode] = useState("all");
+  const [rangeStart, setRangeStart] = useState(1);
+  const [rangeEnd, setRangeEnd] = useState(5);
+  const [customSpins, setCustomSpins] = useState([1, 2, 3, 4, 5]);
+
+  // Multi-reward list state
+  const [rewardItems, setRewardItems] = useState([
+    { rewardId: "", probability: 100, quantity: 10 },
+  ]);
+
+  const [editing, setEditing] = useState(null);
+  const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, name: "" });
+
+  const load = async () => {
+    try {
+      const query = campaignId ? `?campaignId=${encodeURIComponent(campaignId)}` : "";
+      const [rules, catalog] = await Promise.all([
+        api(`/admin/campaign-rules${query}`),
+        api("/admin/rewards"),
+      ]);
+      setItems(rules.items || []);
+      const rItems = catalog.items || [];
+      setRewards(rItems);
+      if (!rewardItems[0]?.rewardId && rItems[0]) {
+        setRewardItems([{ rewardId: rItems[0].id, probability: 100, quantity: 10 }]);
+      }
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  useEffect(() => {
+    api("/admin/campaigns")
+      .then((result) => {
+        const available = result.items || [];
+        setCampaigns(available);
+        if (!campaignId && available[0]) setCampaignId(available[0].id);
+      })
+      .catch((e) => setError(e.message));
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [campaignId]);
+
+  const getTargetSpins = () => {
+    if (spinMode === "all") return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    if (spinMode === "range") {
+      const start = Math.max(1, Math.min(rangeStart, rangeEnd));
+      const end = Math.max(start, Math.max(rangeStart, rangeEnd));
+      const list = [];
+      for (let i = start; i <= end; i++) list.push(i);
+      return list;
+    }
+    return customSpins.length > 0 ? [...customSpins].sort((a, b) => a - b) : [1];
+  };
+
+  const handleAddRewardRow = () => {
+    setRewardItems((prev) => [...prev, { rewardId: rewards[0]?.id || "", probability: 100, quantity: 5 }]);
+  };
+
+  const handleRemoveRewardRow = (idx) => {
+    if (rewardItems.length <= 1) return;
+    setRewardItems((prev) => prev.filter((_, index) => index !== idx));
+  };
+
+  const handleUpdateRewardRow = (idx, field, val) => {
+    setRewardItems((prev) =>
+      prev.map((item, index) => (index === idx ? { ...item, [field]: val } : item))
+    );
+  };
+
+  const toggleCustomSpin = (num) => {
+    setCustomSpins((prev) =>
+      prev.includes(num) ? prev.filter((s) => s !== num) : [...prev, num]
+    );
+  };
+
+  const save = async (event) => {
+    event.preventDefault();
+    setError("");
+    setSuccessMsg("");
+
+    const targetSpins = getTargetSpins();
+    const validRewards = rewardItems.filter((rw) => rw.rewardId && Number(rw.quantity) > 0);
+
+    if (validRewards.length === 0) {
+      setError("Vui lòng chọn ít nhất 1 giải thưởng hợp lệ.");
+      return;
+    }
+
+    try {
+      const body = {
+        campaignId,
+        name: form.name,
+        code: form.code ? form.code.trim() : undefined,
+        scope: form.scope,
+        priority: Number(form.priority ?? 100),
+        maxTotalWins: form.maxTotalWins !== "" && form.maxTotalWins != null ? Number(form.maxTotalWins) : null,
+        oaRequired: Boolean(form.oaRequired),
+        active: form.active !== false,
+        spins: targetSpins.map((spinNum) => ({
+          spinNumber: spinNum,
+          winRate: Number(form.winRate ?? 100),
+          rewards: validRewards.map((rw) => ({
+            rewardId: rw.rewardId,
+            probability: Number(rw.probability ?? 100),
+            quantity: Number(rw.quantity ?? 1),
+            remainingQuantity: Number(rw.quantity ?? 1),
+          })),
+        })),
+      };
+
+      await api(editing ? `/admin/campaign-rules/${editing}` : "/admin/campaign-rules", {
+        method: editing ? "PUT" : "POST",
+        body: JSON.stringify(body),
+      });
+
+      setSuccessMsg(editing ? "Đã cập nhật luật quay thành công!" : "Đã tạo mới luật quay thành công!");
+      setForm(EMPTY);
+      setEditing(null);
+      setSpinMode("all");
+      setRewardItems([{ rewardId: rewards[0]?.id || "", probability: 100, quantity: 10 }]);
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const edit = (item) => {
+    setEditing(item.id);
+    const existingSpins = (item.spins || []).map((s) => s.spinNumber ?? s.spin_number).filter(Boolean);
+    if (existingSpins.length >= 10) {
+      setSpinMode("all");
+    } else {
+      setSpinMode("custom");
+      setCustomSpins(existingSpins.length > 0 ? existingSpins : [1]);
+    }
+
+    const firstSpin = item.spins?.[0] || {};
+    const existingRewards = (firstSpin.rewards || []).map((rw) => ({
+      rewardId: rw.rewardId || rw.reward_id || rewards[0]?.id || "",
+      probability: rw.probability ?? 100,
+      quantity: rw.quantity ?? 1,
+    }));
+
+    setForm({
+      name: item.name,
+      code: item.code || "",
+      scope: item.scope,
+      priority: item.priority ?? 100,
+      maxTotalWins: item.max_total_wins ?? "",
+      oaRequired: item.oa_required ?? item.oaRequired ?? false,
+      active: item.active !== false,
+      winRate: firstSpin.win_rate ?? firstSpin.winRate ?? 100,
+    });
+
+    setRewardItems(existingRewards.length > 0 ? existingRewards : [{ rewardId: rewards[0]?.id || "", probability: 100, quantity: 10 }]);
+  };
+
+  const confirmRemove = (id, name) => {
+    setError("");
+    setDeleteModal({ isOpen: true, id, name });
+  };
+
+  const handleExecuteRemove = async () => {
+    const { id, name } = deleteModal;
+    setError("");
+    setSuccessMsg("");
+    try {
+      await api(`/admin/campaign-rules/${id}`, { method: "DELETE" });
+      setSuccessMsg(`Đã xóa luật quay '${name}' thành công!`);
+      setDeleteModal({ isOpen: false, id: null, name: "" });
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  return (
+    <>
+      <Header title="Quản lý Luật quay nâng cao" subtitle="Cấu hình đa lượt quay, tỷ lệ trúng và cơ cấu đa giải thưởng theo sự kiện." />
+      {error && <UiAlert type="error" onClose={() => setError("")}>{error}</UiAlert>}
+      {successMsg && <UiAlert type="success" onClose={() => setSuccessMsg("")}>{successMsg}</UiAlert>}
+      <div className="split mt-4">
+        <form className="panel form" onSubmit={save}>
+          <h2>{editing ? "Sửa Luật quay" : "Tạo Luật quay mới"}</h2>
+          <label>
+            Sự kiện áp dụng *
+            <select
+              value={campaignId}
+              onChange={(e) => {
+                setCampaignId(e.target.value);
+                setEditing(null);
+                setForm(EMPTY);
+              }}
+              required
+            >
+              {campaigns.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} ({c.code})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Tên mô tả luật quay *
+            <input
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              placeholder="VD: Luật trúng 100% cho lượt quay 1-5"
+              required
+            />
+          </label>
+
+          <div className="two">
+            <label>
+              Mã luật (Code)
+              <input
+                value={form.code}
+                onChange={(e) => setForm({ ...form, code: e.target.value })}
+                placeholder="VD: DEFAULT_2026"
+              />
+            </label>
+
+            <label>
+              Phạm vi áp dụng *
+              <select value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })}>
+                <option value="default">Tất cả khách hàng (Default)</option>
+                <option value="user">Khách hàng chỉ định (User)</option>
+                <option value="group">Nhóm khách hàng (Group)</option>
+              </select>
+            </label>
+          </div>
+
+          {/* MULTI-SPIN CONTROLS */}
+          <div style={{ background: "#f8fafc", padding: "14px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+            <label style={{ fontWeight: "700", marginBottom: "8px", display: "block" }}>Lượt quay áp dụng *</label>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}>
+                <input type="radio" name="advSpinMode" checked={spinMode === "all"} onChange={() => setSpinMode("all")} />
+                Tất cả (Lượt 1 - 10)
+              </label>
+
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}>
+                <input type="radio" name="advSpinMode" checked={spinMode === "range"} onChange={() => setSpinMode("range")} />
+                Khoảng lượt
+              </label>
+
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}>
+                <input type="radio" name="advSpinMode" checked={spinMode === "custom"} onChange={() => setSpinMode("custom")} />
+                Tích chọn lượt
+              </label>
+            </div>
+
+            {spinMode === "range" && (
+              <div className="two">
+                <label>Từ lượt: <input type="number" min="1" max="50" value={rangeStart} onChange={(e) => setRangeStart(Number(e.target.value))} /></label>
+                <label>Đến lượt: <input type="number" min="1" max="50" value={rangeEnd} onChange={(e) => setRangeEnd(Number(e.target.value))} /></label>
+              </div>
+            )}
+
+            {spinMode === "custom" && (
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "6px" }}>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                  <button
+                    type="button"
+                    key={num}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: "6px",
+                      border: customSpins.includes(num) ? "2px solid #e11b22" : "1px solid #cbd5e1",
+                      background: customSpins.includes(num) ? "#fee2e2" : "#fff",
+                      color: customSpins.includes(num) ? "#b91c1c" : "#475569",
+                      fontWeight: "700",
+                      fontSize: "11px",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => toggleCustomSpin(num)}
+                  >
+                    Lượt {num}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="two">
+            <label>
+              Tỷ lệ thắng lượt (%) *
+              <input type="number" min="0" max="100" value={form.winRate} onChange={(e) => setForm({ ...form, winRate: Number(e.target.value) })} required />
+            </label>
+
+            <label>
+              Độ ưu tiên (Priority)
+              <input type="number" value={form.priority} onChange={(e) => setForm({ ...form, priority: Number(e.target.value) })} />
+            </label>
+          </div>
+
+          {/* MULTI-REWARD CONTROLS */}
+          <div style={{ background: "#fff", padding: "14px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <label style={{ fontWeight: "700", margin: 0 }}>Cơ cấu Giải thưởng trong luật *</label>
+              <button type="button" className="btn-link" style={{ fontSize: "11px", fontWeight: "800", color: "#e11b22", background: "none", border: 0, cursor: "pointer" }} onClick={handleAddRewardRow}>
+                + Thêm quà
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {rewardItems.map((item, idx) => (
+                <div key={idx} style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr auto", gap: "6px", alignItems: "center", background: "#f8fafc", padding: "8px", borderRadius: "8px", border: "1px solid #f1f5f9" }}>
+                  <select style={{ padding: "4px 6px", fontSize: "11px" }} value={item.rewardId || rewards[0]?.id || ""} onChange={(e) => handleUpdateRewardRow(idx, "rewardId", e.target.value)} required>
+                    {rewards.map((r) => (
+                      <option key={r.id} value={r.id}>{r.title} ({r.value ? Number(r.value).toLocaleString("vi-VN") + "đ" : ""})</option>
+                    ))}
+                  </select>
+                  <input type="number" min="0" max="100" placeholder="Tỷ lệ %" style={{ padding: "4px 6px", fontSize: "11px" }} value={item.probability} onChange={(e) => handleUpdateRewardRow(idx, "probability", Number(e.target.value))} required />
+                  <input type="number" min="1" placeholder="Số lượng" style={{ padding: "4px 6px", fontSize: "11px" }} value={item.quantity} onChange={(e) => handleUpdateRewardRow(idx, "quantity", Number(e.target.value))} required />
+                  {rewardItems.length > 1 && (
+                    <button type="button" className="danger" style={{ padding: "4px 8px", fontSize: "10px" }} onClick={() => handleRemoveRewardRow(idx)}>Xóa</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <label>
+            Giới hạn tổng số lần trúng tối đa
+            <input type="number" min="0" value={form.maxTotalWins} onChange={(e) => setForm({ ...form, maxTotalWins: e.target.value })} placeholder="Không giới hạn" />
+          </label>
+
+          <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
+            <label className="check">
+              <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Đang áp dụng (Active)
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={form.oaRequired} onChange={(e) => setForm({ ...form, oaRequired: e.target.checked })} /> Bắt buộc theo dõi OA
+            </label>
+          </div>
+
+          <div className="actions">
+            <button className="primary">{editing ? "Lưu luật quay" : "Tạo luật quay"}</button>
+            {editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY); }}>Hủy</button>}
+          </div>
+        </form>
+
+        <section className="panel">
+          <h2>Danh sách luật quay ({items.length})</h2>
+          <div className="items">
+            {items.map((item) => {
+              const spinNums = (item.spins || []).map((s) => s.spin_number ?? s.spinNumber).filter(Boolean);
+              const spinSummary = spinNums.length >= 10 ? "Tất cả các lượt (1 - 10)" : `Lượt: ${spinNums.join(", ")}`;
+              return (
+                <article className="item reward-item" key={item.id}>
+                  <div>
+                    <strong>{item.name}</strong>
+                    <small>Mã: <code>{item.code}</code> · {spinSummary} · Ưu tiên: {item.priority} · {item.active ? "Đang bật" : "Tắt"}</small>
+                    <small>{item.spins?.length || 0} cấu hình lượt quay</small>
+                  </div>
+                  <div className="actions">
+                    <button onClick={() => edit(item)}>Sửa</button>
+                    <button className="danger" onClick={() => confirmRemove(item.id, item.name)}>Xóa</button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        title="Xác nhận Xóa Luật quay"
+        message={`Bạn có chắc chắn muốn xóa luật quay '${deleteModal.name}'? Thao tác này không thể hoàn tác.`}
+        variant="danger"
+        confirmText="Xóa luật quay"
+        onConfirm={handleExecuteRemove}
+        onCancel={() => setDeleteModal({ isOpen: false, id: null, name: "" })}
+      />
+    </>
+  );
 }
 
 function CustomerGroups() {
