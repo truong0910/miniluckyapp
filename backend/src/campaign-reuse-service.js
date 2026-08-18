@@ -325,17 +325,45 @@ export async function listCampaignParticipants({ db, campaignId, page = 1, limit
   const { data: rows, count, error } = await query;
   if (error) throw error;
 
-  const items = (rows || []).map((row) => ({
-    id: row.id,
-    campaignId: row.campaign_id,
-    customerId: row.customer_id,
-    customerName: row.customers?.name || row.customer_id,
-    customerPhone: row.customers?.phone || "",
-    status: row.status,
-    spinQuota: row.spin_quota,
-    registrationSource: row.registration_source || "admin",
-    createdAt: row.created_at,
-  }));
+  const customerIds = [...new Set((rows || []).map((row) => row.customer_id))];
+  const groupsMap = new Map();
+
+  if (customerIds.length > 0) {
+    const { data: memberRows } = await db
+      .from("customer_group_members")
+      .select("customer_id, customer_groups(name)")
+      .in("customer_id", customerIds);
+
+    for (const m of memberRows || []) {
+      const gName = m.customer_groups?.name;
+      if (gName) {
+        const existingList = groupsMap.get(m.customer_id) || [];
+        if (!existingList.includes(gName)) existingList.push(gName);
+        groupsMap.set(m.customer_id, existingList);
+      }
+    }
+  }
+
+  const items = (rows || []).map((row) => {
+    const assignedGroupNames = groupsMap.get(row.customer_id) || [];
+    const importedGrp = row.imported_group ? [row.imported_group] : [];
+    const allGroupNames = [...new Set([...assignedGroupNames, ...importedGrp])];
+    const groupDisplay = allGroupNames.join(", ") || "";
+
+    return {
+      id: row.id,
+      campaignId: row.campaign_id,
+      customerId: row.customer_id,
+      customerName: row.customers?.name || row.customer_id,
+      customerPhone: row.customers?.phone || "",
+      importedGroup: groupDisplay,
+      groupName: groupDisplay,
+      status: row.status,
+      spinQuota: row.spin_quota,
+      registrationSource: row.registration_source || "admin",
+      createdAt: row.created_at,
+    };
+  });
 
   return {
     items,

@@ -527,7 +527,15 @@ function CampaignParticipants() {
                     <td><strong>{item.customerName}</strong></td>
                     <td>{item.customerPhone || item.customerId}</td>
                     <td>{item.spinQuota} lượt</td>
-                    <td>{item.importedGroup || "—"}</td>
+                    <td>
+                      {item.importedGroup || item.groupName ? (
+                        <span style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", display: "inline-block" }}>
+                          🏷️ {item.importedGroup || item.groupName}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td><span className={`badge status-${item.status}`}>{item.status}</span></td>
                     <td>{new Date(item.createdAt).toLocaleString("vi-VN")}</td>
                   </tr>
