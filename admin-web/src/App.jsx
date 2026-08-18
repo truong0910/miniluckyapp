@@ -992,7 +992,7 @@ function Customers() {
                   <td>
                     {item.rewards?.filter((r) => r.title || r.code).length > 0 ? (
                       <span style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", display: "inline-block" }}>
-                        🎁 {item.rewards.map((r) => r.title || r.code).filter(Boolean).join(", ")}
+                        {item.rewards.map((r) => r.title || r.code).filter(Boolean).join(", ")}
                       </span>
                     ) : (
                       <span style={{ color: "#94a3b8" }}>—</span>
@@ -1023,7 +1023,7 @@ function Customers() {
                         })
                       }
                     >
-                      🎁 Cấp quà
+                      Cấp quà
                     </button>
                     <button className="danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => remove(item.id)}>
                       Ẩn

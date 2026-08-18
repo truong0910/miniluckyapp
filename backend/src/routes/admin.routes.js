@@ -204,9 +204,12 @@ router.post("/customers", requireAdmin, asyncRoute(async (req, res) => {
   const { error } = await supabase.from("customers").upsert(record);
   if (error) throw error;
   if (Array.isArray(body.rewards)) {
-    await supabase.from("customer_rewards").delete().eq("customer_id", id);
-    const assignments = body.rewards.map((item) => {
-      const code = String(item.code || item.reward?.code || item.codePrefix || item.reward?.codePrefix || item.id || `VOUCHER-${Date.now()}`);
+    const { error: delErr } = await supabase.from("customer_rewards").delete().eq("customer_id", id);
+    if (delErr) throw delErr;
+
+    const assignments = body.rewards.map((item, idx) => {
+      const baseCode = String(item.code || item.reward?.code || item.codePrefix || item.reward?.codePrefix || item.id || "VOUCHER");
+      const code = `${baseCode}-${Date.now()}-${idx}`;
       const title = String(item.title || item.reward?.title || "Voucher quà tặng").trim();
       const value = Math.max(1, Number(item.value ?? item.reward?.value ?? 1));
       const description = String(item.description || item.reward?.description || "");
@@ -222,7 +225,8 @@ router.post("/customers", requireAdmin, asyncRoute(async (req, res) => {
     }).filter((item) => item.title.length > 0);
 
     if (assignments.length > 0) {
-      await supabase.from("customer_rewards").insert(assignments);
+      const { error: insErr } = await supabase.from("customer_rewards").insert(assignments);
+      if (insErr) throw publicError(`Lỗi lưu Voucher: ${insErr.message}`);
     }
   }
   res.status(201).json(await loadAdminCustomer(id));
@@ -235,9 +239,12 @@ router.put("/customers/:id", requireAdmin, asyncRoute(async (req, res) => {
   const { error } = await supabase.from("customers").update(patch).eq("id", req.params.id);
   if (error) throw error;
   if (Array.isArray(body.rewards)) {
-    await supabase.from("customer_rewards").delete().eq("customer_id", req.params.id);
-    const assignments = body.rewards.map((item) => {
-      const code = String(item.code || item.reward?.code || item.codePrefix || item.reward?.codePrefix || item.id || `VOUCHER-${Date.now()}`);
+    const { error: delErr } = await supabase.from("customer_rewards").delete().eq("customer_id", req.params.id);
+    if (delErr) throw delErr;
+
+    const assignments = body.rewards.map((item, idx) => {
+      const baseCode = String(item.code || item.reward?.code || item.codePrefix || item.reward?.codePrefix || item.id || "VOUCHER");
+      const code = `${baseCode}-${Date.now()}-${idx}`;
       const title = String(item.title || item.reward?.title || "Voucher quà tặng").trim();
       const value = Math.max(1, Number(item.value ?? item.reward?.value ?? 1));
       const description = String(item.description || item.reward?.description || "");
@@ -253,7 +260,8 @@ router.put("/customers/:id", requireAdmin, asyncRoute(async (req, res) => {
     }).filter((item) => item.title.length > 0);
 
     if (assignments.length > 0) {
-      await supabase.from("customer_rewards").insert(assignments);
+      const { error: insErr } = await supabase.from("customer_rewards").insert(assignments);
+      if (insErr) throw publicError(`Lỗi lưu Voucher: ${insErr.message}`);
     }
   }
   res.json(await loadAdminCustomer(req.params.id));
