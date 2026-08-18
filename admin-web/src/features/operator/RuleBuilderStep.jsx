@@ -4,12 +4,17 @@ import UiAlert from "../../components/common/UiAlert.jsx";
 
 const EMPTY_RULE = {
   name: "",
+  code: "",
   scope: "default",
   active: true,
   priority: 100,
   oaRequired: false,
+  allowUnlisted: false,
   winRate: 100,
   maxWins: 1,
+  maxTotalWins: "",
+  startsAt: "",
+  endsAt: "",
 };
 
 export default function RuleBuilderStep({ campaign, onNextStep }) {
@@ -17,7 +22,7 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
   const [rewards, setRewards] = useState([]);
   const [groups, setGroups] = useState([]);
   const [form, setForm] = useState(EMPTY_RULE);
-  
+
   // Multi-spin selection state: "all" | "range" | "custom"
   const [spinMode, setSpinMode] = useState("all");
   const [rangeStart, setRangeStart] = useState(1);
@@ -129,10 +134,15 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
       const payload = {
         campaignId: campaign.id,
         name: form.name,
+        code: form.code ? form.code.trim() : undefined,
         scope: form.scope,
         active: form.active !== false,
         priority: Number(form.priority ?? 100),
         oaRequired: Boolean(form.oaRequired),
+        allowUnlisted: Boolean(form.allowUnlisted),
+        maxTotalWins: form.maxTotalWins !== "" && form.maxTotalWins != null ? Number(form.maxTotalWins) : null,
+        startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : null,
+        endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : null,
         spins: targetSpins.map((spinNum) => ({
           spinNumber: spinNum,
           winRate: Number(form.winRate ?? 100),
@@ -189,12 +199,28 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
       quantity: rw.quantity ?? 1,
     }));
 
+    const parseLocalDate = (isoStr) => {
+      if (!isoStr) return "";
+      try {
+        const d = new Date(isoStr);
+        const tzOffset = d.getTimezoneOffset() * 60000;
+        return new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
+      } catch {
+        return "";
+      }
+    };
+
     setForm({
-      name: r.name,
-      scope: r.scope,
-      active: r.active,
-      priority: r.priority,
+      name: r.name || "",
+      code: r.code || "",
+      scope: r.scope || "default",
+      active: r.active !== false,
+      priority: r.priority ?? 100,
       oaRequired: r.oaRequired ?? r.oa_required ?? false,
+      allowUnlisted: r.allowUnlisted ?? r.allow_unlisted ?? false,
+      maxTotalWins: r.maxTotalWins ?? r.max_total_wins ?? "",
+      startsAt: parseLocalDate(r.startsAt || r.starts_at),
+      endsAt: parseLocalDate(r.endsAt || r.ends_at),
       winRate: firstSpin.winRate ?? firstSpin.win_rate ?? 100,
       maxWins: firstSpin.maxWins ?? firstSpin.max_wins ?? 1,
     });
@@ -469,18 +495,31 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
           </div>
 
           {/* Advanced technical settings accordion */}
-          <div className="accordion-wrapper">
+          <div className="accordion-wrapper mb-4" style={{ marginTop: "12px" }}>
             <button
               type="button"
               className="accordion-toggle"
+              style={{ width: "100%", padding: "10px 14px", background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: "10px", color: "#334155", fontWeight: "700", fontSize: "13px", cursor: "pointer", textAlign: "left" }}
               onClick={() => setShowAdvanced(!showAdvanced)}
             >
-              {showAdvanced ? "Ẩn Cài đặt Kỹ thuật Nâng cao" : "Hiển thị Cài đặt Kỹ thuật Nâng cao"}
+              {showAdvanced ? "▼ Ẩn Cài đặt Kỹ thuật Nâng cao" : "▶ Hiển thị Cài đặt Kỹ thuật Nâng cao (Mã rule, Khung giờ Flash-sale, Ưu tiên...)"}
             </button>
 
             {showAdvanced && (
-              <div className="accordion-content">
+              <div className="accordion-content" style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "10px", background: "#f8fafc", padding: "16px", borderRadius: "14px", border: "1px solid #e2e8f0" }}>
                 <div className="form-grid-2">
+                  <div className="form-group">
+                    <label className="form-label">Mã định danh Luật (Code)</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="VD: RULE_VIP_SUMMER_01"
+                      value={form.code}
+                      onChange={(e) => setForm({ ...form, code: e.target.value })}
+                    />
+                    <small className="form-help">Để trống để hệ thống tự tạo mã định danh duy nhất.</small>
+                  </div>
+
                   <div className="form-group">
                     <label className="form-label">Độ ưu tiên (Priority)</label>
                     <input
@@ -489,19 +528,74 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
                       value={form.priority}
                       onChange={(e) => setForm({ ...form, priority: Number(e.target.value) })}
                     />
-                    <small className="form-help">Ưu tiên cao hơn sẽ được đánh giá trước.</small>
+                    <small className="form-help">Số lớn hơn sẽ có độ ưu tiên đánh giá trước (Mặc định: 100).</small>
+                  </div>
+                </div>
+
+                <div className="form-grid-2">
+                  <div className="form-group">
+                    <label className="form-label">Giới hạn tổng số lượt trúng tối đa</label>
+                    <input
+                      type="number"
+                      min="1"
+                      className="form-control"
+                      placeholder="Không giới hạn"
+                      value={form.maxTotalWins}
+                      onChange={(e) => setForm({ ...form, maxTotalWins: e.target.value })}
+                    />
+                    <small className="form-help">Giới hạn tổng số phần quà phát ra cho toàn luật quay này.</small>
                   </div>
 
                   <div className="form-group">
-                    <label className="checkbox-label mt-6">
+                    <label className="form-label">Khung thời gian áp dụng riêng</label>
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
                       <input
-                        type="checkbox"
-                        checked={form.oaRequired}
-                        onChange={(e) => setForm({ ...form, oaRequired: e.target.checked })}
+                        type="datetime-local"
+                        className="form-control"
+                        style={{ fontSize: "12px" }}
+                        value={form.startsAt}
+                        onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
                       />
-                      <span>Bắt buộc theo dõi Zalo OA</span>
-                    </label>
+                      <span>➔</span>
+                      <input
+                        type="datetime-local"
+                        className="form-control"
+                        style={{ fontSize: "12px" }}
+                        value={form.endsAt}
+                        onChange={(e) => setForm({ ...form, endsAt: e.target.value })}
+                      />
+                    </div>
+                    <small className="form-help">Dùng cho luật Flash-sale. Để trống nếu áp dụng xuyên suốt sự kiện.</small>
                   </div>
+                </div>
+
+                <div style={{ display: "flex", gap: "16px", flexWrap: "wrap", marginTop: "6px" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={form.active !== false}
+                      onChange={(e) => setForm({ ...form, active: e.target.checked })}
+                    />
+                    <span>Bật áp dụng Luật quay này (Active)</span>
+                  </label>
+
+                  <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={form.oaRequired}
+                      onChange={(e) => setForm({ ...form, oaRequired: e.target.checked })}
+                    />
+                    <span>Bắt buộc theo dõi Zalo OA</span>
+                  </label>
+
+                  <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={form.allowUnlisted}
+                      onChange={(e) => setForm({ ...form, allowUnlisted: e.target.checked })}
+                    />
+                    <span>Áp dụng cho cả khách tự do ngoài danh sách</span>
+                  </label>
                 </div>
               </div>
             )}
@@ -553,7 +647,7 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
 
                 return (
                   <div key={r.id} className="rule-item-card" style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "14px", marginBottom: "12px" }}>
-                    <div className="rule-item-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div className="rule-item-header" style={{ display: "flex", justifyBetween: "space-between", alignItems: "center" }}>
                       <strong style={{ fontSize: "14px", color: "#0f172a" }}>{r.name}</strong>
                       <span className={`status-tag ${r.active ? "active" : "inactive"}`} style={{ fontSize: "11px", fontWeight: "800", padding: "3px 8px", borderRadius: "6px", background: r.active ? "#dcfce7" : "#f1f5f9", color: r.active ? "#15803d" : "#64748b" }}>
                         {r.active ? "Đang bật" : "Tắt"}
@@ -569,7 +663,7 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
                     </p>
 
                     <p className="rule-item-detail" style={{ margin: "4px 0", color: "#64748b", fontSize: "11px" }}>
-                      Đối tượng: <code>{r.scope}</code> | Ưu tiên: <code>{r.priority}</code>
+                      Mã: <code>{r.code}</code> | Ưu tiên: <code>{r.priority}</code> | Khách ngoài danh sách: {r.allowUnlisted || r.allow_unlisted ? "Có" : "Không"}
                     </p>
 
                     <div className="rule-item-actions" style={{ marginTop: "8px" }}>
