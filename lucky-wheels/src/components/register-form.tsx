@@ -57,39 +57,45 @@ export default function RegisterForm() {
   }, []);
 
   useEffect(() => {
+    if (isLoadingProfile) return;
+
     let cancelled = false;
     const oaId = import.meta.env.VITE_ZALO_OA_ID?.trim();
 
-    showOAWidget({
-      id: "registrationOaWidget",
-      ...(oaId ? { oaId } : {}),
-      guidingText: "Theo dõi OA để nhận voucher khi trúng thưởng",
-      color: "#0068FF",
-      onStatusChange: (status) => {
-        if (cancelled) return;
-        const followed = oaService.updateFromWidgetStatus(status);
-        setHasFollowedOA(followed);
-        setOaWidgetError(null);
-      },
-      onError: () => {
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      showOAWidget({
+        id: "registrationOaWidget",
+        ...(oaId ? { oaId } : {}),
+        guidingText: "Theo dõi OA để nhận voucher khi trúng thưởng",
+        color: "#0068FF",
+        onStatusChange: (status) => {
+          if (cancelled) return;
+          const followed = oaService.updateFromWidgetStatus(status);
+          setHasFollowedOA(followed);
+          setOaWidgetError(null);
+        },
+        onError: () => {
+          if (cancelled) return;
+          setOaWidgetError(
+            "Không thể tải nút theo dõi OA thật của Zalo (Môi trường Web / Dev Local)."
+          );
+          setShowMockButton(true);
+        },
+      }).catch(() => {
         if (cancelled) return;
         setOaWidgetError(
           "Không thể tải nút theo dõi OA thật của Zalo (Môi trường Web / Dev Local)."
         );
         setShowMockButton(true);
-      },
-    }).catch(() => {
-      if (cancelled) return;
-      setOaWidgetError(
-        "Không thể tải nút theo dõi OA thật của Zalo (Môi trường Web / Dev Local)."
-      );
-      setShowMockButton(true);
-    });
+      });
+    }, 100);
 
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, []);
+  }, [isLoadingProfile]);
 
   const handleToggleMockFollow = () => {
     const nextState = !hasFollowedOA;

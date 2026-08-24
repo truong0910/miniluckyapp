@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   parseCustomerImportRows,
   parseDenominationsFromNote,
+  extractGroupAndVoucherNote,
   matchDenominationToReward,
   validateVoucherImportRows,
 } from "../src/campaign-reuse-service.js";
@@ -16,6 +17,20 @@ test("parseDenominationsFromNote extracts numeric values from Vietnamese text", 
 
   const result3 = parseDenominationsFromNote("5.000.000đ, 2.000.000đ");
   assert.deepEqual(result3, [5000000, 2000000]);
+});
+
+test("extractGroupAndVoucherNote separates group names from money voucher notes", () => {
+  const res1 = extractGroupAndVoucherNote("4 triệu , 3 triệu , 3 triệu");
+  assert.equal(res1.groupName, "");
+  assert.equal(res1.note, "4 triệu, 3 triệu, 3 triệu");
+
+  const res2 = extractGroupAndVoucherNote("VIP, 5 triệu , 3 triệu , 3 triệu");
+  assert.equal(res2.groupName, "VIP");
+  assert.equal(res2.note, "5 triệu, 3 triệu, 3 triệu");
+
+  const res3 = extractGroupAndVoucherNote("Khách VIP Khai Trương");
+  assert.equal(res3.groupName, "Khách VIP Khai Trương");
+  assert.equal(res3.note, "");
 });
 
 test("parseCustomerImportRows normalizes Vietnamese phone numbers and validates columns", () => {

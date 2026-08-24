@@ -29,8 +29,6 @@ type DeliveryStatus =
 export default function VoucherPage() {
   const navigate = useNavigate();
   const spinResult = spinService.getLastSpin();
-  const reward = spinResult?.outcome === "reward" ? spinResult.reward : null;
-  const isWinner = Boolean(reward);
 
   const [participant, setParticipant] = useState<Participant | null>(null);
   const [spinHistory, setSpinHistory] = useState<SpinResponse[]>([]);
@@ -40,6 +38,12 @@ export default function VoucherPage() {
 
   // Awards API state
   const [awards, setAwards] = useState<ParticipantAward[]>([]);
+
+  const latestAward = awards.length > 0 ? awards[0] : null;
+  const reward = spinResult?.outcome === "reward" && spinResult.reward
+    ? spinResult.reward
+    : (latestAward ? { title: latestAward.title, expiresAt: latestAward.expiresAt ?? undefined, description: latestAward.description ?? undefined } : null);
+  const isWinner = Boolean(reward);
   const [awardsLoading, setAwardsLoading] = useState(true);
   const [awardsLoadingMore, setAwardsLoadingMore] = useState(false);
   const [awardsError, setAwardsError] = useState<string | null>(null);
@@ -75,7 +79,7 @@ export default function VoucherPage() {
         const customer = await participantService.getCurrent();
         setParticipant(customer);
         if (customer) {
-          const history = spinService.getSpinHistory();
+          const history = await spinService.fetchSpinHistory();
           setSpinHistory(history);
         }
       } catch (error) {

@@ -1,16 +1,40 @@
-# Dependencies and generated builds
+# Environment and Secret files (DO NOT COMMIT)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Dependency directories
+node_modules/
 **/node_modules/
-**/www/
+.npm
+.eslintcache
+
+# Production build & temporary directories
+dist/
 **/dist/
+www/
+**/www/
+.vite/
+**/.vite/
+.temp/
+**/.temp/
+undefined/
+**/undefined/
+
+# Logs
+logs/
+**/logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
 
-# Local secrets and environment files
-**/.env
-**/.env.*
-!**/.env.example
-
-# Local tooling files
-.vscode/
+# IDE & OS files
 .DS_Store
 Thumbs.db
-.worktrees/
+.vscode/
+.idea/
+.gemini/

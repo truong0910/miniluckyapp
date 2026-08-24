@@ -147,28 +147,59 @@ async function findParticipantCustomer(phone, registrationSource = "zalo_guest")
   const activeCampaign = await getActiveCampaign({ db: supabase });
 
   if (!row) {
-    if (!activeCampaign || !activeCampaign.allowUnlisted) {
-      throw publicError("Khách chưa được đăng ký trong sự kiện này", 403, "P0003");
-    }
-
-    const id = `customer-${normalizedPhone}`;
-    const newRecord = {
-      id,
-      phone: normalizedPhone,
-      name: `Khách hàng ${normalizedPhone}`,
-      sex: "other",
-      job: "other",
-      total_spins: 0,
-    };
-
-    const { data: created, error: createError } = await supabase
+    // Check if customer exists under any ID (including soft-deleted)
+    const { data: existingAny } = await supabase
       .from("customers")
-      .upsert(newRecord)
       .select("id,name,phone,sex,job,total_spins,deleted_at")
-      .single();
+      .eq("phone", normalizedPhone)
+      .maybeSingle();
 
-    if (createError) throw createError;
-    row = created;
+    if (existingAny) {
+      if (existingAny.deleted_at) {
+        await supabase.from("customers").update({ deleted_at: null }).eq("id", existingAny.id);
+      }
+      row = { ...existingAny, deleted_at: null };
+    } else {
+      if (!activeCampaign || !activeCampaign.allowUnlisted) {
+        throw publicError("Khách chưa được đăng ký trong sự kiện này", 403, "P0003");
+      }
+
+      const id = `customer-${normalizedPhone}`;
+      const newRecord = {
+        id,
+        phone: normalizedPhone,
+        name: `Khách hàng ${normalizedPhone}`,
+        sex: "other",
+        job: "other",
+        total_spins: 0,
+        deleted_at: null,
+      };
+
+      const { data: created, error: createError } = await supabase
+        .from("customers")
+        .upsert(newRecord)
+        .select("id,name,phone,sex,job,total_spins,deleted_at")
+        .single();
+
+      if (createError) {
+        if (createError.code === "23505" || String(createError.message).includes("customers_phone_key")) {
+          const { data: fallbackRow } = await supabase
+            .from("customers")
+            .select("id,name,phone,sex,job,total_spins,deleted_at")
+            .eq("phone", normalizedPhone)
+            .maybeSingle();
+          if (fallbackRow) {
+            row = fallbackRow;
+          } else {
+            throw createError;
+          }
+        } else {
+          throw createError;
+        }
+      } else {
+        row = created;
+      }
+    }
   }
 
   if (activeCampaign?.id) {

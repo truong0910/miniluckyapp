@@ -30,7 +30,10 @@ export const config = {
   googleSheetsWebhookUrl: required("GOOGLE_SHEETS_WEBHOOK_URL"),
   googleSheetsWebhookSecret: required("GOOGLE_SHEETS_WEBHOOK_SECRET"),
   googleSheetsWebhookTimeoutMs: Number(process.env.GOOGLE_SHEETS_WEBHOOK_TIMEOUT_MS || 5000),
-  corsOrigins: String(process.env.CORS_ORIGINS || "http://localhost:5173,http://localhost:5174")
+  corsOrigins: (process.env.CORS_ORIGINS && process.env.CORS_ORIGINS.trim() !== ""
+    ? process.env.CORS_ORIGINS
+    : "http://localhost:5173,http://localhost:5174,http://localhost:3000,http://localhost:2999,http://localhost:3001"
+  )
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean),

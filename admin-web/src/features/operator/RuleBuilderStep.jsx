@@ -75,7 +75,11 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
   }, [campaign?.id]);
 
   const getTargetSpins = () => {
-    if (spinMode === "all") return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    if (spinMode === "all") {
+      const list = [];
+      for (let i = 1; i <= 50; i++) list.push(i);
+      return list;
+    }
     if (spinMode === "range") {
       const start = Math.max(1, Math.min(rangeStart, rangeEnd));
       const end = Math.max(start, Math.max(rangeStart, rangeEnd));
@@ -229,11 +233,13 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
   };
 
   const targetSpins = getTargetSpins();
-  const targetSpinsText = spinMode === "all" ? "Tất cả các lượt quay (1 - 10)" : `Lượt quay ${targetSpins.join(", ")}`;
+  const targetSpinsText = spinMode === "all" ? "Tất cả các lượt quay (1 - 50)" : spinMode === "range" ? `Các lượt từ ${rangeStart} đến ${rangeEnd}` : `Lượt quay ${targetSpins.join(", ")}`;
   const rewardSummaryText = rewardItems
     .map((rw) => {
       const found = rewards.find((r) => String(r.id) === String(rw.rewardId));
-      return found ? `${found.title} (${rw.probability}% - ${rw.quantity} phần)` : "";
+      const prod = found?.applicableProducts || found?.applicable_products;
+      const prodText = prod ? ` [${prod}]` : "";
+      return found ? `${found.title}${prodText} (${rw.probability}% - ${rw.quantity} phần)` : "";
     })
     .filter(Boolean)
     .join(" + ");
@@ -302,7 +308,7 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
                   checked={spinMode === "all"}
                   onChange={() => setSpinMode("all")}
                 />
-                <span>Tất cả các lượt quay (1 - 10)</span>
+                <span>Tất cả các lượt quay (1 - 50)</span>
               </label>
 
               <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>
@@ -312,7 +318,7 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
                   checked={spinMode === "range"}
                   onChange={() => setSpinMode("range")}
                 />
-                <span>Khoảng lượt (VD: Lượt 1 đến 5)</span>
+                <span>Khoảng lượt (VD: Lượt 1 đến 20)</span>
               </label>
 
               <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>
@@ -333,7 +339,7 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
                   <input
                     type="number"
                     min="1"
-                    max="50"
+                    max="100"
                     className="form-control"
                     value={rangeStart}
                     onChange={(e) => setRangeStart(Number(e.target.value))}
@@ -344,7 +350,7 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
                   <input
                     type="number"
                     min="1"
-                    max="50"
+                    max="100"
                     className="form-control"
                     value={rangeEnd}
                     onChange={(e) => setRangeEnd(Number(e.target.value))}
@@ -355,7 +361,7 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
 
             {spinMode === "custom" && (
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" }}>
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map((num) => (
                   <label
                     key={num}
                     style={{
@@ -436,11 +442,16 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
                       onChange={(e) => handleUpdateRewardRow(idx, "rewardId", e.target.value)}
                       required
                     >
-                      {rewards.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.title} ({r.value ? Number(r.value).toLocaleString("vi-VN") + "đ" : ""})
-                        </option>
-                      ))}
+                      {rewards.map((r) => {
+                        const prod = r.applicableProducts || r.applicable_products;
+                        const prodText = prod ? ` · SP: ${prod}` : "";
+                        const codeText = r.codePrefix || r.code_prefix ? ` [Mã: ${r.codePrefix || r.code_prefix}]` : "";
+                        return (
+                          <option key={r.id} value={r.id}>
+                            {r.title} ({r.value ? Number(r.value).toLocaleString("vi-VN") + "đ" : ""}){codeText}{prodText}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
 

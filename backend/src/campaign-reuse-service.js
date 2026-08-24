@@ -33,6 +33,29 @@ export function parseDenominationsFromNote(noteRaw = "") {
   return results;
 }
 
+export function extractGroupAndVoucherNote(rawText = "") {
+  const text = String(rawText || "").trim();
+  if (!text) return { groupName: "", note: "" };
+
+  const parts = text.split(/[,;\n+]+/).map((s) => s.trim()).filter(Boolean);
+  const groupParts = [];
+  const noteParts = [];
+
+  for (const part of parts) {
+    const denominations = parseDenominationsFromNote(part);
+    if (denominations.length > 0) {
+      noteParts.push(part);
+    } else {
+      groupParts.push(part);
+    }
+  }
+
+  return {
+    groupName: groupParts.join(", "),
+    note: noteParts.join(", "),
+  };
+}
+
 export function parseCustomerImportRows(rows = []) {
   if (!Array.isArray(rows)) return [];
 
@@ -124,26 +147,37 @@ export function validateVoucherImportRows(parsedRows = [], rewards = []) {
 }
 
 async function findOrCreateCustomer({ db, row, importMode }) {
+  const normPhone = normalizePhone(row.phone);
   const { data: existing, error: lookupError } = await db
     .from("customers")
     .select("id")
-    .eq("phone", row.phone)
+    .eq("phone", normPhone)
     .is("deleted_at", null)
     .maybeSingle();
   if (lookupError) throw lookupError;
   if (existing?.id) return existing.id;
 
-  const custId = `customer-${row.phone}`;
+  const custId = `customer-${normPhone}`;
   const { error } = await db.from("customers").insert({
     id: custId,
-    phone: row.phone,
+    phone: normPhone,
     name: row.name,
     sex: "other",
     job: "other",
     total_spins: row.voucherCount || 1,
     deleted_at: null,
   });
-  if (error) throw error;
+  if (error) {
+    if (error.code === "23505" || String(error.message).includes("customers_phone_key") || String(error.message).includes("unique constraint")) {
+      const { data: fallback } = await db
+        .from("customers")
+        .select("id")
+        .eq("phone", normPhone)
+        .maybeSingle();
+      if (fallback?.id) return fallback.id;
+    }
+    throw error;
+  }
   return custId;
 }
 
@@ -227,7 +261,7 @@ export async function cloneCampaign({ db, sourceCampaignId, newCode, newName, cl
   return { ...newCampaign, cloneMode };
 }
 
-export async function importCampaignParticipants({ db, campaignId, rows = [], importMode = "voucher" }) {
+export async function checkImportCampaignParticipants({ db, campaignId, rows = [], importMode = "voucher" }) {
   const campaign = await getCampaign({ db, id: campaignId });
   const parsedRows = parseCustomerImportRows(rows);
 
@@ -248,29 +282,266 @@ export async function importCampaignParticipants({ db, campaignId, rows = [], im
     errors = validated.errors;
   }
 
-  // Never partially assign an import: the Admin must correct every row first.
   if (errors.length > 0) {
-    return { success: false, totalRows: rows.length, importedCount: 0, invalidCount: errors.length, errors };
+    return {
+      success: false,
+      totalRows: rows.length,
+      newCount: 0,
+      duplicateCount: 0,
+      duplicateRows: [],
+      newRows: [],
+      errors,
+    };
+  }
+
+  // 1. Extract all normalized phones from valid file rows
+  const filePhones = validRows.map((r) => normalizePhone(r.phone)).filter(Boolean);
+
+  // 2. Fetch ALL matching customers from global customers table
+  const globalPhoneMap = new Map();
+  if (filePhones.length > 0) {
+    const { data: globalCustRows } = await db
+      .from("customers")
+      .select("id, name, phone")
+      .in("phone", filePhones);
+
+    for (const c of globalCustRows || []) {
+      if (c.phone) {
+        globalPhoneMap.set(normalizePhone(c.phone), c);
+      }
+    }
+  }
+
+  // 3. Fetch existing participants in THIS campaign
+  const { data: participantRows } = await db
+    .from("campaign_participants")
+    .select("id, customer_id, spin_quota, imported_group, note")
+    .eq("campaign_id", campaignId);
+
+  const participantMap = new Map();
+  const existingCampaignCustomerIds = [];
+  for (const p of participantRows || []) {
+    participantMap.set(p.customer_id, p);
+    existingCampaignCustomerIds.push(p.customer_id);
+  }
+
+  // 4. Fetch existing pre-assigned rewards for existing customers in THIS campaign
+  const existingRewardsMap = new Map();
+  if (existingCampaignCustomerIds.length > 0) {
+    const { data: rewardRows } = await db
+      .from("customer_rewards")
+      .select("customer_id, title, value")
+      .eq("campaign_id", campaignId)
+      .in("customer_id", existingCampaignCustomerIds);
+
+    for (const r of rewardRows || []) {
+      const list = existingRewardsMap.get(r.customer_id) || [];
+      list.push(`${r.title} (${Number(r.value || 0).toLocaleString("vi-VN")}đ)`);
+      existingRewardsMap.set(r.customer_id, list);
+    }
+  }
+
+  const duplicateRows = [];
+  const newRows = [];
+  const seenPhonesInFile = new Set();
+
+  for (const row of validRows) {
+    const normalizedPhone = normalizePhone(row.phone);
+    const existingCust = globalPhoneMap.get(normalizedPhone);
+    const existingParticipant = existingCust ? participantMap.get(existingCust.id) : null;
+    const isFileDuplicate = seenPhonesInFile.has(normalizedPhone);
+
+    if (existingCust || isFileDuplicate) {
+      const custId = existingCust?.id;
+      const currentRewards = custId ? (existingRewardsMap.get(custId) || []) : [];
+      const dbName = existingCust?.name || "";
+      const excelName = row.name || "";
+      const isDifferentName = Boolean(dbName && excelName && dbName.trim().toLowerCase() !== excelName.trim().toLowerCase());
+
+      duplicateRows.push({
+        rowNumber: row.rowNumber,
+        phone: row.phone,
+        normalizedPhone,
+        name: excelName,
+        existingName: dbName || excelName,
+        isDifferentName,
+        inCampaign: Boolean(existingParticipant),
+        note: row.note || "",
+        voucherCount: row.voucherCount || 1,
+        denominations: row.denominations || [],
+        existingSpinQuota: existingParticipant?.spin_quota || 0,
+        existingRewards: currentRewards,
+        action: "skip",
+      });
+    } else {
+      newRows.push({
+        rowNumber: row.rowNumber,
+        phone: row.phone,
+        normalizedPhone,
+        name: row.name,
+        note: row.note || "",
+        voucherCount: row.voucherCount || 1,
+        denominations: row.denominations || [],
+      });
+      seenPhonesInFile.add(normalizedPhone);
+    }
+  }
+
+  return {
+    success: true,
+    totalRows: rows.length,
+    newCount: newRows.length,
+    duplicateCount: duplicateRows.length,
+    duplicateRows,
+    newRows,
+    errors: [],
+  };
+}
+
+export async function importCampaignParticipants({
+  db,
+  campaignId,
+  rows = [],
+  importMode = "voucher",
+  rowActions = {},
+  duplicateMode = "skip",
+}) {
+  const campaign = await getCampaign({ db, id: campaignId });
+  const parsedRows = parseCustomerImportRows(rows);
+
+  let validRows = parsedRows.filter((r) => r.valid);
+  let errors = parsedRows.filter((r) => !r.valid).map((r) => `Dòng ${r.rowNumber}: ${r.error}`);
+  let rewards = [];
+
+  if (importMode === "voucher") {
+    const { data: rewardRows, error: rewardsError } = await db
+      .from("reward_catalog")
+      .select("id,code_prefix,title,value,description,wheel_label,active")
+      .eq("active", true);
+    if (rewardsError) throw rewardsError;
+    rewards = rewardRows || [];
+
+    const validated = validateVoucherImportRows(parsedRows, rewards);
+    validRows = validated.validRows;
+    errors = validated.errors;
+  }
+
+  if (errors.length > 0) {
+    return {
+      success: false,
+      totalRows: rows.length,
+      importedCount: 0,
+      invalidCount: errors.length,
+      duplicateCount: 0,
+      skippedCount: 0,
+      accumulatedCount: 0,
+      duplicatePhones: [],
+      infoMessages: [],
+      errors,
+    };
+  }
+
+  // 1. Extract all normalized phones from valid file rows
+  const filePhones = validRows.map((r) => normalizePhone(r.phone)).filter(Boolean);
+
+  // 2. Fetch ALL matching customers from global customers table
+  const globalPhoneMap = new Map();
+  if (filePhones.length > 0) {
+    const { data: globalCustRows } = await db
+      .from("customers")
+      .select("id, name, phone")
+      .in("phone", filePhones);
+
+    for (const c of globalCustRows || []) {
+      if (c.phone) {
+        globalPhoneMap.set(normalizePhone(c.phone), c);
+      }
+    }
+  }
+
+  // 3. Fetch existing participants in THIS campaign
+  const { data: participantRows } = await db
+    .from("campaign_participants")
+    .select("id, customer_id, spin_quota, imported_group")
+    .eq("campaign_id", campaignId);
+
+  const participantMap = new Map();
+  for (const p of participantRows || []) {
+    participantMap.set(p.customer_id, p);
   }
 
   let importedCount = 0;
+  let skippedCount = 0;
+  let accumulatedCount = 0;
+  const duplicatePhones = [];
+  const infoMessages = [];
 
   for (const row of validRows) {
     try {
-      // 1. Find or create customer
+      const normalizedPhone = normalizePhone(row.phone);
+      const existingCust = globalPhoneMap.get(normalizedPhone);
+      const existingParticipant = existingCust ? participantMap.get(existingCust.id) : null;
+
+      if (existingCust) {
+        duplicatePhones.push(`${row.name} (${row.phone})`);
+        const action = rowActions[normalizedPhone] || rowActions[row.phone] || duplicateMode || "skip";
+
+        if (action === "skip") {
+          skippedCount++;
+          infoMessages.push(`Dòng ${row.rowNumber} (${row.name} - ${row.phone}): Đã có trong hệ thống ➔ BỎ QUA.`);
+          continue;
+        }
+
+        if (action === "accumulate") {
+          const custId = existingCust.id;
+          const currentQuota = Number(existingParticipant?.spin_quota || 0);
+          const addQuota = importMode === "quota" ? Math.max(1, row.voucherCount || 1) : (row.voucherCount || 0);
+          const newQuota = currentQuota + addQuota;
+
+          await db.from("campaign_participants").upsert({
+            campaign_id: campaignId,
+            customer_id: custId,
+            spin_quota: newQuota,
+            imported_group: row.note || existingParticipant?.imported_group || null,
+            status: "active",
+          }, { onConflict: "campaign_id,customer_id" });
+
+          if (importMode === "voucher" && row.denominations?.length > 0) {
+            const assignments = row.denominations.map((denom) => {
+              const reward = matchDenominationToReward(denom, rewards || []);
+              return {
+                campaign_id: campaign.id,
+                customer_id: custId,
+                code: `${reward.code_prefix}_${Date.now().toString(36).toUpperCase()}_${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+                title: reward.title,
+                value: Number(reward.value),
+                description: reward.description || "",
+                wheel_label: reward.wheel_label,
+                result: ["star", "star", "star"],
+              };
+            });
+            await db.from("customer_rewards").insert(assignments);
+          }
+
+          accumulatedCount++;
+          infoMessages.push(`Dòng ${row.rowNumber} (${row.name} - ${row.phone}): Đã CỘNG DỒN thêm ${addQuota} lượt quay & voucher.`);
+          continue;
+        }
+      }
+
+      // NEW CUSTOMER (Not duplicate)
       const custId = await findOrCreateCustomer({ db, row, importMode });
 
-      // 2. Upsert campaign_participants
+      const quota = importMode === "quota" ? Math.max(1, row.voucherCount || 1) : (row.voucherCount || 0);
       await db.from("campaign_participants").upsert({
         campaign_id: campaign.id,
         customer_id: custId,
-        spin_quota: importMode === "quota" ? Math.max(1, row.voucherCount || 1) : (row.voucherCount || 0),
+        spin_quota: quota,
         imported_group: row.note || null,
         status: "active",
       }, { onConflict: "campaign_id,customer_id" });
 
-      // 3. Create pre-assigned customer_rewards if voucher mode
-      if (importMode === "voucher") {
+      if (importMode === "voucher" && row.denominations?.length > 0) {
         const assignments = row.denominations.map((denom) => {
           const reward = matchDenominationToReward(denom, rewards || []);
           return {
@@ -288,6 +559,9 @@ export async function importCampaignParticipants({ db, campaignId, rows = [], im
         await db.from("customer_rewards").insert(assignments);
       }
 
+      // Track in local maps for subsequent rows in the same file
+      globalPhoneMap.set(normalizedPhone, { id: custId, name: row.name, phone: normalizedPhone });
+      participantMap.set(custId, { customer_id: custId, spin_quota: quota });
       importedCount++;
     } catch (err) {
       errors.push(`Dòng ${row.rowNumber} (${row.name}): ${err.message}`);
@@ -298,16 +572,32 @@ export async function importCampaignParticipants({ db, campaignId, rows = [], im
     success: errors.length === 0,
     totalRows: rows.length,
     importedCount,
+    duplicateCount: duplicatePhones.length,
+    skippedCount,
+    accumulatedCount,
+    duplicatePhones,
+    infoMessages,
     invalidCount: errors.length,
     errors,
   };
 }
 
+export async function clearCustomerPreassignedRewards({ db, campaignId, customerId }) {
+  const { error } = await db
+    .from("customer_rewards")
+    .delete()
+    .eq("campaign_id", campaignId)
+    .eq("customer_id", customerId);
+
+  if (error) throw error;
+  return { success: true };
+}
+
 export async function listCampaignParticipants({ db, campaignId, page = 1, limit = 20, search = "" }) {
   const cleanSearch = String(search || "").trim();
   const selectClause = cleanSearch
-    ? "id,campaign_id,customer_id,status,spin_quota,imported_group,created_at,customers!inner(name,phone)"
-    : "id,campaign_id,customer_id,status,spin_quota,imported_group,created_at,customers(name,phone)";
+    ? "id,campaign_id,customer_id,status,spin_quota,imported_group,note,created_at,customers!inner(name,phone)"
+    : "id,campaign_id,customer_id,status,spin_quota,imported_group,note,created_at,customers(name,phone)";
 
   let query = db
     .from("campaign_participants")
@@ -327,28 +617,47 @@ export async function listCampaignParticipants({ db, campaignId, page = 1, limit
 
   const customerIds = [...new Set((rows || []).map((row) => row.customer_id))];
   const groupsMap = new Map();
+  const groupIdsMap = new Map();
+  const rewardsMap = new Map();
 
   if (customerIds.length > 0) {
     const { data: memberRows } = await db
       .from("customer_group_members")
-      .select("customer_id, customer_groups(name)")
+      .select("customer_id, group_id, customer_groups(id, name)")
       .in("customer_id", customerIds);
 
     for (const m of memberRows || []) {
+      const gId = m.group_id;
       const gName = m.customer_groups?.name;
       if (gName) {
-        const existingList = groupsMap.get(m.customer_id) || [];
-        if (!existingList.includes(gName)) existingList.push(gName);
-        groupsMap.set(m.customer_id, existingList);
+        const existingNames = groupsMap.get(m.customer_id) || [];
+        if (!existingNames.includes(gName)) existingNames.push(gName);
+        groupsMap.set(m.customer_id, existingNames);
+
+        const existingIds = groupIdsMap.get(m.customer_id) || [];
+        if (!existingIds.includes(gId)) existingIds.push(gId);
+        groupIdsMap.set(m.customer_id, existingIds);
       }
+    }
+
+    const { data: rewardRows } = await db
+      .from("customer_rewards")
+      .select("customer_id, title, value, code")
+      .eq("campaign_id", campaignId)
+      .in("customer_id", customerIds);
+
+    for (const r of rewardRows || []) {
+      const existingList = rewardsMap.get(r.customer_id) || [];
+      existingList.push({ title: r.title, value: Number(r.value), code: r.code });
+      rewardsMap.set(r.customer_id, existingList);
     }
   }
 
   const items = (rows || []).map((row) => {
     const assignedGroupNames = groupsMap.get(row.customer_id) || [];
-    const importedGrp = row.imported_group ? [row.imported_group] : [];
-    const allGroupNames = [...new Set([...assignedGroupNames, ...importedGrp])];
-    const groupDisplay = allGroupNames.join(", ") || "";
+    const assignedGroupIds = groupIdsMap.get(row.customer_id) || [];
+    const plannedRewards = rewardsMap.get(row.customer_id) || [];
+    const noteText = row.note || row.imported_group || "";
 
     return {
       id: row.id,
@@ -356,8 +665,12 @@ export async function listCampaignParticipants({ db, campaignId, page = 1, limit
       customerId: row.customer_id,
       customerName: row.customers?.name || row.customer_id,
       customerPhone: row.customers?.phone || "",
-      importedGroup: groupDisplay,
-      groupName: groupDisplay,
+      note: noteText,
+      groupId: assignedGroupIds[0] || "",
+      assignedGroupIds,
+      assignedGroups: assignedGroupNames,
+      groupName: assignedGroupNames.join(", ") || "",
+      plannedRewards: plannedRewards,
       status: row.status,
       spinQuota: row.spin_quota,
       registrationSource: row.registration_source || "admin",
@@ -455,24 +768,175 @@ export async function getParticipantDetail({ db, campaignId, customerId }) {
     spinsUsed: spinsUsed || 0,
     spinsRemaining: Math.max(0, (participant?.spin_quota || 0) - (spinsUsed || 0)),
     importedGroup: participant?.imported_group || "",
+    note: participant?.note || "",
     registrationSource: participant?.registration_source || "none",
     hasParticipant: Boolean(participant),
   };
 }
 
-export async function updateParticipantQuotaStatus({ db, campaignId, customerId, status, spinQuota }) {
+export async function createManualCampaignParticipant({
+  db,
+  campaignId,
+  name,
+  phone,
+  spinQuota = 1,
+  status = "active",
+  groupName = "",
+  groupId = null,
+  note = "",
+  importedGroup = "",
+  selectedRewardIds = [],
+}) {
+  const normalizedPhone = normalizePhone(phone);
+  if (!isValidVietnamesePhone(normalizedPhone)) {
+    throw publicError("Số điện thoại không hợp lệ", 400);
+  }
+  const cleanName = String(name || "").trim();
+  if (!cleanName) {
+    throw publicError("Tên khách hàng là bắt buộc", 400);
+  }
+
+  const custId = await findOrCreateCustomer({ db, row: { name: cleanName, phone: normalizedPhone }, importMode: "quota" });
+  await db.from("customers").update({ name: cleanName }).eq("id", custId);
+
+  if (groupId) {
+    await db.from("customer_group_members").upsert(
+      { group_id: groupId, customer_id: custId },
+      { onConflict: "group_id,customer_id" }
+    );
+  }
+
+  const rewardIds = Array.isArray(selectedRewardIds) ? selectedRewardIds.filter(Boolean) : [];
+  if (rewardIds.length > 0) {
+    const { data: rewardRows } = await db
+      .from("reward_catalog")
+      .select("id,code_prefix,title,value,description,wheel_label,symbol")
+      .in("id", rewardIds);
+
+    if (rewardRows && rewardRows.length > 0) {
+      const assignments = rewardRows.map((reward) => ({
+        campaign_id: campaignId,
+        customer_id: custId,
+        code: `${reward.code_prefix}_${Date.now().toString(36).toUpperCase()}_${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+        title: reward.title,
+        value: Number(reward.value),
+        description: reward.description || "",
+        wheel_label: reward.wheel_label,
+        result: ["star", "star", "star"],
+      }));
+      await db.from("customer_rewards").insert(assignments);
+    }
+  }
+
+  const effectiveQuota = Math.max(Number(spinQuota || 1), rewardIds.length);
+  const cleanGroup = String(groupName || importedGroup || "").trim();
+  const cleanNote = String(note || "").trim();
+
+  const record = {
+    campaign_id: campaignId,
+    customer_id: custId,
+    spin_quota: effectiveQuota,
+    status: status && ["active", "paused", "removed"].includes(status) ? status : "active",
+    imported_group: cleanGroup || null,
+    note: cleanNote || null,
+    registration_source: "admin",
+  };
+
+  const { data, error } = await db
+    .from("campaign_participants")
+    .upsert(record, { onConflict: "campaign_id,customer_id" })
+    .select("id,campaign_id,customer_id,status,spin_quota,imported_group,note,registration_source,created_at")
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCampaignParticipant({ db, campaignId, customerId }) {
+  const { error } = await db
+    .from("campaign_participants")
+    .delete()
+    .eq("campaign_id", campaignId)
+    .eq("customer_id", customerId);
+
+  if (error) throw error;
+  return { success: true };
+}
+
+export async function updateParticipantQuotaStatus({
+  db,
+  campaignId,
+  customerId,
+  status,
+  spinQuota,
+  name,
+  groupName,
+  groupId,
+  note,
+  importedGroup,
+  selectedRewardIds,
+}) {
   let participant = await ensureCampaignParticipant({ db, campaignId, customerId, registrationSource: "admin" });
+
+  if (name && name.trim()) {
+    await db.from("customers").update({ name: name.trim() }).eq("id", customerId);
+  }
+
+  if (groupId !== undefined) {
+    if (groupId) {
+      await db.from("customer_group_members").upsert(
+        { group_id: groupId, customer_id: customerId },
+        { onConflict: "group_id,customer_id" }
+      );
+    }
+  }
 
   const patch = {};
   if (status && ["active", "paused", "removed"].includes(status)) patch.status = status;
   if (spinQuota !== undefined) patch.spin_quota = Math.max(0, Number(spinQuota));
+
+  if (Array.isArray(selectedRewardIds)) {
+    const rewardIds = selectedRewardIds.filter(Boolean);
+    await db
+      .from("customer_rewards")
+      .delete()
+      .eq("campaign_id", campaignId)
+      .eq("customer_id", customerId);
+
+    if (rewardIds.length > 0) {
+      const { data: rewardRows } = await db
+        .from("reward_catalog")
+        .select("id,code_prefix,title,value,description,wheel_label")
+        .in("id", rewardIds);
+
+      if (rewardRows && rewardRows.length > 0) {
+        const assignments = rewardRows.map((reward) => ({
+          campaign_id: campaignId,
+          customer_id: customerId,
+          code: `${reward.code_prefix}_${Date.now().toString(36).toUpperCase()}_${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+          title: reward.title,
+          value: Number(reward.value),
+          description: reward.description || "",
+          wheel_label: reward.wheel_label,
+          result: ["star", "star", "star"],
+        }));
+        await db.from("customer_rewards").insert(assignments);
+      }
+    }
+    const currentQuota = spinQuota !== undefined ? Number(spinQuota) : Number(participant.spin_quota || 0);
+    patch.spin_quota = Math.max(currentQuota, rewardIds.length);
+  }
+
+  const cleanGroup = groupName !== undefined ? groupName : importedGroup;
+  if (cleanGroup !== undefined) patch.imported_group = String(cleanGroup || "").trim() || null;
+  if (note !== undefined) patch.note = String(note || "").trim() || null;
 
   const { data, error } = await db
     .from("campaign_participants")
     .update(patch)
     .eq("campaign_id", campaignId)
     .eq("customer_id", customerId)
-    .select("id,campaign_id,customer_id,status,spin_quota,imported_group,registration_source,created_at")
+    .select("id,campaign_id,customer_id,status,spin_quota,imported_group,note,registration_source,created_at")
     .single();
 
   if (error) throw error;

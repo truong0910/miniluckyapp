@@ -15,9 +15,15 @@ function parseResponseBody(response) {
   });
 }
 
-export function buildGoogleSheetsPayload({ spin, customer, award, campaign }) {
+export function buildGoogleSheetsPayload({ spin, customer, award, campaign, rewardCatalog }) {
   const reward = spin?.reward && typeof spin.reward === "object" ? spin.reward : null;
-  const outcome = String(spin?.outcome || "better_luck");
+  const isAwardWinner = Boolean(award?.id || spin?.outcome === "reward");
+  const outcome = isAwardWinner ? "reward" : "better_luck";
+
+  const title = award?.title_snapshot || reward?.title || (isAwardWinner ? "Voucher quà tặng" : "May Mắn Lần Sau");
+  const value = award?.value_snapshot != null ? Number(award.value_snapshot) : (reward?.value != null ? Number(reward.value) : 0);
+  const code = award?.code || reward?.code || "N/A";
+  const applicableProducts = rewardCatalog?.applicable_products || reward?.applicableProducts || (isAwardWinner ? "Tất cả sản phẩm Kính Hồng Phúc" : "");
 
   return {
     spinId: String(spin?.spinId || ""),
@@ -29,9 +35,10 @@ export function buildGoogleSheetsPayload({ spin, customer, award, campaign }) {
     customerName: String(customer?.name || "Khách hàng"),
     phone: String(customer?.phone || ""),
     outcome,
-    rewardValue: reward ? Number(reward.value || 0) : 0,
-    rewardTitle: String(reward?.title || "May Mắn Lần Sau"),
-    rewardCode: String(reward?.code || "N/A"),
+    rewardValue: value,
+    rewardTitle: title,
+    applicableProducts: applicableProducts,
+    rewardCode: code,
     status: String(award?.status || (outcome === "reward" ? "issued" : "")),
     deliveredAt: award?.delivered_at || null,
     redeemedAt: award?.redeemed_at || null,
@@ -48,10 +55,21 @@ export async function loadGoogleSheetsSyncContext({ db, spin, customerId }) {
 
   const awardResult = await db
     .from("awards")
-    .select("id,status,delivered_at,redeemed_at,campaign_id")
+    .select("id,reward_id,status,delivered_at,redeemed_at,campaign_id,title_snapshot,value_snapshot,code")
     .eq("spin_event_id", spin.spinId)
     .maybeSingle();
   if (awardResult.error) throw awardResult.error;
+
+  let rewardCatalog = null;
+  const rewardId = awardResult.data?.reward_id || spin?.reward?.id || spin?.rewardId;
+  if (rewardId) {
+    const catalogResult = await db
+      .from("reward_catalog")
+      .select("applicable_products")
+      .eq("id", rewardId)
+      .maybeSingle();
+    if (!catalogResult.error) rewardCatalog = catalogResult.data;
+  }
 
   let campaign = null;
   const campaignId = awardResult.data?.campaign_id || spin?.campaignId || spin?.campaign_id;
@@ -64,7 +82,7 @@ export async function loadGoogleSheetsSyncContext({ db, spin, customerId }) {
     if (!campaignResult.error) campaign = campaignResult.data;
   }
 
-  return { customer: customerResult.data, award: awardResult.data, campaign };
+  return { customer: customerResult.data, award: awardResult.data, campaign, rewardCatalog };
 }
 
 export async function postSpinToGoogleSheets({ payload, webhookUrl, webhookSecret = "", fetchImpl = fetch, timeoutMs = 5000 }) {
@@ -105,8 +123,8 @@ export async function postSpinToGoogleSheets({ payload, webhookUrl, webhookSecre
 
 export async function syncSpinToGoogleSheets({ db, spin, customerId, config, fetchImpl = fetch }) {
   if (!String(config?.googleSheetsWebhookUrl || "").trim()) return { status: "disabled" };
-  const { customer, award, campaign } = await loadGoogleSheetsSyncContext({ db, spin, customerId });
-  const payload = buildGoogleSheetsPayload({ spin, customer, award, campaign });
+  const { customer, award, campaign, rewardCatalog } = await loadGoogleSheetsSyncContext({ db, spin, customerId });
+  const payload = buildGoogleSheetsPayload({ spin, customer, award, campaign, rewardCatalog });
   return postSpinToGoogleSheets({
     payload,
     webhookUrl: config.googleSheetsWebhookUrl,

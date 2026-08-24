@@ -396,11 +396,11 @@ export default function SlotMachine() {
             </div>
 
             {/* REWARD OR CLOVER DISPLAY */}
-            {activeSpinResult.outcome === "reward" && activeSpinResult.reward ? (
+            {activeSpinResult.outcome === "reward" ? (
               <div className="w-full">
                 <VoucherCard
-                  title={activeSpinResult.reward.title}
-                  expiresAt={activeSpinResult.reward.expiresAt}
+                  title={activeSpinResult.reward?.title || "Voucher quà tặng"}
+                  expiresAt={activeSpinResult.reward?.expiresAt}
                 />
 
                 {/* ZNS DELIVERY STATUS */}

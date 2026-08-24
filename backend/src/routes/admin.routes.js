@@ -14,7 +14,11 @@ import {
   updateCampaign,
 } from "../campaign-service.js";
 import {
+  checkImportCampaignParticipants,
+  clearCustomerPreassignedRewards,
   cloneCampaign,
+  createManualCampaignParticipant,
+  deleteCampaignParticipant,
   ensureCampaignParticipant,
   getParticipantDetail,
   getParticipantPlannedRewards,
@@ -126,7 +130,7 @@ router.delete("/banners/:id", requireAdmin, asyncRoute(async (req, res) => {
 }));
 
 router.get("/rewards", requireAdmin, asyncRoute(async (_req, res) => {
-  const { data, error } = await supabase.from("reward_catalog").select("id,code_prefix,title,value,description,wheel_label,symbol,active").order("value", { ascending: false });
+  const { data, error } = await supabase.from("reward_catalog").select("id,code_prefix,title,value,description,wheel_label,symbol,active,applicable_products,discount_rate").order("value", { ascending: false });
   if (error) throw error;
   res.json({ items: (data || []).map(mapReward) });
 }));
@@ -135,8 +139,19 @@ router.post("/rewards", requireAdmin, asyncRoute(async (req, res) => {
   const body = req.body || {};
   const value = Number(body.value || 0);
   if (!body.title || !body.codePrefix || value <= 0) throw publicError("Tên, mã và giá trị quà là bắt buộc");
-  const record = { id: String(body.id || `reward-${crypto.randomUUID()}`), code_prefix: String(body.codePrefix).trim().toUpperCase(), title: String(body.title).trim(), value, description: String(body.description || ""), wheel_label: String(body.wheelLabel || `${value.toLocaleString("vi-VN")}đ`), symbol: String(body.symbol || "star"), active: body.active !== false };
-  const { data, error } = await supabase.from("reward_catalog").upsert(record).select("id,code_prefix,title,value,description,wheel_label,symbol,active").single();
+  const record = {
+    id: String(body.id || `reward-${crypto.randomUUID()}`),
+    code_prefix: String(body.codePrefix).trim().toUpperCase(),
+    title: String(body.title).trim(),
+    value,
+    description: String(body.description || ""),
+    wheel_label: String(body.wheelLabel || `${value.toLocaleString("vi-VN")}đ`),
+    symbol: String(body.symbol || "star"),
+    active: body.active !== false,
+    applicable_products: String(body.applicableProducts || body.description || "Tất cả sản phẩm Kính Hồng Phúc").trim(),
+    discount_rate: String(body.discountRate || "100").trim(),
+  };
+  const { data, error } = await supabase.from("reward_catalog").upsert(record).select("id,code_prefix,title,value,description,wheel_label,symbol,active,applicable_products,discount_rate").single();
   if (error) throw error;
   res.status(201).json(mapReward(data));
 }));
@@ -145,8 +160,18 @@ router.put("/rewards/:id", requireAdmin, asyncRoute(async (req, res) => {
   const body = req.body || {};
   const value = Number(body.value || 0);
   if (!body.title || !body.codePrefix || value <= 0) throw publicError("Tên, mã và giá trị quà là bắt buộc");
-  const record = { code_prefix: String(body.codePrefix).trim().toUpperCase(), title: String(body.title).trim(), value, description: String(body.description || ""), wheel_label: String(body.wheelLabel || `${value.toLocaleString("vi-VN")}đ`), symbol: String(body.symbol || "star"), active: body.active !== false };
-  const { data, error } = await supabase.from("reward_catalog").update(record).eq("id", req.params.id).select("id,code_prefix,title,value,description,wheel_label,symbol,active").single();
+  const record = {
+    code_prefix: String(body.codePrefix).trim().toUpperCase(),
+    title: String(body.title).trim(),
+    value,
+    description: String(body.description || ""),
+    wheel_label: String(body.wheelLabel || `${value.toLocaleString("vi-VN")}đ`),
+    symbol: String(body.symbol || "star"),
+    active: body.active !== false,
+    applicable_products: String(body.applicableProducts || body.description || "Tất cả sản phẩm Kính Hồng Phúc").trim(),
+    discount_rate: String(body.discountRate || "100").trim(),
+  };
+  const { data, error } = await supabase.from("reward_catalog").update(record).eq("id", req.params.id).select("id,code_prefix,title,value,description,wheel_label,symbol,active,applicable_products,discount_rate").single();
   if (error) throw error;
   res.json(mapReward(data));
 }));
@@ -199,7 +224,9 @@ router.post("/customers", requireAdmin, asyncRoute(async (req, res) => {
   const body = req.body || {};
   const phone = normalizePhone(body.phone);
   if (!/^0(3|5|7|8|9)\d{8}$/.test(phone)) throw publicError("Số điện thoại không hợp lệ");
-  const id = String(body.id || `customer-${phone}`);
+
+  const { data: existingCust } = await supabase.from("customers").select("id").eq("phone", phone).maybeSingle();
+  const id = existingCust?.id || String(body.id || `customer-${phone}`);
   const record = { id, phone, name: String(body.name || `Khách hàng ${phone}`).trim(), sex: body.sex || "other", job: body.job || "other", total_spins: Math.max(0, Number(body.totalSpins || 0)), deleted_at: null };
   const { error } = await supabase.from("customers").upsert(record);
   if (error) throw error;
@@ -346,14 +373,42 @@ router.post("/campaigns/:id/participants", requireAdmin, asyncRoute(async (req, 
   res.json(result);
 }));
 
-router.post("/campaigns/:id/participants/import", requireAdmin, asyncRoute(async (req, res) => {
-  const result = await importCampaignParticipants({
+router.post("/campaigns/:id/participants/check-import", requireAdmin, asyncRoute(async (req, res) => {
+  const result = await checkImportCampaignParticipants({
     db: supabase,
     campaignId: req.params.id,
     rows: Array.isArray(req.body?.rows) ? req.body.rows : [],
     importMode: req.body?.importMode || "voucher",
   });
   res.json(result);
+}));
+
+router.post("/campaigns/:id/participants/import", requireAdmin, asyncRoute(async (req, res) => {
+  const result = await importCampaignParticipants({
+    db: supabase,
+    campaignId: req.params.id,
+    rows: Array.isArray(req.body?.rows) ? req.body.rows : [],
+    importMode: req.body?.importMode || "voucher",
+    rowActions: req.body?.rowActions || {},
+    duplicateMode: req.body?.duplicateMode || "skip",
+  });
+  res.json(result);
+}));
+
+router.post("/campaigns/:id/participants/manual", requireAdmin, asyncRoute(async (req, res) => {
+  const item = await createManualCampaignParticipant({
+    db: supabase,
+    campaignId: req.params.id,
+    name: req.body?.name,
+    phone: req.body?.phone,
+    spinQuota: req.body?.spinQuota,
+    status: req.body?.status,
+    groupName: req.body?.groupName || req.body?.importedGroup || "",
+    groupId: req.body?.groupId || null,
+    note: req.body?.note || "",
+    selectedRewardIds: Array.isArray(req.body?.selectedRewardIds) ? req.body.selectedRewardIds : [],
+  });
+  res.status(201).json(item);
 }));
 
 router.get("/campaigns/:campaignId/participants/:customerId", requireAdmin, asyncRoute(async (req, res) => {
@@ -372,8 +427,31 @@ router.put("/campaigns/:campaignId/participants/:customerId", requireAdmin, asyn
     customerId: req.params.customerId,
     status: req.body?.status,
     spinQuota: req.body?.spinQuota,
+    name: req.body?.name,
+    groupName: req.body?.groupName || req.body?.importedGroup || "",
+    groupId: req.body?.groupId || null,
+    note: req.body?.note || "",
+    selectedRewardIds: req.body?.selectedRewardIds,
   });
   res.json(item);
+}));
+
+router.delete("/campaigns/:campaignId/participants/:customerId/rewards", requireAdmin, asyncRoute(async (req, res) => {
+  const result = await clearCustomerPreassignedRewards({
+    db: supabase,
+    campaignId: req.params.campaignId,
+    customerId: req.params.customerId,
+  });
+  res.json(result);
+}));
+
+router.delete("/campaigns/:campaignId/participants/:customerId", requireAdmin, asyncRoute(async (req, res) => {
+  const result = await deleteCampaignParticipant({
+    db: supabase,
+    campaignId: req.params.campaignId,
+    customerId: req.params.customerId,
+  });
+  res.json(result);
 }));
 
 router.get("/campaigns/:campaignId/participants/:customerId/rewards", requireAdmin, asyncRoute(async (req, res) => {
@@ -461,6 +539,11 @@ router.get("/campaigns/:id/export", requireAdmin, asyncRoute(async (req, res) =>
 }));
 
 router.get("/groups", requireAdmin, asyncRoute(async (req, res) => {
+  const result = await listGroups({ db: supabase, search: req.query.search || "" });
+  res.json(result);
+}));
+
+router.get("/customer-groups", requireAdmin, asyncRoute(async (req, res) => {
   const result = await listGroups({ db: supabase, search: req.query.search || "" });
   res.json(result);
 }));
@@ -763,6 +846,70 @@ router.get("/awards", requireAdmin, asyncRoute(async (req, res) => {
     total: count || 0,
     hasMore: start + items.length < (count || 0),
   });
+}));
+
+router.get("/system-config", requireAdmin, asyncRoute(async (_req, res) => {
+  const { data, error } = await supabase
+    .from("program_settings")
+    .select("value")
+    .eq("key", "system_env_config")
+    .maybeSingle();
+  if (error) throw error;
+
+  const saved = data?.value || {};
+  res.json({
+    appEnv: saved.appEnv || config.appEnv || "development",
+    participantAuthMode: saved.participantAuthMode || config.participantAuthMode || "preview",
+    adminAuthMode: saved.adminAuthMode || config.adminAuthMode || "development",
+    apiBaseUrl: saved.apiBaseUrl || process.env.VITE_API_BASE_URL || "http://localhost:8787/api/v1",
+    zaloAppSecret: saved.zaloAppSecret ? "*****" : (process.env.ZALO_APP_SECRET ? "*****" : ""),
+    zaloOaId: saved.zaloOaId || process.env.VITE_ZALO_OA_ID || "",
+    zbsApiKey: saved.zbsApiKey ? "*****" : (process.env.ZBS_API_KEY ? "*****" : ""),
+    zbsTemplateId: saved.zbsTemplateId || process.env.ZBS_TEMPLATE_ID || "",
+    googleSheetsWebhookUrl: saved.googleSheetsWebhookUrl || process.env.GOOGLE_SHEETS_WEBHOOK_URL || "",
+    allowUnlisted: saved.allowUnlisted ?? false,
+    unlistedSpinQuota: saved.unlistedSpinQuota ?? 1,
+    oaRequired: saved.oaRequired ?? false,
+  });
+}));
+
+router.put("/system-config", requireAdmin, asyncRoute(async (req, res) => {
+  const input = req.body || {};
+  const { data: currentSetting } = await supabase
+    .from("program_settings")
+    .select("value")
+    .eq("key", "system_env_config")
+    .maybeSingle();
+
+  const prevValue = currentSetting?.value || {};
+  const newValue = {
+    ...prevValue,
+    appEnv: input.appEnv || "development",
+    participantAuthMode: input.participantAuthMode || "preview",
+    adminAuthMode: input.adminAuthMode || "development",
+    apiBaseUrl: input.apiBaseUrl || "http://localhost:8787/api/v1",
+    zaloOaId: input.zaloOaId || "",
+    zbsTemplateId: input.zbsTemplateId || "",
+    googleSheetsWebhookUrl: input.googleSheetsWebhookUrl || "",
+    allowUnlisted: Boolean(input.allowUnlisted),
+    unlistedSpinQuota: Math.max(0, Number(input.unlistedSpinQuota || 1)),
+    oaRequired: Boolean(input.oaRequired),
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (input.zaloAppSecret && input.zaloAppSecret !== "*****") {
+    newValue.zaloAppSecret = input.zaloAppSecret;
+  }
+  if (input.zbsApiKey && input.zbsApiKey !== "*****") {
+    newValue.zbsApiKey = input.zbsApiKey;
+  }
+
+  const { error } = await supabase
+    .from("program_settings")
+    .upsert({ key: "system_env_config", value: newValue });
+
+  if (error) throw error;
+  res.json({ success: true, config: newValue });
 }));
 
 export default router;

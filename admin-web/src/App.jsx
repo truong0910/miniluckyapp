@@ -7,7 +7,7 @@ import UiAlert from "./components/common/UiAlert.jsx";
 import ConfirmModal from "./components/common/ConfirmModal.jsx";
 import LogoImg from "./assets/logo.png";
 
-const EMPTY_REWARD = { codePrefix: "", title: "", value: "", description: "", wheelLabel: "", symbol: "star", active: true };
+const EMPTY_REWARD = { codePrefix: "", title: "", value: "", description: "", wheelLabel: "", symbol: "star", active: true, applicableProducts: "", discountRate: "100" };
 const EMPTY_BANNER = { title: "", imageUrl: "", linkUrl: "", active: true, order: 0 };
 const EMPTY_CAMPAIGN = { code: "", name: "", startsAt: "", endsAt: "", timezone: "Asia/Ho_Chi_Minh", allowUnlisted: false, unlistedSpinQuota: 1 };
 
@@ -71,10 +71,11 @@ function Shell({ tab, setTab, onLogout, children }) {
             ["groups", "Nhóm khách"],
             ["banners", "Banner"],
             ["rewards", "Giải thưởng"],
-            ["customers", "Khách hàng"],
+            // ["customers", "Khách hàng"],
             ["awards", "Kho Voucher"],
             ["campaign", "Luật quay"],
             ["rules", "Thể lệ"],
+            ["settings", "Môi trường (Env)"],
           ].map(([id, label]) => (
             <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>
               {label}
@@ -90,14 +91,234 @@ function Shell({ tab, setTab, onLogout, children }) {
   );
 }
 
-function Header({ title, subtitle }) {
-  return (
-    <header className="page-header">
+const PAGE_HELP_DATA = {
+  overview: {
+    title: "Tổng quan Báo cáo Dashboard",
+    content: (
       <div>
-        <div className="eyebrow">HỒNG PHÚC GLASS · HỆ THỐNG QUẢN TRỊ</div>
-        <h1>{title}</h1>
-        <p>{subtitle}</p>
+        <p style={{ fontSize: "13px", color: "#475569", lineHeight: "1.6" }}>
+          Trang Tổng quan cung cấp bức tranh toàn cảnh về hiệu quả sự kiện và thống kê phát thưởng theo thời gian thực:
+        </p>
+        <ul style={{ fontSize: "12px", color: "#1e293b", lineHeight: "1.7", margin: "8px 0", paddingLeft: "20px" }}>
+          <li><strong>Lượt quay đã dùng:</strong> Tổng số lượt quay khách hàng đã thực hiện trên Zalo Mini App.</li>
+          <li><strong>Voucher trúng:</strong> Tổng số phần quà/voucher đã phát ra (gồm cả Voucher cấp sẵn & lượt quay trúng quà).</li>
+          <li><strong>Voucher đã đổi:</strong> Số lượng voucher khách đã mang tới Showroom quy đổi thành công.</li>
+          <li><strong>Trạng thái Hệ thống:</strong> Tình trạng kết nối Zalo OA, đồng bộ dữ liệu Realtime về Google Sheets.</li>
+        </ul>
       </div>
+    ),
+  },
+  campaigns: {
+    title: "Quản lý Sự kiện (Campaigns)",
+    content: (
+      <div>
+        <p style={{ fontSize: "13px", color: "#475569", lineHeight: "1.6" }}>
+          Sự kiện là chương trình Vòng quay may mắn tổng thể. Bạn có thể tạo nhiều sự kiện nhưng <strong>chỉ có ĐÚNG 1 SỰ KIỆN KÍCH HOẠT (Active)</strong> chạy công khai trên Mini App tại một thời điểm:
+        </p>
+        <ul style={{ fontSize: "12px", color: "#1e293b", lineHeight: "1.7", margin: "8px 0", paddingLeft: "20px" }}>
+          <li><code>Draft</code>: Sự kiện nháp, đang chuẩn bị cấu hình.</li>
+          <li><code>Active</code>: Sự kiện duy nhất đang công khai cho khách quay trên Zalo Mini App.</li>
+          <li><code>Paused</code>: Tạm ngưng sự kiện.</li>
+          <li><code>Ended / Archived</code>: Đã kết thúc và lưu trữ lịch sử.</li>
+        </ul>
+        <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", padding: "10px", borderRadius: "8px", fontSize: "12px", color: "#166534", marginTop: "8px" }}>
+          <strong>Nhân bản (Clone):</strong> Cho phép copy nhanh danh mục quà & luật quay từ sự kiện cũ sang sự kiện mới.
+        </div>
+      </div>
+    ),
+  },
+  participants: {
+    title: "Khách sự kiện & Quy tắc Ưu tiên Phát quà",
+    content: (
+      <div>
+        <div style={{ background: "#fff7ed", border: "1.5px solid #fdba74", padding: "12px", borderRadius: "8px", marginBottom: "12px" }}>
+          <strong style={{ color: "#c2410c", fontSize: "13px", display: "block", marginBottom: "6px" }}>
+            QUY TẮC & THỨ TỰ ƯU TIÊN PHÁT QUÀ (RẤT QUAN TRỌNG):
+          </strong>
+          <ol style={{ fontSize: "12px", color: "#431407", lineHeight: "1.7", margin: 0, paddingLeft: "18px" }}>
+            <li>
+              <strong>CẤP 1 — VOUCHER CẤP SẴN:</strong> Nếu khách được cấp sẵn Voucher (qua Import Excel hoặc Thêm/Sửa thủ công), hệ thống <strong>ƯU TIÊN TRẢ NGAY VOUCHER ĐÓ (100% TRÚNG)</strong> cho đến khi hết Voucher cấp sẵn. Lượt này <em>không tính xác suất ngẫu nhiên</em>.
+            </li>
+            <li>
+              <strong>CẤP 2 — LUẬT QUAY (SPIN RULES):</strong> Khi quay hết Voucher cấp sẵn, các lượt sau sẽ tự động chạy theo <strong>% Xác suất trúng & Hạn mức</strong> cấu hình ở <em>Luật quay</em>.
+            </li>
+          </ol>
+        </div>
+        <p style={{ fontSize: "13px", color: "#475569", lineHeight: "1.6" }}>
+          <strong>Tính năng chính:</strong>
+        </p>
+        <ul style={{ fontSize: "12px", color: "#1e293b", lineHeight: "1.7", margin: "4px 0", paddingLeft: "20px" }}>
+          <li><strong>+ Thêm thủ công:</strong> Nhập tên, SĐT, chọn Nhóm và tích chọn trực tiếp các Voucher cấp sẵn.</li>
+          <li><strong>Import Excel:</strong> Kiểm tra trùng SĐT toàn hệ thống, hiển thị Modal so sánh tên và cho chọn <code>🛡️ Bỏ qua</code> hoặc <code>➕ Cộng dồn</code> cho từng khách.</li>
+          <li><strong>+ Quà / Xóa quà:</strong> Cấp bổ sung hoặc xóa bớt Voucher trùng lỡ import nhiều lần.</li>
+        </ul>
+      </div>
+    ),
+  },
+  groups: {
+    title: "Nhóm khách hàng (Customer Groups)",
+    content: (
+      <div>
+        <p style={{ fontSize: "13px", color: "#475569", lineHeight: "1.6" }}>
+          Nhóm khách hàng giúp phân loại đối tượng tham gia sự kiện (Ví dụ: Khách Đại lý VIP, Khách mua hàng Showroom, Khách Vãng lai):
+        </p>
+        <ul style={{ fontSize: "12px", color: "#1e293b", lineHeight: "1.7", margin: "8px 0", paddingLeft: "20px" }}>
+          <li><strong>Phân nhóm linh hoạt:</strong> 1 Khách hàng có thể thuộc một hoặc nhiều Nhóm.</li>
+          <li><strong>Gắn Luật quay đặc thù:</strong> Mỗi nhóm có thể được áp dụng một <em>Luật quay riêng</em> (Ví dụ: Khách VIP có tỷ lệ trúng Voucher giá trị cao hơn).</li>
+        </ul>
+      </div>
+    ),
+  },
+  banners: {
+    title: "Quản lý Banner truyền thông",
+    content: (
+      <div>
+        <p style={{ fontSize: "13px", color: "#475569", lineHeight: "1.6" }}>
+          Quản lý các hình ảnh Banner truyền thông hiển thị slider ở đầu trang chủ Zalo Mini App:
+        </p>
+        <ul style={{ fontSize: "12px", color: "#1e293b", lineHeight: "1.7", margin: "8px 0", paddingLeft: "20px" }}>
+          <li><strong>Tải file ảnh:</strong> Tải trực tiếp file ảnh từ máy tính (tối đa 8MB) hoặc dán đường dẫn URL.</li>
+          <li><strong>Link liên kết:</strong> Dán link đường dẫn để khi khách bấm vào Banner sẽ chuyển tiếp tới trang sản phẩm / website.</li>
+        </ul>
+      </div>
+    ),
+  },
+  rewards: {
+    title: "Quản lý Giải thưởng (Reward Catalog)",
+    content: (
+      <div>
+        <p style={{ fontSize: "13px", color: "#475569", lineHeight: "1.6" }}>
+          Khai báo cơ cấu danh mục phần quà trong chương trình Vòng quay may mắn (`reward_catalog`):
+        </p>
+        <ul style={{ fontSize: "12px", color: "#1e293b", lineHeight: "1.7", margin: "8px 0", paddingLeft: "20px" }}>
+          <li><strong>Tên quà & Mệnh giá:</strong> Tên hiển thị trên vòng quay & Giá trị niêm yết (VNĐ).</li>
+          <li><strong>Mã tiền tố (Code Prefix):</strong> Mã sinh tiền tố khi khách trúng quà (Ví dụ: <code>VOUCHER_10M</code>).</li>
+          <li><strong>Sản phẩm áp dụng:</strong> Khai báo dòng sản phẩm được áp dụng voucher (Ví dụ: <em>Kính cường lực Hồng Phúc</em>).</li>
+        </ul>
+      </div>
+    ),
+  },
+  awards: {
+    title: "Kho Voucher & Vận hành Awards",
+    content: (
+      <div>
+        <p style={{ fontSize: "13px", color: "#475569", lineHeight: "1.6" }}>
+          Quản lý kho Voucher thực tế và theo dõi vòng đời sử dụng quà của khách hàng:
+        </p>
+        <ul style={{ fontSize: "12px", color: "#1e293b", lineHeight: "1.7", margin: "8px 0", paddingLeft: "20px" }}>
+          <li><code>Issued</code>: Voucher đã cấp/phát thành công cho khách.</li>
+          <li><code>Delivered</code>: Đã gửi thông báo thành công qua ZNS / Zalo.</li>
+          <li><code>Redeemed</code>: Khách đã đưa mã Voucher tới showroom quy đổi thành công.</li>
+          <li><strong>Thao tác:</strong> Đổi trạng thái sang Redeemed, Hủy mã, hoặc Gửi lại tin nhắn ZNS.</li>
+        </ul>
+      </div>
+    ),
+  },
+  rules: {
+    title: "Cấu hình Luật quay (Spin Rules)",
+    content: (
+      <div>
+        <div style={{ background: "#fff7ed", border: "1.5px solid #fdba74", padding: "10px", borderRadius: "8px", marginBottom: "10px", fontSize: "12px", color: "#431407" }}>
+          ⚡ <strong>Lưu ý:</strong> Luật quay % xác suất chỉ áp dụng sau khi khách <strong>đã quay hết tất cả Voucher cấp sẵn</strong> (hoặc khách không có Voucher cấp sẵn).
+        </div>
+        <p style={{ fontSize: "13px", color: "#475569", lineHeight: "1.6" }}>
+          Cấu hình tỷ lệ % xác suất trúng và các hạn mức kiểm soát rủi ro ngân sách:
+        </p>
+        <ul style={{ fontSize: "12px", color: "#1e293b", lineHeight: "1.7", margin: "8px 0", paddingLeft: "20px" }}>
+          <li><strong>Tỷ lệ % Xác suất (`win_rate`):</strong> Phần trăm cơ hội trúng quà của từng giải thưởng.</li>
+          <li><strong>Hạn mức Ngày (`daily_limit`):</strong> Số lượng quà phát ra tối đa trong 1 ngày.</li>
+          <li><strong>Hạn mức Tổng (`total_limit`):</strong> Tổng số quà phát ra trong suốt chiến dịch.</li>
+        </ul>
+      </div>
+    ),
+  },
+  settings: {
+    title: "Cấu hình Môi trường (System & Env)",
+    content: (
+      <div>
+        <p style={{ fontSize: "13px", color: "#475569", lineHeight: "1.6" }}>
+          Quản lý cấu hình biến môi trường kết nối hệ thống Backend, Zalo Mini App và dịch vụ bên thứ ba:
+        </p>
+        <ul style={{ fontSize: "12px", color: "#1e293b", lineHeight: "1.7", margin: "8px 0", paddingLeft: "20px" }}>
+          <li><strong>Môi trường:</strong> Chuyển đổi giữa <code>development</code> (local test) và <code>production</code>.</li>
+          <li><strong>Zalo App & OA & ZNS:</strong> Khai báo App Secret, Official Account ID và Mẫu tin ZNS gửi quà.</li>
+          <li><strong>Google Sheets Webhook:</strong> Dán Webhook URL để tự động ghi log dữ liệu realtime về Google Sheets.</li>
+        </ul>
+      </div>
+    ),
+  },
+};
+
+function Header({ title, subtitle, helpTopic }) {
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const helpInfo = helpTopic ? PAGE_HELP_DATA[helpTopic] : null;
+
+  return (
+    <header className="page-header" style={{ position: "relative" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <div className="eyebrow">HỒNG PHÚC GLASS · HỆ THỐNG QUẢN TRỊ</div>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "2px" }}>
+            <h1 style={{ margin: 0 }}>{title}</h1>
+            {helpInfo && (
+              <button
+                type="button"
+                className="help-icon-btn"
+                title="Bấm để xem hướng dẫn sử dụng cho trang này"
+                style={{
+                  background: "#ea580c",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: "28px",
+                  height: "28px",
+                  fontSize: "14px",
+                  fontWeight: "800",
+                  cursor: "pointer",
+                  display: "inline-grid",
+                  placeItems: "center",
+                  boxShadow: "0 2px 6px rgba(234, 88, 12, 0.4)",
+                  transition: "transform 0.15s ease",
+                  flexShrink: 0,
+                }}
+                onClick={() => setShowHelpModal(true)}
+              >
+                ?
+              </button>
+            )}
+          </div>
+          <p>{subtitle}</p>
+        </div>
+      </div>
+
+      {/* PAGE SPECIFIC HELP MODAL */}
+      {showHelpModal && helpInfo && (
+        <div className="modal-overlay" onClick={() => setShowHelpModal(false)}>
+          <div
+            className="modal-container"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "600px", maxHeight: "85vh", overflowY: "auto" }}
+          >
+            <div className="modal-header" style={{ background: "#fff7ed", borderBottom: "1px solid #fdba74" }}>
+              <h3 className="modal-title" style={{ color: "#c2410c", display: "flex", alignItems: "center", gap: "8px" }}>
+                <span>❓ Hướng dẫn sử dụng:</span>
+                <span>{helpInfo.title}</span>
+              </h3>
+              <button type="button" className="modal-close-btn" onClick={() => setShowHelpModal(false)}>
+                &times;
+              </button>
+            </div>
+            <div className="modal-body" style={{ padding: "20px", display: "grid", gap: "14px" }}>
+              {helpInfo.content}
+            </div>
+            <div className="modal-footer" style={{ background: "#f8fafc", padding: "12px 20px" }}>
+              <button type="button" className="primary" onClick={() => setShowHelpModal(false)}>
+                Đã hiểu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
@@ -137,7 +358,7 @@ function Overview() {
 
   return (
     <>
-      <Header title="Tổng quan Báo cáo (Dashboard)" subtitle="Theo dõi chỉ số hiệu quả sự kiện và thống kê phát thưởng real-time." />
+      <Header helpTopic="overview" title="Tổng quan Báo cáo (Dashboard)" subtitle="Theo dõi chỉ số hiệu quả sự kiện và thống kê phát thưởng real-time." />
       {error && <div className="error">{error}</div>}
       <section className="panel">
         <div className="panel-heading">
@@ -326,7 +547,7 @@ function Campaigns() {
 
   return (
     <>
-      <Header title="Quản lý Sự kiện (Campaigns)" subtitle="Tạo mới, nhân bản, thiết lập và chuyển đổi trạng thái vòng đời của từng sự kiện quay thưởng." />
+      <Header helpTopic="campaigns" title="Quản lý Sự kiện (Campaigns)" subtitle="Tạo mới, nhân bản, thiết lập và chuyển đổi trạng thái vòng đời của từng sự kiện quay thưởng." />
       {error && <div className="error">{error}</div>}
       <div className="split">
         <form className="panel form" onSubmit={save}>
@@ -407,9 +628,11 @@ function Campaigns() {
                 </div>
                 <div className="actions" style={{ flexWrap: "wrap" }}>
                   <button onClick={() => { setCloning(item); setCloneForm({ code: `${item.code}_COPY`, name: `${item.name} (Copy)`, cloneMode: "config_only" }); }}>Nhân bản</button>
+                  {item.status !== "archived" && (
+                    <button onClick={() => { setEditing(item.id); setForm(item); }}>Sửa</button>
+                  )}
                   {item.status === "draft" && (
                     <>
-                      <button onClick={() => { setEditing(item.id); setForm(item); }}>Sửa</button>
                       <button className="primary" onClick={() => promptStatusChange(item, "active")}>Kích hoạt</button>
                       <button className="danger" onClick={() => promptStatusChange(item, "archived")}>Lưu trữ</button>
                     </>
@@ -428,7 +651,11 @@ function Campaigns() {
                     </>
                   )}
                   {item.status === "ended" && (
-                    <button onClick={() => promptStatusChange(item, "archived")}>Lưu trữ</button>
+                    <>
+                      <button className="primary" onClick={() => promptStatusChange(item, "active")}>Gia hạn & Kích hoạt lại</button>
+                      <button onClick={() => promptStatusChange(item, "draft")}>Đưa về Nháp</button>
+                      <button className="danger" onClick={() => promptStatusChange(item, "archived")}>Lưu trữ</button>
+                    </>
                   )}
                 </div>
               </article>
@@ -451,17 +678,74 @@ function Campaigns() {
   );
 }
 
+function formatGroupedRewards(plannedRewards) {
+  if (!plannedRewards || !plannedRewards.length) return [];
+  const map = new Map();
+  for (const rw of plannedRewards) {
+    const title = String(rw.title || "").trim();
+    const value = Number(rw.value || 0);
+    const desc = String(rw.description || rw.applicable_products || rw.applicableProducts || "").trim();
+    const key = `${title}|||${value}|||${desc}`;
+
+    if (!map.has(key)) {
+      map.set(key, { title, value, description: desc, count: 1 });
+    } else {
+      map.get(key).count += 1;
+    }
+  }
+  return Array.from(map.values());
+}
+
 function CampaignParticipants() {
   const [campaigns, setCampaigns] = useState([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   const [participants, setParticipants] = useState([]);
   const [rewards, setRewards] = useState([]);
+  const [customerGroups, setCustomerGroups] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
   const [importMode, setImportMode] = useState("voucher");
   const [importRowsJson, setImportRowsJson] = useState("");
   const [importResult, setImportResult] = useState(null);
+
+  const [duplicateResolverModal, setDuplicateResolverModal] = useState({
+    isOpen: false,
+    totalRows: 0,
+    newCount: 0,
+    duplicateCount: 0,
+    duplicateRows: [],
+    newRows: [],
+    saving: false,
+  });
+
+  const [checking, setChecking] = useState(false);
+  const [rowActions, setRowActions] = useState({});
+
+  const [manualAddModal, setManualAddModal] = useState({
+    isOpen: false,
+    name: "",
+    phone: "",
+    groupId: "",
+    note: "",
+    spinQuota: 1,
+    status: "active",
+    selectedRewardIds: [],
+    saving: false,
+  });
+
+  const [editParticipantModal, setEditParticipantModal] = useState({
+    isOpen: false,
+    customerId: "",
+    name: "",
+    phone: "",
+    groupId: "",
+    note: "",
+    spinQuota: 1,
+    status: "active",
+    selectedRewardIds: [],
+    saving: false,
+  });
 
   const [manualAwardModal, setManualAwardModal] = useState({
     isOpen: false,
@@ -482,6 +766,10 @@ function CampaignParticipants() {
     api("/admin/rewards").then((r) => {
       setRewards(r.items || []);
     }).catch(() => { });
+
+    api("/admin/groups").then((r) => {
+      setCustomerGroups(r.items || []);
+    }).catch(() => { });
   }, []);
 
   const load = async () => {
@@ -500,6 +788,28 @@ function CampaignParticipants() {
 
   useEffect(() => { void load(); }, [selectedCampaignId]);
 
+  const executeFinalImport = async (actionsToUse = rowActions) => {
+    if (!selectedCampaignId) return;
+    setDuplicateResolverModal((prev) => ({ ...prev, saving: true }));
+    setError("");
+    try {
+      let rows = JSON.parse(importRowsJson);
+      const result = await api(`/admin/campaigns/${selectedCampaignId}/participants/import`, {
+        method: "POST",
+        body: JSON.stringify({ rows, importMode, rowActions: actionsToUse }),
+      });
+
+      setImportResult(result);
+      setDuplicateResolverModal({ isOpen: false, totalRows: 0, newCount: 0, duplicateCount: 0, duplicateRows: [], newRows: [], saving: false });
+      if (result.importedCount > 0 || result.accumulatedCount > 0) {
+        await load();
+      }
+    } catch (err) {
+      setError(`Lỗi Import: ${err.message}`);
+      setDuplicateResolverModal((prev) => ({ ...prev, saving: false }));
+    }
+  };
+
   const handleFileUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -508,12 +818,14 @@ function CampaignParticipants() {
     reader.onload = (evt) => {
       try {
         const content = evt.target?.result || "";
+        let jsonStr = "";
         if (file.name.toLowerCase().endsWith(".json")) {
-          setImportRowsJson(typeof content === "string" ? content : "");
+          jsonStr = typeof content === "string" ? content : "";
         } else {
           const rows = isWorkbook ? parseWorkbookToRows(content) : parseCsvToRows(content);
-          setImportRowsJson(JSON.stringify(rows, null, 2));
+          jsonStr = JSON.stringify(rows, null, 2);
         }
+        setImportRowsJson(jsonStr);
         setError("");
       } catch (error) {
         setError(`Không đọc được file ${file.name}: ${error.message}`);
@@ -523,7 +835,20 @@ function CampaignParticipants() {
     else reader.readAsText(file, "UTF-8");
   };
 
-  const handleImport = async (e) => {
+  const handleSetRowAction = (phone, action) => {
+    setRowActions((prev) => ({ ...prev, [phone]: action }));
+  };
+
+  const handleSetAllActions = (action) => {
+    if (!duplicateResolverModal.duplicateRows) return;
+    const updated = {};
+    for (const dup of duplicateResolverModal.duplicateRows) {
+      updated[dup.normalizedPhone] = action;
+    }
+    setRowActions(updated);
+  };
+
+  const handleImportSubmit = async (e) => {
     e.preventDefault();
     setImportResult(null);
     setError("");
@@ -537,17 +862,157 @@ function CampaignParticipants() {
 
       if (!Array.isArray(rows) || rows.length === 0) throw new Error("Danh sách nhập không được để trống");
 
-      const result = await api(`/admin/campaigns/${selectedCampaignId}/participants/import`, {
+      setChecking(true);
+      const checkRes = await api(`/admin/campaigns/${selectedCampaignId}/participants/check-import`, {
         method: "POST",
         body: JSON.stringify({ rows, importMode }),
       });
+      setChecking(false);
 
-      setImportResult(result);
-      if (result.importedCount > 0) {
-        await load();
+      if (checkRes.errors?.length > 0) {
+        setError(`Không thể import: ${checkRes.errors.join("; ")}`);
+        return;
+      }
+
+      if (checkRes.duplicateCount > 0) {
+        const initialActions = {};
+        for (const dup of checkRes.duplicateRows) {
+          initialActions[dup.normalizedPhone] = dup.action || "skip";
+        }
+        setRowActions(initialActions);
+        setDuplicateResolverModal({
+          isOpen: true,
+          totalRows: checkRes.totalRows,
+          newCount: checkRes.newCount,
+          duplicateCount: checkRes.duplicateCount,
+          duplicateRows: checkRes.duplicateRows,
+          newRows: checkRes.newRows,
+          saving: false,
+        });
+      } else {
+        await executeFinalImport({});
       }
     } catch (err) {
+      setChecking(false);
       setError(err.message);
+    }
+  };
+
+  const toggleRewardSelection = (rewardId) => {
+    setManualAddModal((prev) => {
+      const exists = prev.selectedRewardIds.includes(rewardId);
+      const updated = exists
+        ? prev.selectedRewardIds.filter((id) => id !== rewardId)
+        : [...prev.selectedRewardIds, rewardId];
+      const updatedQuota = Math.max(prev.spinQuota, updated.length);
+      return { ...prev, selectedRewardIds: updated, spinQuota: updatedQuota };
+    });
+  };
+
+  const handleSaveManualParticipant = async (e) => {
+    e.preventDefault();
+    if (!selectedCampaignId || !manualAddModal.name.trim() || !manualAddModal.phone.trim()) return;
+    setManualAddModal((prev) => ({ ...prev, saving: true }));
+    setError("");
+    try {
+      await api(`/admin/campaigns/${selectedCampaignId}/participants/manual`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: manualAddModal.name.trim(),
+          phone: manualAddModal.phone.trim(),
+          groupId: manualAddModal.groupId || null,
+          note: manualAddModal.note.trim(),
+          spinQuota: Number(manualAddModal.spinQuota || 1),
+          status: manualAddModal.status,
+          selectedRewardIds: manualAddModal.selectedRewardIds || [],
+        }),
+      });
+      setManualAddModal({
+        isOpen: false,
+        name: "",
+        phone: "",
+        groupId: "",
+        note: "",
+        spinQuota: 1,
+        status: "active",
+        selectedRewardIds: [],
+        saving: false,
+      });
+      await load();
+    } catch (err) {
+      setError(`Lỗi thêm khách hàng: ${err.message}`);
+      setManualAddModal((prev) => ({ ...prev, saving: false }));
+    }
+  };
+
+  const toggleEditRewardSelection = (rewardId) => {
+    setEditParticipantModal((prev) => {
+      const currentList = prev.selectedRewardIds || [];
+      const exists = currentList.includes(rewardId);
+      const updated = exists
+        ? currentList.filter((id) => id !== rewardId)
+        : [...currentList, rewardId];
+      const updatedQuota = Math.max(prev.spinQuota, updated.length);
+      return { ...prev, selectedRewardIds: updated, spinQuota: updatedQuota };
+    });
+  };
+
+  const handleSaveEditParticipant = async (e) => {
+    e.preventDefault();
+    if (!selectedCampaignId || !editParticipantModal.customerId) return;
+    setEditParticipantModal((prev) => ({ ...prev, saving: true }));
+    setError("");
+    try {
+      await api(`/admin/campaigns/${selectedCampaignId}/participants/${editParticipantModal.customerId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: editParticipantModal.name.trim(),
+          groupId: editParticipantModal.groupId || null,
+          note: editParticipantModal.note.trim(),
+          spinQuota: Number(editParticipantModal.spinQuota || 0),
+          status: editParticipantModal.status,
+          selectedRewardIds: editParticipantModal.selectedRewardIds || [],
+        }),
+      });
+      setEditParticipantModal({
+        isOpen: false,
+        customerId: "",
+        name: "",
+        phone: "",
+        groupId: "",
+        note: "",
+        spinQuota: 1,
+        status: "active",
+        selectedRewardIds: [],
+        saving: false,
+      });
+      await load();
+    } catch (err) {
+      setError(`Lỗi cập nhật: ${err.message}`);
+      setEditParticipantModal((prev) => ({ ...prev, saving: false }));
+    }
+  };
+
+  const handleDeleteParticipant = async (item) => {
+    if (!confirm(`Xóa khách hàng ${item.customerName} (${item.customerPhone}) khỏi sự kiện này?`)) return;
+    setError("");
+    try {
+      await api(`/admin/campaigns/${selectedCampaignId}/participants/${item.customerId}`, { method: "DELETE" });
+      await load();
+    } catch (err) {
+      setError(`Lỗi xóa khách hàng: ${err.message}`);
+    }
+  };
+
+  const handleClearParticipantRewards = async (item) => {
+    if (!confirm(`Xóa tất cả Voucher cấp sẵn của khách hàng ${item.customerName} (${item.customerPhone})? Sau khi xóa, bạn có thể cấp lại chính xác 1 lần.`)) return;
+    setError("");
+    try {
+      await api(`/admin/campaigns/${selectedCampaignId}/participants/${item.customerId}/rewards`, { method: "DELETE" });
+      await load();
+      alert("Đã làm sạch danh sách Voucher cấp sẵn thành công!");
+    } catch (err) {
+      setError(`Lỗi xóa voucher: ${err.message}`);
     }
   };
 
@@ -576,7 +1041,7 @@ function CampaignParticipants() {
 
   return (
     <>
-      <Header title="Khách hàng sự kiện & Import Excel" subtitle="Quản lý danh sách thành viên tham gia sự kiện và cấp voucher / lượt quay từ file Excel." />
+      <Header helpTopic="participants" title="Khách hàng sự kiện" subtitle="Quản lý thành viên tham gia sự kiện (thêm thủ công, phân nhóm, cấp Voucher sẵn & import Excel)." />
       {error && <div className="error">{error}</div>}
       <section className="panel">
         <div className="panel-heading">
@@ -586,16 +1051,21 @@ function CampaignParticipants() {
               <option key={c.id} value={c.id}>{c.name} ({c.code}) — {c.status}</option>
             ))}
           </select>
-          <button className="primary" onClick={() => setImporting(!importing)}>
-            {importing ? "Đóng Import" : "Nhập danh sách Excel / CSV"}
-          </button>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button className="primary" onClick={() => setManualAddModal({ isOpen: true, name: "", phone: "", groupId: "", note: "", spinQuota: 1, status: "active", selectedRewardIds: [], saving: false })}>
+              + Thêm thủ công Khách hàng
+            </button>
+            <button onClick={() => setImporting(!importing)}>
+              {importing ? "Đóng Import" : "Nhập danh sách Excel / CSV"}
+            </button>
+          </div>
         </div>
 
         {importing && (
           <div className="panel inline-form" style={{ border: "2px solid #ef7e3a", marginTop: "16px" }}>
             <h2>Nhập danh sách Khách hàng từ Excel / CSV</h2>
             <p style={{ fontSize: "13px", color: "#666" }}>Tải lên file Excel CSV (.csv) chứa các cột: <code>Tên KH</code>, <code>SĐT</code>, <code>Số voucher tặng</code>, <code>Ghi chú</code>.</p>
-            <form onSubmit={handleImport} style={{ display: "grid", gap: "12px" }}>
+            <form onSubmit={handleImportSubmit} style={{ display: "grid", gap: "12px" }}>
               <div style={{ background: "#f8f9fa", padding: "12px", borderRadius: "8px", border: "1px dashed #ccc" }}>
                 <label style={{ display: "block", marginBottom: "6px", fontWeight: "bold" }}>
                   1. Chọn file CSV / Excel từ máy tính:
@@ -609,10 +1079,11 @@ function CampaignParticipants() {
               </div>
               <label>2. Chế độ cấp:
                 <select value={importMode} onChange={(e) => setImportMode(e.target.value)}>
-                  <option value="quota">🎯 Cấp Lượt quay Khách sự kiện (Không yêu cầu mệnh giá ở Ghi chú)</option>
-                  <option value="voucher">🎁 Cấp Voucher quà sẵn từ cột Ghi chú (VD: '5 triệu, 3 triệu')</option>
+                  <option value="quota">Cấp Lượt quay Khách sự kiện (Không yêu cầu mệnh giá ở Ghi chú)</option>
+                  <option value="voucher">Cấp Voucher quà sẵn từ cột Ghi chú (VD: '5 triệu, 3 triệu')</option>
                 </select>
               </label>
+
               <label style={{ fontSize: "12px", color: "#666" }}>Xem trước dữ liệu hàng (Rows Preview JSON):</label>
               <textarea
                 rows="5"
@@ -621,11 +1092,31 @@ function CampaignParticipants() {
                 onChange={(e) => setImportRowsJson(e.target.value)}
                 required
               />
-              <button className="primary">Tiến hành Import dữ liệu</button>
+              <button className="primary" disabled={checking}>
+                {checking ? "🔍 Đang kiểm tra trùng SĐT..." : "Tiến hành Import dữ liệu"}
+              </button>
             </form>
+
             {importResult && (
               <div style={{ marginTop: "12px", padding: "12px", background: importResult.success ? "#e6f4ea" : "#fff1f1", borderRadius: "8px" }}>
-                <strong>Kết quả Import:</strong> Đã nhập thành công {importResult.importedCount}/{importResult.totalRows} dòng.
+                <div><strong>Kết quả Import:</strong> Đã xử lý {importResult.totalRows} dòng:</div>
+                <ul style={{ margin: "6px 0 0", paddingLeft: "20px", fontSize: "13px" }}>
+                  <li>✅ Thêm mới: <strong>{importResult.importedCount}</strong> khách hàng.</li>
+                  {importResult.duplicateCount > 0 && (
+                    <li style={{ color: "#d97706", fontWeight: "bold" }}>
+                      ⚠️ Phát hiện {importResult.duplicateCount} SĐT trùng trong sự kiện:
+                      {importResult.skippedCount > 0 && ` (Đã BỎ QUA ${importResult.skippedCount} khách)`}
+                      {importResult.accumulatedCount > 0 && ` (Đã CỘNG DỒN thêm quà cho ${importResult.accumulatedCount} khách)`}
+                    </li>
+                  )}
+                </ul>
+                {importResult.infoMessages?.length > 0 && (
+                  <div style={{ marginTop: "8px", maxHeight: "120px", overflowY: "auto", background: "#fff", padding: "8px", borderRadius: "6px", fontSize: "11px", border: "1px solid #cbd5e1" }}>
+                    {importResult.infoMessages.map((msg, i) => (
+                      <div key={i} style={{ padding: "2px 0", color: "#475569" }}>{msg}</div>
+                    ))}
+                  </div>
+                )}
                 {importResult.errors?.length > 0 && (
                   <ul style={{ color: "#c14848", margin: "8px 0 0", paddingLeft: "20px" }}>
                     {importResult.errors.map((err, i) => <li key={i}>{err}</li>)}
@@ -642,8 +1133,10 @@ function CampaignParticipants() {
               <tr>
                 <th>Tên Khách hàng</th>
                 <th>Số điện thoại</th>
-                <th>Lượt quay sự kiện</th>
-                <th>Ghi chú / Nhóm</th>
+                <th>Nhóm KH</th>
+                <th>Ghi chú</th>
+                <th>Lượt quay</th>
+                <th>Voucher cấp sẵn</th>
                 <th>Trạng thái</th>
                 <th>Ngày tạo</th>
                 <th>Thao tác</th>
@@ -651,45 +1144,120 @@ function CampaignParticipants() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="7" style={{ textAlign: "center", padding: "24px" }}>Đang tải...</td></tr>
+                <tr><td colSpan="9" style={{ textAlign: "center", padding: "24px" }}>Đang tải...</td></tr>
               ) : participants.length === 0 ? (
-                <tr><td colSpan="7" style={{ textAlign: "center", padding: "24px" }}>Sự kiện chưa có khách hàng nào. Bấm "Nhập danh sách Excel" để thêm.</td></tr>
+                <tr><td colSpan="9" style={{ textAlign: "center", padding: "24px" }}>Sự kiện chưa có khách hàng nào. Bấm "+ Thêm thủ công Khách hàng" hoặc "Nhập danh sách Excel" để thêm.</td></tr>
               ) : (
                 participants.map((item) => (
                   <tr key={item.id}>
                     <td><strong>{item.customerName}</strong></td>
                     <td>{item.customerPhone || item.customerId}</td>
-                    <td>{item.spinQuota} lượt</td>
                     <td>
-                      {item.importedGroup || item.groupName ? (
-                        <span style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", display: "inline-block" }}>
-                          {item.importedGroup || item.groupName}
-                        </span>
+                      {item.assignedGroups?.length > 0 ? (
+                        item.assignedGroups.map((g, i) => (
+                          <span key={i} style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", padding: "2px 6px", borderRadius: "4px", fontSize: "11px", fontWeight: "700", marginRight: "4px", display: "inline-block" }}>
+                            {g}
+                          </span>
+                        ))
                       ) : (
                         "—"
                       )}
                     </td>
-                    <td><span className={`badge status-${item.status}`}>{item.status}</span></td>
+                    <td>{item.note || "—"}</td>
+                    <td><strong>{item.spinQuota}</strong> lượt</td>
+                    <td>
+                      {item.plannedRewards?.length > 0 ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                          {formatGroupedRewards(item.plannedRewards).map((rw, i) => (
+                            <span
+                              key={i}
+                              title={rw.description ? `Sản phẩm áp dụng: ${rw.description}` : undefined}
+                              style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "600", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}
+                            >
+                              <span>
+                                {rw.title} ({rw.value.toLocaleString("vi-VN")}đ)
+                                {rw.description && <span style={{ opacity: 0.75, fontSize: "10px", marginLeft: "4px" }}>• {rw.description}</span>}
+                              </span>
+                              {rw.count > 1 && (
+                                <strong style={{ background: "#d97706", color: "#fff", padding: "1px 6px", borderRadius: "10px", fontSize: "10px", fontWeight: "800" }}>
+                                  x{rw.count}
+                                </strong>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td><span className={`badge status-${item.status}`}>{item.status === "active" ? "Đang bật" : item.status === "paused" ? "Tạm dừng" : item.status}</span></td>
                     <td>{new Date(item.createdAt).toLocaleString("vi-VN")}</td>
                     <td>
-                      <button
-                        type="button"
-                        className="primary"
-                        style={{ padding: "4px 10px", fontSize: "11px", borderRadius: "6px" }}
-                        onClick={() =>
-                          setManualAwardModal({
-                            isOpen: true,
-                            customerId: item.customerId,
-                            customerName: item.customerName,
-                            rewardId: rewards[0]?.id || "",
-                            voucherCode: "",
-                            reason: "Cấp bổ sung từ Admin",
-                            saving: false,
-                          })
-                        }
-                      >
-                        Cấp quà
-                      </button>
+                      <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                        <button
+                          type="button"
+                          className="primary"
+                          style={{ padding: "4px 8px", fontSize: "11px", borderRadius: "6px" }}
+                          onClick={() =>
+                            setManualAwardModal({
+                              isOpen: true,
+                              customerId: item.customerId,
+                              customerName: item.customerName,
+                              rewardId: rewards[0]?.id || "",
+                              voucherCode: "",
+                              reason: "Cấp bổ sung từ Admin",
+                              saving: false,
+                            })
+                          }
+                        >
+                          + Quà
+                        </button>
+                        {item.plannedRewards?.length > 0 && (
+                          <button
+                            type="button"
+                            style={{ padding: "4px 8px", fontSize: "11px", borderRadius: "6px", background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a" }}
+                            title="Xóa bớt Voucher trùng do lỡ Import 2 lần"
+                            onClick={() => handleClearParticipantRewards(item)}
+                          >
+                            🧹 Xóa quà
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          style={{ padding: "4px 8px", fontSize: "11px", borderRadius: "6px" }}
+                          onClick={() => {
+                            const currentRewardIds = [];
+                            for (const rw of item.plannedRewards || []) {
+                              const match = rewards.find((r) => r.id === rw.reward_id || (r.title === rw.title && Number(r.value || 0) === Number(rw.value || 0)));
+                              if (match?.id && !currentRewardIds.includes(match.id)) {
+                                currentRewardIds.push(match.id);
+                              }
+                            }
+                            setEditParticipantModal({
+                              isOpen: true,
+                              customerId: item.customerId,
+                              name: item.customerName,
+                              phone: item.customerPhone,
+                              groupId: item.groupId || "",
+                              note: item.note || "",
+                              spinQuota: item.spinQuota,
+                              status: item.status,
+                              selectedRewardIds: currentRewardIds,
+                              saving: false,
+                            });
+                          }}
+                        >
+                          Sửa
+                        </button>
+                        <button
+                          type="button"
+                          className="danger"
+                          style={{ padding: "4px 8px", fontSize: "11px", borderRadius: "6px" }}
+                          onClick={() => handleDeleteParticipant(item)}
+                        >
+                          Xóa
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -699,12 +1267,374 @@ function CampaignParticipants() {
         </div>
       </section>
 
+      {/* MANUAL ADD PARTICIPANT MODAL */}
+      {manualAddModal.isOpen && (
+        <div className="modal-overlay" onClick={() => setManualAddModal((prev) => ({ ...prev, isOpen: false }))}>
+          <div
+            className="modal-container"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "540px", maxHeight: "88vh", display: "flex", flexDirection: "column", overflow: "hidden" }}
+          >
+            <div className="modal-header">
+              <h3 className="modal-title">👤 Thêm thủ công Khách hàng vào sự kiện</h3>
+              <button type="button" className="modal-close-btn" onClick={() => setManualAddModal((prev) => ({ ...prev, isOpen: false }))}>
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveManualParticipant} style={{ display: "grid", gap: "12px", padding: "16px", overflowY: "auto", flex: 1 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <label>
+                  Tên Khách hàng *
+                  <input
+                    type="text"
+                    placeholder="VD: Nguyễn Văn A"
+                    value={manualAddModal.name}
+                    onChange={(e) => setManualAddModal({ ...manualAddModal, name: e.target.value })}
+                    required
+                    style={{ width: "100%", marginTop: "4px" }}
+                  />
+                </label>
+
+                <label>
+                  Số điện thoại *
+                  <input
+                    type="text"
+                    placeholder="VD: 0912345678"
+                    value={manualAddModal.phone}
+                    onChange={(e) => setManualAddModal({ ...manualAddModal, phone: e.target.value })}
+                    required
+                    style={{ width: "100%", marginTop: "4px" }}
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <label>
+                  Nhóm Khách hàng (Từ Bảng customer_groups)
+                  <select
+                    value={manualAddModal.groupId}
+                    onChange={(e) => setManualAddModal({ ...manualAddModal, groupId: e.target.value })}
+                    style={{ width: "100%", marginTop: "4px", padding: "8px" }}
+                  >
+                    <option value="">-- Không xếp nhóm --</option>
+                    {customerGroups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  Số lượt quay cấp *
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={manualAddModal.spinQuota}
+                    onChange={(e) => setManualAddModal({ ...manualAddModal, spinQuota: Number(e.target.value) })}
+                    required
+                    style={{ width: "100%", marginTop: "4px" }}
+                  />
+                </label>
+              </div>
+
+              <label>
+                Ghi chú bổ sung
+                <input
+                  type="text"
+                  placeholder="VD: Cấp lượt đợt 1, Khách hàng dự phòng..."
+                  value={manualAddModal.note}
+                  onChange={(e) => setManualAddModal({ ...manualAddModal, note: e.target.value })}
+                  style={{ width: "100%", marginTop: "4px" }}
+                />
+              </label>
+
+              {/* HARDCODED VOUCHER SELECTION (MULTI-SELECT) */}
+              <div style={{ border: "1px solid #cbd5e1", borderRadius: "10px", padding: "12px", background: "#f8fafc" }}>
+                <label style={{ fontWeight: "700", display: "block", marginBottom: "6px", color: "#0f172a", fontSize: "13px" }}>
+                  🎁 Cấp sẵn Voucher (Chọn một hoặc nhiều Voucher cố định):
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "140px", overflowY: "auto", paddingRight: "4px" }}>
+                  {rewards.length === 0 ? (
+                    <span style={{ fontSize: "12px", color: "#64748b" }}>Chưa có phần quà nào trong Tab Giải thưởng.</span>
+                  ) : (
+                    rewards.map((r) => {
+                      const isSelected = manualAddModal.selectedRewardIds.includes(r.id);
+                      const prod = r.applicableProducts || r.applicable_products;
+                      const code = r.codePrefix || r.code_prefix || "VOUCHER";
+                      const valText = Number(r.value || 0).toLocaleString("vi-VN") + "đ";
+
+                      return (
+                        <label
+                          key={r.id}
+                          style={{
+                            display: "flex",
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: "10px",
+                            fontSize: "12px",
+                            cursor: "pointer",
+                            padding: "8px 10px",
+                            borderRadius: "8px",
+                            border: isSelected ? "1.5px solid #ea580c" : "1px solid #cbd5e1",
+                            background: isSelected ? "#fff7ed" : "#ffffff",
+                            boxShadow: isSelected ? "0 2px 4px rgba(234, 88, 12, 0.1)" : "none",
+                            transition: "all 0.15s ease",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleRewardSelection(r.id)}
+                            style={{
+                              display: "inline-block",
+                              width: "18px",
+                              height: "18px",
+                              margin: "0",
+                              cursor: "pointer",
+                              accentColor: "#ea580c",
+                              flexShrink: 0,
+                            }}
+                          />
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                              <span style={{ fontWeight: isSelected ? "800" : "600", color: isSelected ? "#9a3412" : "#1e293b", fontSize: "12px" }}>
+                                {r.title}
+                              </span>
+                              <span style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "1px 6px", borderRadius: "4px", fontSize: "11px", fontWeight: "700" }}>
+                                {valText}
+                              </span>
+                              <span style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", padding: "1px 6px", borderRadius: "4px", fontSize: "11px", fontWeight: "600" }}>
+                                Mã: {code}
+                              </span>
+                            </div>
+                            {prod && (
+                              <span style={{ color: "#64748b", fontSize: "11px" }}>
+                                🏷️ SP áp dụng: <strong>{prod}</strong>
+                              </span>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+                <small style={{ fontSize: "11px", color: "#64748b", marginTop: "6px", display: "block" }}>
+                  * Nếu chọn Voucher cấp sẵn, lượt quay sự kiện sẽ tự động tương ứng với số Voucher cấp.
+                </small>
+              </div>
+
+              <label>
+                Trạng thái
+                <select
+                  value={manualAddModal.status}
+                  onChange={(e) => setManualAddModal({ ...manualAddModal, status: e.target.value })}
+                  style={{ width: "100%", marginTop: "4px", padding: "8px" }}
+                >
+                  <option value="active">Đang bật (Active)</option>
+                  <option value="paused">Tạm dừng (Paused)</option>
+                </select>
+              </label>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "8px", position: "sticky", bottom: 0, background: "#fff", paddingTop: "10px", borderTop: "1px solid #f1f5f9" }}>
+                <button type="button" onClick={() => setManualAddModal((prev) => ({ ...prev, isOpen: false }))} disabled={manualAddModal.saving}>
+                  Hủy
+                </button>
+                <button type="submit" className="primary" disabled={manualAddModal.saving}>
+                  {manualAddModal.saving ? "Đang lưu…" : "Thêm khách hàng"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT PARTICIPANT MODAL */}
+      {editParticipantModal.isOpen && (
+        <div className="modal-overlay" onClick={() => setEditParticipantModal((prev) => ({ ...prev, isOpen: false }))}>
+          <div
+            className="modal-container"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "540px", maxHeight: "88vh", display: "flex", flexDirection: "column", overflow: "hidden" }}
+          >
+            <div className="modal-header">
+              <h3 className="modal-title">✏️ Sửa thông tin Khách hàng sự kiện</h3>
+              <button type="button" className="modal-close-btn" onClick={() => setEditParticipantModal((prev) => ({ ...prev, isOpen: false }))}>
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditParticipant} style={{ display: "grid", gap: "12px", padding: "16px", overflowY: "auto", flex: 1 }}>
+              <label>
+                Tên Khách hàng *
+                <input
+                  type="text"
+                  value={editParticipantModal.name}
+                  onChange={(e) => setEditParticipantModal({ ...editParticipantModal, name: e.target.value })}
+                  required
+                  style={{ width: "100%", marginTop: "4px" }}
+                />
+              </label>
+
+              <label>
+                Số điện thoại (Mã định danh)
+                <input
+                  type="text"
+                  value={editParticipantModal.phone}
+                  disabled
+                  style={{ width: "100%", marginTop: "4px", background: "#f1f5f9" }}
+                />
+              </label>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <label>
+                  Nhóm Khách hàng (Từ Bảng customer_groups)
+                  <select
+                    value={editParticipantModal.groupId}
+                    onChange={(e) => setEditParticipantModal({ ...editParticipantModal, groupId: e.target.value })}
+                    style={{ width: "100%", marginTop: "4px", padding: "8px" }}
+                  >
+                    <option value="">-- Không xếp nhóm --</option>
+                    {customerGroups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  Số lượt quay cấp *
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={editParticipantModal.spinQuota}
+                    onChange={(e) => setEditParticipantModal({ ...editParticipantModal, spinQuota: Number(e.target.value) })}
+                    required
+                    style={{ width: "100%", marginTop: "4px" }}
+                  />
+                </label>
+              </div>
+
+              <label>
+                Ghi chú
+                <input
+                  type="text"
+                  value={editParticipantModal.note}
+                  onChange={(e) => setEditParticipantModal({ ...editParticipantModal, note: e.target.value })}
+                  style={{ width: "100%", marginTop: "4px" }}
+                />
+              </label>
+
+              {/* HARDCODED VOUCHER SELECTION IN EDIT MODAL */}
+              <div style={{ border: "1px solid #cbd5e1", borderRadius: "10px", padding: "12px", background: "#f8fafc" }}>
+                <label style={{ fontWeight: "700", display: "block", marginBottom: "6px", color: "#0f172a", fontSize: "13px" }}>
+                  🎁 Cấp sẵn Voucher (Chọn một hoặc nhiều Voucher cố định):
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "140px", overflowY: "auto", paddingRight: "4px" }}>
+                  {rewards.length === 0 ? (
+                    <span style={{ fontSize: "12px", color: "#64748b" }}>Chưa có phần quà nào trong Tab Giải thưởng.</span>
+                  ) : (
+                    rewards.map((r) => {
+                      const isSelected = (editParticipantModal.selectedRewardIds || []).includes(r.id);
+                      const prod = r.applicableProducts || r.applicable_products;
+                      const code = r.codePrefix || r.code_prefix || "VOUCHER";
+                      const valText = Number(r.value || 0).toLocaleString("vi-VN") + "đ";
+
+                      return (
+                        <label
+                          key={r.id}
+                          style={{
+                            display: "flex",
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: "10px",
+                            fontSize: "12px",
+                            cursor: "pointer",
+                            padding: "8px 10px",
+                            borderRadius: "8px",
+                            border: isSelected ? "1.5px solid #ea580c" : "1px solid #cbd5e1",
+                            background: isSelected ? "#fff7ed" : "#ffffff",
+                            boxShadow: isSelected ? "0 2px 4px rgba(234, 88, 12, 0.1)" : "none",
+                            transition: "all 0.15s ease",
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleEditRewardSelection(r.id)}
+                            style={{
+                              display: "inline-block",
+                              width: "18px",
+                              height: "18px",
+                              margin: "0",
+                              cursor: "pointer",
+                              accentColor: "#ea580c",
+                              flexShrink: 0,
+                            }}
+                          />
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px", flex: 1, minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                              <span style={{ fontWeight: isSelected ? "800" : "600", color: isSelected ? "#9a3412" : "#1e293b", fontSize: "12px" }}>
+                                {r.title}
+                              </span>
+                              <span style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "1px 6px", borderRadius: "4px", fontSize: "11px", fontWeight: "700" }}>
+                                {valText}
+                              </span>
+                              <span style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", padding: "1px 6px", borderRadius: "4px", fontSize: "11px", fontWeight: "600" }}>
+                                Mã: {code}
+                              </span>
+                            </div>
+                            {prod && (
+                              <span style={{ color: "#64748b", fontSize: "11px" }}>
+                                🏷️ SP áp dụng: <strong>{prod}</strong>
+                              </span>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+                <small style={{ fontSize: "11px", color: "#64748b", marginTop: "6px", display: "block" }}>
+                  * Nếu chọn Voucher cấp sẵn, lượt quay sự kiện sẽ tự động tương ứng với số Voucher cấp.
+                </small>
+              </div>
+
+              <label>
+                Trạng thái
+                <select
+                  value={editParticipantModal.status}
+                  onChange={(e) => setEditParticipantModal({ ...editParticipantModal, status: e.target.value })}
+                  style={{ width: "100%", marginTop: "4px", padding: "8px" }}
+                >
+                  <option value="active">Đang bật (Active)</option>
+                  <option value="paused">Tạm dừng (Paused)</option>
+                </select>
+              </label>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "8px", position: "sticky", bottom: 0, background: "#fff", paddingTop: "10px", borderTop: "1px solid #f1f5f9" }}>
+                <button type="button" onClick={() => setEditParticipantModal((prev) => ({ ...prev, isOpen: false }))} disabled={editParticipantModal.saving}>
+                  Hủy
+                </button>
+                <button type="submit" className="primary" disabled={editParticipantModal.saving}>
+                  {editParticipantModal.saving ? "Đang lưu…" : "Cập nhật"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* MANUAL AWARD GRANT MODAL */}
       {manualAwardModal.isOpen && (
         <div className="modal-overlay" onClick={() => setManualAwardModal((prev) => ({ ...prev, isOpen: false }))}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "480px" }}>
             <div className="modal-header">
-              <h3 className="modal-title">🎁 Cấp phần quà bổ sung cho {manualAwardModal.customerName}</h3>
+              <h3 className="modal-title"> Cấp phần quà bổ sung cho {manualAwardModal.customerName}</h3>
               <button type="button" className="modal-close-btn" onClick={() => setManualAwardModal((prev) => ({ ...prev, isOpen: false }))}>
                 &times;
               </button>
@@ -719,11 +1649,16 @@ function CampaignParticipants() {
                   required
                   style={{ width: "100%", marginTop: "4px", padding: "8px" }}
                 >
-                  {rewards.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.title} ({r.value ? Number(r.value).toLocaleString("vi-VN") + "đ" : ""})
-                    </option>
-                  ))}
+                  {rewards.map((r) => {
+                    const prod = r.applicableProducts || r.applicable_products;
+                    const prodText = prod ? ` · SP: ${prod}` : "";
+                    const codeText = r.codePrefix || r.code_prefix ? ` [Mã: ${r.codePrefix || r.code_prefix}]` : "";
+                    return (
+                      <option key={r.id} value={r.id}>
+                        {r.title} ({r.value ? Number(r.value).toLocaleString("vi-VN") + "đ" : ""}){codeText}{prodText}
+                      </option>
+                    );
+                  })}
                 </select>
               </label>
 
@@ -762,6 +1697,222 @@ function CampaignParticipants() {
           </div>
         </div>
       )}
+
+      {/* PREVIEW & DUPLICATE RESOLVER MODAL POPUP */}
+      {duplicateResolverModal.isOpen && (
+        <div className="modal-overlay" onClick={() => setDuplicateResolverModal((prev) => ({ ...prev, isOpen: false }))}>
+          <div
+            className="modal-container"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: "860px", maxHeight: "90vh", overflowY: "auto" }}
+          >
+            <div className="modal-header">
+              <h3 className="modal-title" style={{ color: duplicateResolverModal.duplicateCount > 0 ? "#d97706" : "#0f172a" }}>
+                {duplicateResolverModal.duplicateCount > 0
+                  ? `⚠️ Phát hiện ${duplicateResolverModal.duplicateCount} Khách hàng bị trùng SĐT`
+                  : `📋 Xem trước & Xác nhận Nhập ${duplicateResolverModal.totalRows} Khách hàng`}
+              </h3>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setDuplicateResolverModal((prev) => ({ ...prev, isOpen: false }))}
+              >
+                &times;
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ display: "grid", gap: "16px", padding: "20px 24px" }}>
+              {/* SUMMARY BADGE */}
+              {duplicateResolverModal.duplicateCount > 0 ? (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fffbe8", padding: "12px 16px", borderRadius: "10px", border: "1px solid #ffe58f", flexWrap: "wrap", gap: "8px" }}>
+                  <div>
+                    <span style={{ fontSize: "13px", color: "#78350f", fontWeight: "600" }}>
+                      <strong>{duplicateResolverModal.newCount}</strong> khách mới sẽ được thêm. Vui lòng chọn xử lý cho <strong>{duplicateResolverModal.duplicateCount}</strong> khách trùng bên dưới:
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      type="button"
+                      style={{ background: "#e2e8f0", color: "#334155", padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: "bold", border: "0", cursor: "pointer" }}
+                      onClick={() => handleSetAllActions("skip")}
+                    >
+                      🛡️ Bỏ qua tất cả trùng
+                    </button>
+                    <button
+                      type="button"
+                      style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: "bold", cursor: "pointer" }}
+                      onClick={() => handleSetAllActions("accumulate")}
+                    >
+                      ➕ Cộng dồn tất cả quà
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ background: "#f0fdf4", padding: "12px 16px", borderRadius: "10px", border: "1px solid #bbf7d0", color: "#166534", fontSize: "13px", fontWeight: "600" }}>
+                  ✅ Tất cả <strong>{duplicateResolverModal.totalRows}</strong> khách hàng trong file đều hợp lệ và không bị trùng SĐT. Đã sẵn sàng Import!
+                </div>
+              )}
+
+              {/* DUPLICATE ROWS TABLE */}
+              {duplicateResolverModal.duplicateCount > 0 && (
+                <div>
+                  <h4 style={{ margin: "0 0 8px", fontSize: "13px", color: "#d97706", fontWeight: "800" }}>
+                    ⚠️ Danh sách khách hàng bị trùng SĐT ({duplicateResolverModal.duplicateCount} khách):
+                  </h4>
+                  <div style={{ overflowX: "auto", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", maxHeight: "40vh" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                      <thead>
+                        <tr style={{ background: "#fffbe8", borderBottom: "1px solid #ffe58f", position: "sticky", top: 0, zIndex: 1 }}>
+                          <th style={{ padding: "8px 10px", width: "45px" }}>Dòng</th>
+                          <th style={{ padding: "8px 10px" }}>Tên trong Excel</th>
+                          <th style={{ padding: "8px 10px" }}>Tên đã có ở Hệ thống</th>
+                          <th style={{ padding: "8px 10px" }}>SĐT</th>
+                          <th style={{ padding: "8px 10px" }}>Quà trong file</th>
+                          <th style={{ padding: "8px 10px" }}>Trạng thái & Quà hiện có</th>
+                          <th style={{ padding: "8px 10px", textAlign: "center", width: "190px" }}>Tùy chọn xử lý</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {duplicateResolverModal.duplicateRows.map((dup) => {
+                          const currentAction = rowActions[dup.normalizedPhone] || dup.action || "skip";
+                          return (
+                            <tr key={dup.rowNumber} style={{ borderBottom: "1px solid #f1f5f9", background: currentAction === "accumulate" ? "#fff7ed" : "#fff" }}>
+                              <td style={{ padding: "8px 10px", fontWeight: "bold", color: "#64748b" }}>#{dup.rowNumber}</td>
+                              <td style={{ padding: "8px 10px" }}><strong>{dup.name}</strong></td>
+                              <td style={{ padding: "8px 10px" }}>
+                                {dup.isDifferentName ? (
+                                  <div>
+                                    <strong style={{ color: "#b45309" }}>{dup.existingName}</strong>
+                                    <span style={{ display: "block", fontSize: "10px", color: "#dc2626", fontWeight: "bold" }}>
+                                      ⚠️ Khác tên trong Excel!
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span style={{ color: "#475569" }}>{dup.existingName}</span>
+                                )}
+                              </td>
+                              <td style={{ padding: "8px 10px" }}><code>{dup.phone}</code></td>
+                              <td style={{ padding: "8px 10px" }}>
+                                <span style={{ color: "#d97706", fontWeight: "700" }}>
+                                  {dup.note || `${dup.voucherCount} voucher`}
+                                </span>
+                              </td>
+                              <td style={{ padding: "8px 10px" }}>
+                                {dup.inCampaign ? (
+                                  dup.existingRewards?.length > 0 ? (
+                                    <span style={{ color: "#0369a1", fontSize: "11px", fontWeight: "600" }}>
+                                      {dup.existingRewards.join(", ")}
+                                    </span>
+                                  ) : (
+                                    <span style={{ color: "#64748b" }}>{dup.existingSpinQuota} lượt quay</span>
+                                  )
+                                ) : (
+                                  <span style={{ color: "#65a30d", fontWeight: "bold", fontSize: "11px" }}>
+                                    🌐 Đã có ở hệ thống (Chưa vào SK này)
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                                <div style={{ display: "inline-flex", background: "#f1f5f9", padding: "2px", borderRadius: "6px", border: "1px solid #cbd5e1" }}>
+                                  <button
+                                    type="button"
+                                    style={{
+                                      padding: "4px 8px",
+                                      fontSize: "11px",
+                                      fontWeight: "800",
+                                      borderRadius: "4px",
+                                      border: "0",
+                                      background: currentAction === "skip" ? "#0f172a" : "transparent",
+                                      color: currentAction === "skip" ? "#fff" : "#64748b",
+                                      cursor: "pointer",
+                                    }}
+                                    onClick={() => handleSetRowAction(dup.normalizedPhone, "skip")}
+                                  >
+                                    🛡️ Bỏ qua
+                                  </button>
+                                  <button
+                                    type="button"
+                                    style={{
+                                      padding: "4px 8px",
+                                      fontSize: "11px",
+                                      fontWeight: "800",
+                                      borderRadius: "4px",
+                                      border: "0",
+                                      background: currentAction === "accumulate" ? "#ea580c" : "transparent",
+                                      color: currentAction === "accumulate" ? "#fff" : "#64748b",
+                                      cursor: "pointer",
+                                    }}
+                                    onClick={() => handleSetRowAction(dup.normalizedPhone, "accumulate")}
+                                  >
+                                    ➕ Cộng dồn
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* NEW ROWS PREVIEW TABLE */}
+              {duplicateResolverModal.newRows?.length > 0 && (
+                <div>
+                  <h4 style={{ margin: "0 0 8px", fontSize: "13px", color: "#166534", fontWeight: "800" }}>
+                    ✅ Danh sách khách hàng mới sẽ thêm ({duplicateResolverModal.newRows.length} khách):
+                  </h4>
+                  <div style={{ overflowX: "auto", background: "#fff", border: "1px solid #e2e8f0", borderRadius: "10px", maxHeight: "30vh" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                      <thead>
+                        <tr style={{ background: "#f0fdf4", borderBottom: "1px solid #bbf7d0", position: "sticky", top: 0, zIndex: 1 }}>
+                          <th style={{ padding: "8px 10px", width: "45px" }}>Dòng</th>
+                          <th style={{ padding: "8px 10px" }}>Tên Khách hàng</th>
+                          <th style={{ padding: "8px 10px" }}>Số điện thoại</th>
+                          <th style={{ padding: "8px 10px" }}>Quà / Lượt quay cấp</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {duplicateResolverModal.newRows.map((nr) => (
+                          <tr key={nr.rowNumber} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                            <td style={{ padding: "8px 10px", fontWeight: "bold", color: "#64748b" }}>#{nr.rowNumber}</td>
+                            <td style={{ padding: "8px 10px" }}><strong>{nr.name}</strong></td>
+                            <td style={{ padding: "8px 10px" }}><code>{nr.phone}</code></td>
+                            <td style={{ padding: "8px 10px" }}>
+                              <span style={{ color: "#166534", fontWeight: "600" }}>
+                                {nr.note || `${nr.voucherCount} lượt quay`}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                onClick={() => setDuplicateResolverModal((prev) => ({ ...prev, isOpen: false }))}
+                disabled={duplicateResolverModal.saving}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                className="primary"
+                onClick={() => executeFinalImport(rowActions)}
+                disabled={duplicateResolverModal.saving}
+              >
+                {duplicateResolverModal.saving ? "Đang import..." : "Xác nhận & Tiến hành Import"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -773,16 +1924,197 @@ function Banners() {
   const save = async (event) => { event.preventDefault(); setSaving(true); setError(""); try { const body = { ...form }; const path = editing ? `/admin/banners/${editing}` : "/admin/banners"; await api(path, { method: editing ? "PUT" : "POST", body: JSON.stringify(body) }); setForm(EMPTY_BANNER); setEditing(null); await load(); } catch (e) { setError(e.message); } finally { setSaving(false); } };
   const upload = async (event) => { const file = event.target.files?.[0]; if (!file) return; if (file.size > 8_000_000) { setError("Ảnh tối đa 8MB"); return; } const imageData = await fileToDataUrl(file); setForm((x) => ({ ...x, imageData, imageUrl: "" })); };
   const remove = async (id) => { if (!confirm("Xóa banner này?")) return; try { await api(`/admin/banners/${id}`, { method: "DELETE" }); await load(); } catch (e) { setError(e.message); } };
-  return <><Header title="Quản lý banner" subtitle="Quản lý hình ảnh banner truyền thông hiển thị trên trang chủ Mini App." />{error && <div className="error">{error}</div>}<div className="split"><form className="panel form" onSubmit={save}><h2>{editing ? "Sửa banner" : "Thêm banner"}</h2><label>Tiêu đề<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label><label>URL ảnh<input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value, imageData: undefined })} placeholder="https://..." /></label><label>Hoặc tải file<input type="file" accept="image/*" onChange={upload} /></label>{(form.imageUrl || form.imageData) && <img className="banner-preview" src={form.imageData || form.imageUrl} />}<label>Link khi bấm<input value={form.linkUrl} onChange={(e) => setForm({ ...form, linkUrl: e.target.value })} /></label><label className="check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Hiển thị</label><div className="actions"><button className="primary" disabled={saving}>{saving ? "Đang lưu…" : editing ? "Lưu thay đổi" : "Thêm banner"}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY_BANNER); }}>Hủy</button>}</div></form><section className="panel"><h2>Danh sách ({items.length})</h2><div className="items">{items.map((item) => <article className="item" key={item.id}><img src={item.imageUrl} /><div><strong>{item.title}</strong><small>{item.active ? "Đang hiển thị" : "Đang tắt"}</small><div className="actions"><button onClick={() => { setEditing(item.id); setForm(item); }}>Sửa</button><button className="danger" onClick={() => remove(item.id)}>Xóa</button></div></div></article>)}</div></section></div></>;
+  return <><Header helpTopic="banners" title="Quản lý banner" subtitle="Quản lý hình ảnh banner truyền thông hiển thị trên trang chủ Mini App." />{error && <div className="error">{error}</div>}<div className="split"><form className="panel form" onSubmit={save}><h2>{editing ? "Sửa banner" : "Thêm banner"}</h2><label>Tiêu đề<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label><label>URL ảnh<input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value, imageData: undefined })} placeholder="https://..." /></label><label>Hoặc tải file<input type="file" accept="image/*" onChange={upload} /></label>{(form.imageUrl || form.imageData) && <img className="banner-preview" src={form.imageData || form.imageUrl} />}<label>Link khi bấm<input value={form.linkUrl} onChange={(e) => setForm({ ...form, linkUrl: e.target.value })} /></label><label className="check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Hiển thị</label><div className="actions"><button className="primary" disabled={saving}>{saving ? "Đang lưu…" : editing ? "Lưu thay đổi" : "Thêm banner"}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY_BANNER); }}>Hủy</button>}</div></form><section className="panel"><h2>Danh sách ({items.length})</h2><div className="items">{items.map((item) => <article className="item" key={item.id}><img src={item.imageUrl} /><div><strong>{item.title}</strong><small>{item.active ? "Đang hiển thị" : "Đang tắt"}</small><div className="actions"><button onClick={() => { setEditing(item.id); setForm(item); }}>Sửa</button><button className="danger" onClick={() => remove(item.id)}>Xóa</button></div></div></article>)}</div></section></div></>;
 }
 
 function Rewards() {
-  const [items, setItems] = useState([]); const [form, setForm] = useState(EMPTY_REWARD); const [editing, setEditing] = useState(null); const [error, setError] = useState("");
-  const load = async () => { try { const result = await api("/admin/rewards"); setItems(result.items || []); } catch (e) { setError(e.message); } };
-  useEffect(() => { void load(); }, []);
-  const save = async (event) => { event.preventDefault(); setError(""); try { const body = { ...form, value: Number(form.value) }; await api(editing ? `/admin/rewards/${editing}` : "/admin/rewards", { method: editing ? "PUT" : "POST", body: JSON.stringify(body) }); setForm(EMPTY_REWARD); setEditing(null); await load(); } catch (e) { setError(e.message); } };
-  const remove = async (id) => { if (!confirm("Xóa giải thưởng này?")) return; try { await api(`/admin/rewards/${id}`, { method: "DELETE" }); await load(); } catch (e) { setError(e.message); } };
-  return <><Header title="Giải thưởng & Tồn kho" subtitle="Quản lý danh mục giải thưởng, hình ảnh và mệnh giá quà tặng." />{error && <div className="error">{error}</div>}<div className="split"><form className="panel form" onSubmit={save}><h2>{editing ? "Sửa quà" : "Thêm quà"}</h2><label>Tên giải thưởng<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></label><label>Mã quà<input value={form.codePrefix} onChange={(e) => setForm({ ...form, codePrefix: e.target.value })} required /></label><div className="two"><label>Giá trị<input type="number" value={form.value} onChange={(e) => setForm({ ...form, value: e.target.value })} required /></label><label>Nhãn vòng quay<input value={form.wheelLabel} onChange={(e) => setForm({ ...form, wheelLabel: e.target.value })} /></label></div><label>Mô tả<textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label><label>Biểu tượng<select value={form.symbol} onChange={(e) => setForm({ ...form, symbol: e.target.value })}><option value="star">Ngôi sao</option><option value="bell">Chuông</option><option value="red_envelope">Phong bao</option><option value="cherry">Cherry</option><option value="lemon">Lemon</option></select></label><label className="check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Hiển thị trên vòng quay</label><div className="actions"><button className="primary">{editing ? "Lưu thay đổi" : "Thêm quà"}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY_REWARD); }}>Hủy</button>}</div></form><section className="panel"><h2>Danh mục ({items.length})</h2><div className="items">{items.map((item) => <article className="item reward-item" key={item.id}><div><strong>{item.title}</strong><small>{item.value.toLocaleString("vi-VN")}đ · {item.codePrefix} · {item.active ? "Đang bật" : "Đang tắt"}</small></div><div className="actions"><button onClick={() => { setEditing(item.id); setForm(item); }}>Sửa</button><button className="danger" onClick={() => remove(item.id)}>Xóa</button></div></article>)}</div></section></div></>;
+  const [items, setItems] = useState([]);
+  const [form, setForm] = useState(EMPTY_REWARD);
+  const [editing, setEditing] = useState(null);
+  const [error, setError] = useState("");
+
+  // Extract unique applicable product names dynamically from database rewards
+  const productOptions = useMemo(() => {
+    const set = new Set();
+    (items || []).forEach((item) => {
+      if (item.applicableProducts && item.applicableProducts.trim()) {
+        set.add(item.applicableProducts.trim());
+      }
+    });
+    return Array.from(set);
+  }, [items]);
+
+  const load = async () => {
+    try {
+      const result = await api("/admin/rewards");
+      setItems(result.items || []);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const save = async (event) => {
+    event.preventDefault();
+    setError("");
+    try {
+      const body = { ...form, value: Number(form.value) };
+      await api(editing ? `/admin/rewards/${editing}` : "/admin/rewards", {
+        method: editing ? "PUT" : "POST",
+        body: JSON.stringify(body),
+      });
+
+      setForm(EMPTY_REWARD);
+      setEditing(null);
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const remove = async (id) => {
+    if (!confirm("Xóa giải thưởng này?")) return;
+    try {
+      await api(`/admin/rewards/${id}`, { method: "DELETE" });
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  return (
+    <>
+      <Header
+        helpTopic="rewards"
+        title="Giải thưởng & Tồn kho"
+        subtitle="Quản lý danh mục giải thưởng, mệnh giá và cấu hình mẫu ZNS gửi khách hàng."
+      />
+      {error && <div className="error">{error}</div>}
+      <div className="split">
+        <form className="panel form" onSubmit={save}>
+          <h2>{editing ? "Sửa quà" : "Thêm quà"}</h2>
+          <label>
+            Tên giải thưởng
+            <input
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              required
+            />
+          </label>
+          <label>
+            Mã quà
+            <input
+              value={form.codePrefix}
+              onChange={(e) => setForm({ ...form, codePrefix: e.target.value })}
+              required
+            />
+          </label>
+          <div className="two">
+            <label>
+              Giá trị
+              <input
+                type="number"
+                value={form.value}
+                onChange={(e) => setForm({ ...form, value: e.target.value })}
+                required
+              />
+            </label>
+          </div>
+
+          <label>
+            Sản phẩm áp dụng
+            <input
+              list="applicable-products-datalist"
+              value={form.applicableProducts || ""}
+              onChange={(e) => setForm({ ...form, applicableProducts: e.target.value })}
+              placeholder="VD: Kính cường lực Hồng Phúc..."
+            />
+            <datalist id="applicable-products-datalist">
+              {productOptions.map((prod, idx) => (
+                <option key={idx} value={prod} />
+              ))}
+            </datalist>
+          </label>
+
+          <label>
+            Tỉ lệ khấu trừ tối đa / đơn hàng
+            <input
+              value={form.discountRate || ""}
+              onChange={(e) => setForm({ ...form, discountRate: e.target.value })}
+              placeholder="VD: 50"
+            />
+          </label>
+
+          <label>
+            Mô tả bổ sung
+            <textarea
+              value={form.description}
+              onChange={(e) => setForm({ ...form, description: e.target.value })}
+            />
+          </label>
+
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={form.active}
+              onChange={(e) => setForm({ ...form, active: e.target.checked })}
+            />{" "}
+            Hiển thị trên vòng quay
+          </label>
+
+          <div className="actions">
+            <button className="primary">{editing ? "Lưu thay đổi" : "Thêm quà"}</button>
+            {editing && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(null);
+                  setForm(EMPTY_REWARD);
+                }}
+              >
+                Hủy
+              </button>
+            )}
+          </div>
+        </form>
+
+        <section className="panel">
+          <h2>Danh mục ({items.length})</h2>
+          <div className="items">
+            {items.map((item) => (
+              <article className="item reward-item" key={item.id}>
+                <div>
+                  <strong>{item.title}</strong>
+                  <small>
+                    {item.value.toLocaleString("vi-VN")}đ · Mã: {item.codePrefix} · {item.active ? "Đang bật" : "Đang tắt"}
+                  </small>
+                  <small style={{ color: "#0369a1", fontWeight: "600", marginTop: "2px", display: "block" }}>
+                    Sản phẩm: {item.applicableProducts || ""} | Khấu trừ max: {item.discountRate || "100"}%
+                  </small>
+                </div>
+                <div className="actions">
+                  <button
+                    onClick={() => {
+                      setEditing(item.id);
+                      setForm(item);
+                    }}
+                  >
+                    Sửa
+                  </button>
+                  <button className="danger" onClick={() => remove(item.id)}>
+                    Xóa
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
+    </>
+  );
 }
 
 function Customers() {
@@ -937,18 +2269,7 @@ function Customers() {
             value={form.totalSpins}
             onChange={(e) => setForm({ ...form, totalSpins: e.target.value })}
           />
-          <select
-            value={form.selectedRewardId}
-            onChange={(e) => setForm({ ...form, selectedRewardId: e.target.value })}
-            style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #ccc" }}
-          >
-            <option value="">-- Gán Voucher / Quà tặng (Tùy chọn) --</option>
-            {rewards.map((r) => (
-              <option key={r.id} value={r.id}>
-                🎁 {r.title} ({r.value ? Number(r.value).toLocaleString("vi-VN") + "đ" : ""})
-              </option>
-            ))}
-          </select>
+
           <button className="primary">{editingId ? "Cập nhật" : "Thêm"}</button>
           {editingId && (
             <button
@@ -1041,7 +2362,7 @@ function Customers() {
         <div className="modal-overlay" onClick={() => setManualAwardModal((prev) => ({ ...prev, isOpen: false }))}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "480px" }}>
             <div className="modal-header">
-              <h3 className="modal-title">🎁 Cấp phần quà / Voucher cho {manualAwardModal.customerName}</h3>
+              <h3 className="modal-title">Cấp phần quà / Voucher cho {manualAwardModal.customerName}</h3>
               <button type="button" className="modal-close-btn" onClick={() => setManualAwardModal((prev) => ({ ...prev, isOpen: false }))}>
                 &times;
               </button>
@@ -1072,11 +2393,16 @@ function Customers() {
                   required
                   style={{ width: "100%", marginTop: "4px", padding: "8px" }}
                 >
-                  {rewards.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.title} ({r.value ? Number(r.value).toLocaleString("vi-VN") + "đ" : ""})
-                    </option>
-                  ))}
+                  {rewards.map((r) => {
+                    const prod = r.applicableProducts || r.applicable_products;
+                    const prodText = prod ? ` · SP: ${prod}` : "";
+                    const codeText = r.codePrefix || r.code_prefix ? ` [Mã: ${r.codePrefix || r.code_prefix}]` : "";
+                    return (
+                      <option key={r.id} value={r.id}>
+                        {r.title} ({r.value ? Number(r.value).toLocaleString("vi-VN") + "đ" : ""}){codeText}{prodText}
+                      </option>
+                    );
+                  })}
                 </select>
               </label>
 
@@ -1238,7 +2564,7 @@ function Awards() {
 
   return (
     <>
-      <Header title="Kho Voucher & Vận hành Awards" subtitle="Tra cứu, đổi thưởng, gửi lại ZNS và hủy/chuyển hết hạn voucher của khách hàng." />
+      <Header helpTopic="awards" title="Kho Voucher & Vận hành Awards" subtitle="Tra cứu, đổi thưởng, gửi lại ZNS và hủy/chuyển hết hạn voucher của khách hàng." />
       {error && <UiAlert type="error" onClose={() => setError("")}>{error}</UiAlert>}
       {successMsg && <UiAlert type="success" onClose={() => setSuccessMsg("")}>{successMsg}</UiAlert>}
       <section className="panel mt-4">
@@ -1423,7 +2749,7 @@ function Rules() {
 
   return (
     <>
-      <Header title="Thể lệ chương trình" subtitle="Cấu hình điều khoản, điều kiện và cơ cấu giải thưởng hiển thị trên Mini App." />
+      <Header helpTopic="rules" title="Thể lệ chương trình" subtitle="Cấu hình điều khoản, điều kiện và cơ cấu giải thưởng hiển thị trên Mini App." />
       {error && <UiAlert type="error" onClose={() => setError("")}>{error}</UiAlert>}
       {successMsg && <UiAlert type="success" onClose={() => setSuccessMsg("")}>{successMsg}</UiAlert>}
       <form className="panel form rules" onSubmit={save}>
@@ -1518,7 +2844,11 @@ function CampaignRules() {
   }, [campaignId]);
 
   const getTargetSpins = () => {
-    if (spinMode === "all") return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    if (spinMode === "all") {
+      const list = [];
+      for (let i = 1; i <= 50; i++) list.push(i);
+      return list;
+    }
     if (spinMode === "range") {
       const start = Math.max(1, Math.min(rangeStart, rangeEnd));
       const end = Math.max(start, Math.max(rangeStart, rangeEnd));
@@ -1653,7 +2983,7 @@ function CampaignRules() {
 
   return (
     <>
-      <Header title="Quản lý Luật quay nâng cao" subtitle="Cấu hình đa lượt quay, tỷ lệ trúng và cơ cấu đa giải thưởng theo sự kiện." />
+      <Header helpTopic="rules" title="Quản lý Luật quay nâng cao" subtitle="Cấu hình đa lượt quay, tỷ lệ trúng và cơ cấu đa giải thưởng theo sự kiện." />
       {error && <UiAlert type="error" onClose={() => setError("")}>{error}</UiAlert>}
       {successMsg && <UiAlert type="success" onClose={() => setSuccessMsg("")}>{successMsg}</UiAlert>}
       <div className="split mt-4" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "20px", alignItems: "start" }}>
@@ -1704,9 +3034,10 @@ function CampaignRules() {
             <label style={{ minWidth: 0 }}>
               Phạm vi áp dụng *
               <select style={{ width: "100%", maxWidth: "100%", boxSizing: "border-box" }} value={form.scope} onChange={(e) => setForm({ ...form, scope: e.target.value })}>
-                <option value="default">Tất cả khách hàng (Default)</option>
-                <option value="user">Khách hàng chỉ định (User)</option>
-                <option value="group">Nhóm khách hàng (Group)</option>
+                <option value="default">🌐 Tất cả khách hàng (Default)</option>
+                <option value="guest">🆕 Khách hàng mới / Khách vãng lai (Guest)</option>
+                <option value="group">🏷️ Nhóm khách hàng (Group)</option>
+                <option value="user">👤 Khách hàng chỉ định (User)</option>
               </select>
             </label>
           </div>
@@ -1717,7 +3048,7 @@ function CampaignRules() {
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
               <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}>
                 <input type="radio" name="advSpinMode" checked={spinMode === "all"} onChange={() => setSpinMode("all")} />
-                Tất cả (Lượt 1 - 10)
+                Tất cả
               </label>
 
               <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}>
@@ -1740,7 +3071,7 @@ function CampaignRules() {
 
             {spinMode === "custom" && (
               <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "6px" }}>
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map((num) => (
                   <button
                     type="button"
                     key={num}
@@ -1790,9 +3121,16 @@ function CampaignRules() {
                   <div style={{ minWidth: 0 }}>
                     <label style={{ fontSize: "11px", color: "#475569", fontWeight: "700", display: "block", marginBottom: "4px" }}>Tên Giải thưởng {idx + 1}</label>
                     <select style={{ width: "100%", padding: "6px 8px", fontSize: "11px", boxSizing: "border-box" }} value={item.rewardId || rewards[0]?.id || ""} onChange={(e) => handleUpdateRewardRow(idx, "rewardId", e.target.value)} required>
-                      {rewards.map((r) => (
-                        <option key={r.id} value={r.id}>{r.title} ({r.value ? Number(r.value).toLocaleString("vi-VN") + "đ" : ""})</option>
-                      ))}
+                      {rewards.map((r) => {
+                        const prod = r.applicableProducts || r.applicable_products;
+                        const prodText = prod ? ` · SP: ${prod}` : "";
+                        const codeText = r.codePrefix || r.code_prefix ? ` [Mã: ${r.codePrefix || r.code_prefix}]` : "";
+                        return (
+                          <option key={r.id} value={r.id}>
+                            {r.title} ({r.value ? Number(r.value).toLocaleString("vi-VN") + "đ" : ""}){codeText}{prodText}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
 
@@ -2056,7 +3394,7 @@ function CustomerGroups() {
 
   return (
     <>
-      <Header title="Nhóm khách hàng (Customer Groups)" subtitle="Phân nhóm khách hàng (VIP, Đại lý, Nội bộ) để gán thể lệ/luật quay đặc thù theo từng sự kiện." />
+      <Header helpTopic="groups" title="Nhóm khách hàng (Customer Groups)" subtitle="Phân nhóm khách hàng (VIP, Đại lý, Nội bộ) để gán thể lệ/luật quay đặc thù theo từng sự kiện." />
       {error && <UiAlert type="error" onClose={() => setError("")}>{error}</UiAlert>}
       {successMsg && <UiAlert type="success" onClose={() => setSuccessMsg("")}>{successMsg}</UiAlert>}
       <div className="split mt-4">
@@ -2290,6 +3628,325 @@ export default function App() {
     setViewMode("operator");
   };
 
+
+
+  function SystemSettings() {
+    const [configData, setConfigData] = useState({
+      appEnv: "development",
+      participantAuthMode: "preview",
+      adminAuthMode: "development",
+      apiBaseUrl: "http://localhost:8787/api/v1",
+      zaloAppSecret: "",
+      zaloOaId: "",
+      zbsApiKey: "",
+      zbsTemplateId: "",
+      googleSheetsWebhookUrl: "",
+      allowUnlisted: false,
+      unlistedSpinQuota: 1,
+      oaRequired: false,
+    });
+
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState("");
+    const [successMsg, setSuccessMsg] = useState("");
+    const [copiedKey, setCopiedKey] = useState("");
+
+    const loadConfig = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const data = await api("/admin/system-config");
+        setConfigData(data);
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    useEffect(() => {
+      loadConfig();
+    }, []);
+
+    const handleSave = async (e) => {
+      e.preventDefault();
+      setSaving(true);
+      setError("");
+      setSuccessMsg("");
+      try {
+        await api("/admin/system-config", {
+          method: "PUT",
+          body: JSON.stringify(configData),
+        });
+        setSuccessMsg("Đã lưu cấu hình môi trường hệ thống thành công!");
+        await loadConfig();
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    const copyToClipboard = (text, key) => {
+      navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(""), 2000);
+    };
+
+    const backendEnvContent = `PORT=8787
+APP_ENV=${configData.appEnv}
+PARTICIPANT_AUTH_MODE=${configData.participantAuthMode}
+ADMIN_AUTH_MODE=${configData.adminAuthMode}
+ZALO_APP_SECRET=${configData.zaloAppSecret === "*****" ? "" : configData.zaloAppSecret}
+ZBS_API_KEY=${configData.zbsApiKey === "*****" ? "" : configData.zbsApiKey}
+ZBS_TEMPLATE_ID=${configData.zbsTemplateId}
+GOOGLE_SHEETS_WEBHOOK_URL=${configData.googleSheetsWebhookUrl}`;
+
+    const miniAppEnvContent = `VITE_API_BASE_URL=${configData.apiBaseUrl}
+VITE_PARTICIPANT_AUTH_MODE=${configData.participantAuthMode}
+VITE_ZALO_OA_ID=${configData.zaloOaId}`;
+
+    const adminEnvContent = `VITE_API_BASE_URL=${configData.apiBaseUrl}`;
+
+    if (loading) return <div className="card">Đang tải cấu hình môi trường...</div>;
+
+    return (
+      <section>
+        <Header
+          helpTopic="settings"
+          title="⚙️ Cấu hình Môi trường (System & Env)"
+          subtitle="Quản lý biến môi trường Backend, Zalo Mini App, ZNS Webhook và tham số hệ thống"
+        />
+
+        <UiAlert message={error} type="error" onClose={() => setError("")} />
+        <UiAlert message={successMsg} type="success" onClose={() => setSuccessMsg("")} />
+
+        <form onSubmit={handleSave} style={{ display: "grid", gap: "20px" }}>
+          {/* Card 1: Backend & API Base URL */}
+          <div className="card">
+            <h2>🌐 Cấu hình Server Backend & API Domain</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "12px" }}>
+              <label>
+                <strong>Môi trường Chạy (APP_ENV)</strong>
+                <select
+                  value={configData.appEnv}
+                  onChange={(e) => setConfigData({ ...configData, appEnv: e.target.value })}
+                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
+                >
+                  <option value="development">🛠️ Development (Thử nghiệm Local)</option>
+                  <option value="production">🚀 Production (Vận hành Thực tế)</option>
+                </select>
+              </label>
+
+              <label>
+                <strong>Xác thực Khách hàng (PARTICIPANT_AUTH_MODE)</strong>
+                <select
+                  value={configData.participantAuthMode}
+                  onChange={(e) => setConfigData({ ...configData, participantAuthMode: e.target.value })}
+                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
+                >
+                  <option value="preview">🔍 Preview Mode (Cho phép giả lập lượt quay)</option>
+                  <option value="zalo">🔒 Zalo Token Auth (Xác thực qua Zalo SDK)</option>
+                </select>
+              </label>
+
+              <label>
+                <strong>Xác thực Quản trị Admin (ADMIN_AUTH_MODE)</strong>
+                <select
+                  value={configData.adminAuthMode}
+                  onChange={(e) => setConfigData({ ...configData, adminAuthMode: e.target.value })}
+                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
+                >
+                  <option value="development">🔑 Development (Tài khoản local admin@example.com)</option>
+                  <option value="supabase">🛡️ Supabase Auth (Tài khoản bảo mật Supabase)</option>
+                </select>
+              </label>
+
+              <label>
+                <strong>API Base URL (VITE_API_BASE_URL)</strong>
+                <input
+                  type="text"
+                  value={configData.apiBaseUrl}
+                  onChange={(e) => setConfigData({ ...configData, apiBaseUrl: e.target.value })}
+                  placeholder="http://localhost:8787/api/v1"
+                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Card 2: Zalo & ZNS & Google Sheets Integration */}
+          <div className="card">
+            <h2>🔑 Cấu hình Tích hợp Zalo App & ZBS & Webhook</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "12px" }}>
+              <label>
+                <strong>Zalo App Secret Key (ZALO_APP_SECRET)</strong>
+                <input
+                  type="password"
+                  value={configData.zaloAppSecret}
+                  onChange={(e) => setConfigData({ ...configData, zaloAppSecret: e.target.value })}
+                  placeholder="Khóa bí mật Zalo App"
+                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
+                />
+              </label>
+
+              <label>
+                <strong>Zalo Official Account ID (VITE_ZALO_OA_ID)</strong>
+                <input
+                  type="text"
+                  value={configData.zaloOaId}
+                  onChange={(e) => setConfigData({ ...configData, zaloOaId: e.target.value })}
+                  placeholder="ID Zalo Official Account (OA)"
+                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
+                />
+              </label>
+
+              <label>
+                <strong>ZBS API Key (Tự động gửi tin nhắn ZNS)</strong>
+                <input
+                  type="password"
+                  value={configData.zbsApiKey}
+                  onChange={(e) => setConfigData({ ...configData, zbsApiKey: e.target.value })}
+                  placeholder="ZBS API Key"
+                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
+                />
+              </label>
+
+              <label>
+                <strong>ZBS Template ID (Mẫu tin ZNS gửi Voucher)</strong>
+                <input
+                  type="text"
+                  value={configData.zbsTemplateId}
+                  onChange={(e) => setConfigData({ ...configData, zbsTemplateId: e.target.value })}
+                  placeholder="ID Mẫu tin ZNS"
+                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
+                />
+              </label>
+
+              <label style={{ gridColumn: "span 2" }}>
+                <strong>Google Sheets Webhook URL (Đồng bộ Báo cáo Realtime)</strong>
+                <input
+                  type="text"
+                  value={configData.googleSheetsWebhookUrl}
+                  onChange={(e) => setConfigData({ ...configData, googleSheetsWebhookUrl: e.target.value })}
+                  placeholder="https://script.google.com/macros/s/..."
+                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
+                />
+              </label>
+            </div>
+          </div>
+
+          {/* Card 3: Mini App Guest Policy Settings */}
+          <div className="card">
+            <h2>🎮 Cấu hình Chính sách Tham gia Mini App</h2>
+            <div style={{ display: "grid", gap: "12px", marginTop: "12px" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={configData.allowUnlisted}
+                  onChange={(e) => setConfigData({ ...configData, allowUnlisted: e.target.checked })}
+                />
+                <span><strong>Cho phép Khách vãng lai (ngoài danh sách) tham gia quay thưởng</strong></span>
+              </label>
+
+              {configData.allowUnlisted && (
+                <label style={{ width: "280px" }}>
+                  <strong>Số lượt quay cấp mặc định cho Khách vãng lai:</strong>
+                  <input
+                    type="number"
+                    min="1"
+                    value={configData.unlistedSpinQuota}
+                    onChange={(e) => setConfigData({ ...configData, unlistedSpinQuota: e.target.value })}
+                    style={{ width: "100%", padding: "6px 10px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
+                  />
+                </label>
+              )}
+
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={configData.oaRequired}
+                  onChange={(e) => setConfigData({ ...configData, oaRequired: e.target.checked })}
+                />
+                <span><strong>Bắt buộc Khách hàng bấm Quan tâm Zalo OA trước khi được quay</strong></span>
+              </label>
+            </div>
+          </div>
+
+          <button className="primary" disabled={saving} style={{ padding: "12px 24px", fontSize: "15px", width: "fit-content" }}>
+            {saving ? "Đang lưu cấu hình..." : "💾 Lưu Cấu hình Môi trường"}
+          </button>
+        </form>
+
+        {/* Card 4: Quick Copy .env snippets */}
+        <div className="card" style={{ marginTop: "24px" }}>
+          <h2>📋 Bộ sinh file `.env` nhanh cho Deploy</h2>
+          <p style={{ color: "#64748b", fontSize: "13px" }}>Sao chép nội dung `.env` chuẩn để dán vào file môi trường Server/MiniApp khi deploy.</p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", marginTop: "16px" }}>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                <strong>🖥️ backend/.env</strong>
+                <button
+                  type="button"
+                  className="secondary"
+                  style={{ padding: "3px 8px", fontSize: "11px" }}
+                  onClick={() => copyToClipboard(backendEnvContent, "be")}
+                >
+                  {copiedKey === "be" ? "✓ Đã copy!" : "📋 Copy"}
+                </button>
+              </div>
+              <textarea
+                readOnly
+                value={backendEnvContent}
+                style={{ width: "100%", height: "140px", fontSize: "11px", fontFamily: "monospace", padding: "8px", background: "#f8fafc", borderRadius: "6px", border: "1px solid #cbd5e1" }}
+              />
+            </div>
+
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                <strong>📱 lucky-wheels/.env</strong>
+                <button
+                  type="button"
+                  className="secondary"
+                  style={{ padding: "3px 8px", fontSize: "11px" }}
+                  onClick={() => copyToClipboard(miniAppEnvContent, "mini")}
+                >
+                  {copiedKey === "mini" ? "✓ Đã copy!" : "📋 Copy"}
+                </button>
+              </div>
+              <textarea
+                readOnly
+                value={miniAppEnvContent}
+                style={{ width: "100%", height: "140px", fontSize: "11px", fontFamily: "monospace", padding: "8px", background: "#f8fafc", borderRadius: "6px", border: "1px solid #cbd5e1" }}
+              />
+            </div>
+
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                <strong>🌐 admin-web/.env</strong>
+                <button
+                  type="button"
+                  className="secondary"
+                  style={{ padding: "3px 8px", fontSize: "11px" }}
+                  onClick={() => copyToClipboard(adminEnvContent, "admin")}
+                >
+                  {copiedKey === "admin" ? "✓ Đã copy!" : "📋 Copy"}
+                </button>
+              </div>
+              <textarea
+                readOnly
+                value={adminEnvContent}
+                style={{ width: "100%", height: "140px", fontSize: "11px", fontFamily: "monospace", padding: "8px", background: "#f8fafc", borderRadius: "6px", border: "1px solid #cbd5e1" }}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   const advancedPage = useMemo(() => ({
     overview: <Overview />,
     campaigns: <Campaigns />,
@@ -2301,6 +3958,7 @@ export default function App() {
     awards: <Awards />,
     rules: <Rules />,
     campaign: <CampaignRules />,
+    settings: <SystemSettings />,
   }[tab]), [tab]);
 
   if (!loggedIn) return <Login onLogin={() => setLoggedIn(true)} />;
