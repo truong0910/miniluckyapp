@@ -187,10 +187,13 @@ async function loadAdminCustomer(id) {
   if (error) throw error;
   if (!customer) throw publicError("Không tìm thấy khách hàng", 404);
 
-  const [legacyRes, awardsRes, spinsRes] = await Promise.all([
-    supabase.from("customer_rewards").select("code,title,value,description,wheel_label,result,created_at").eq("customer_id", id).order("created_at", { ascending: true }),
-    supabase.from("awards").select("code,title_snapshot,value_snapshot,description_snapshot,result,issued_at").eq("customer_id", id).order("issued_at", { ascending: true }),
-    supabase.from("spin_events").select("id", { count: "exact", head: true }).eq("customer_id", id),
+  const idsToMatch = [...new Set([customer.id, customer.phone, customer.phone ? `customer-${customer.phone}` : null].filter(Boolean))];
+
+  const [legacyRes, awardsRes, spinsRes, awardsCountRes] = await Promise.all([
+    supabase.from("customer_rewards").select("code,title,value,description,wheel_label,result,created_at").in("customer_id", idsToMatch).order("created_at", { ascending: true }),
+    supabase.from("awards").select("code,title_snapshot,value_snapshot,description_snapshot,result,issued_at").in("customer_id", idsToMatch).order("issued_at", { ascending: true }),
+    supabase.from("spin_events").select("id", { count: "exact", head: true }).in("customer_id", idsToMatch),
+    supabase.from("awards").select("id", { count: "exact", head: true }).in("customer_id", idsToMatch),
   ]);
 
   if (legacyRes.error) throw legacyRes.error;
@@ -208,7 +211,9 @@ async function loadAdminCustomer(id) {
   }));
 
   const allRewards = [...legacyList, ...awardList];
-  const usedSpins = spinsRes?.count || 0;
+  const spinsFromEvents = spinsRes?.count || 0;
+  const spinsFromAwards = awardsCountRes?.count || 0;
+  const usedSpins = Math.max(spinsFromEvents, spinsFromAwards);
   const totalSpins = Number(customer.total_spins || 0);
   const remainingSpins = Math.max(0, totalSpins - usedSpins);
 

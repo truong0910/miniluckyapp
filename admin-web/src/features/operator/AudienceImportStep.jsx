@@ -151,7 +151,8 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
                     <th>STT</th>
                     <th>Tên khách hàng</th>
                     <th>Số điện thoại</th>
-                    <th>Số lượt quay</th>
+                    <th>Tổng lượt cấp</th>
+                    <th>Lượt còn lại</th>
                     <th>Nguồn tham gia</th>
                     <th>Trạng thái</th>
                     <th>Ngày thêm</th>
@@ -159,12 +160,30 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {participants.map((p, idx) => (
-                    <tr key={p.id || idx}>
-                      <td>{(page - 1) * 20 + idx + 1}</td>
-                      <td><strong>{p.customerName || p.customerId}</strong></td>
-                      <td><code>{p.customerPhone || "—"}</code></td>
-                      <td><strong>{p.spinQuota} lượt</strong></td>
+                  {participants.map((p, idx) => {
+                    const remSpins = p.remainingSpins ?? p.spinQuota ?? 0;
+                    return (
+                      <tr key={p.id || idx}>
+                        <td>{(page - 1) * 20 + idx + 1}</td>
+                        <td><strong>{p.customerName || p.customerId}</strong></td>
+                        <td><code>{p.customerPhone || "—"}</code></td>
+                        <td><span style={{ fontWeight: "600", color: "#475569" }}>{p.spinQuota} lượt</span></td>
+                        <td>
+                          <span
+                            style={{
+                              fontWeight: "700",
+                              color: remSpins > 0 ? "#16a34a" : "#dc2626",
+                              background: remSpins > 0 ? "#f0fdf4" : "#fef2f2",
+                              border: remSpins > 0 ? "1px solid #bbf7d0" : "1px solid #fecaca",
+                              padding: "3px 8px",
+                              borderRadius: "6px",
+                              fontSize: "11px",
+                              display: "inline-block",
+                            }}
+                          >
+                            {remSpins} lượt
+                          </span>
+                        </td>
                       <td>
                         <small className="badge-preview">
                           {p.registrationSource === "zalo_guest"
@@ -190,7 +209,8 @@ export default function AudienceImportStep({ campaign, onNextStep }) {
                         </UiButton>
                       </td>
                     </tr>
-                  ))}
+                  );
+                })}
                 </tbody>
               </table>
             </div>
