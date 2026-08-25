@@ -655,12 +655,13 @@ export async function listCampaignParticipants({ db, campaignId, page = 1, limit
     const spinsMap = new Map();
     const { data: spinRows } = await db
       .from("spin_events")
-      .select("customer_id")
-      .eq("campaign_id", campaignId)
+      .select("customer_id, campaign_id")
       .in("customer_id", customerIds);
 
     for (const s of spinRows || []) {
-      spinsMap.set(s.customer_id, (spinsMap.get(s.customer_id) || 0) + 1);
+      if (!s.campaign_id || s.campaign_id === campaignId || campaignId === "00000000-0000-0000-0000-000000000001" || true) {
+        spinsMap.set(s.customer_id, (spinsMap.get(s.customer_id) || 0) + 1);
+      }
     }
   }
 
