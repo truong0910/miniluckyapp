@@ -615,16 +615,29 @@ export async function listCampaignParticipants({ db, campaignId, page = 1, limit
   const { data: rows, count, error } = await query;
   if (error) throw error;
 
-  const customerIds = [...new Set((rows || []).map((row) => row.customer_id))];
+  const allPossibleCustomerIds = [...new Set(
+    (rows || []).flatMap((r) => {
+      const normP = r.customers?.phone ? normalizePhone(r.customers.phone) : "";
+      return [
+        r.customer_id,
+        r.customers?.phone,
+        normP,
+        normP ? `customer-${normP}` : null,
+      ].filter(Boolean);
+    })
+  )];
+
   const groupsMap = new Map();
   const groupIdsMap = new Map();
   const rewardsMap = new Map();
+  const spinsMap = new Map();
+  const awardsMap = new Map();
 
-  if (customerIds.length > 0) {
+  if (allPossibleCustomerIds.length > 0) {
     const { data: memberRows } = await db
       .from("customer_group_members")
       .select("customer_id, group_id, customer_groups(id, name)")
-      .in("customer_id", customerIds);
+      .in("customer_id", allPossibleCustomerIds);
 
     for (const m of memberRows || []) {
       const gId = m.group_id;
@@ -644,7 +657,7 @@ export async function listCampaignParticipants({ db, campaignId, page = 1, limit
       .from("customer_rewards")
       .select("customer_id, title, value, code")
       .eq("campaign_id", campaignId)
-      .in("customer_id", customerIds);
+      .in("customer_id", allPossibleCustomerIds);
 
     for (const r of rewardRows || []) {
       const existingList = rewardsMap.get(r.customer_id) || [];
@@ -652,15 +665,37 @@ export async function listCampaignParticipants({ db, campaignId, page = 1, limit
       rewardsMap.set(r.customer_id, existingList);
     }
 
-    const spinsMap = new Map();
     const { data: spinRows } = await db
       .from("spin_events")
       .select("customer_id, campaign_id")
-      .in("customer_id", customerIds);
+      .in("customer_id", allPossibleCustomerIds);
 
     for (const s of spinRows || []) {
-      if (!s.campaign_id || s.campaign_id === campaignId || campaignId === "00000000-0000-0000-0000-000000000001" || true) {
-        spinsMap.set(s.customer_id, (spinsMap.get(s.customer_id) || 0) + 1);
+      if (s.customer_id) {
+        const key = s.customer_id;
+        const normKey = normalizePhone(key);
+        spinsMap.set(key, (spinsMap.get(key) || 0) + 1);
+        if (normKey) {
+          spinsMap.set(normKey, (spinsMap.get(normKey) || 0) + 1);
+          spinsMap.set(`customer-${normKey}`, (spinsMap.get(`customer-${normKey}`) || 0) + 1);
+        }
+      }
+    }
+
+    const { data: awardRows } = await db
+      .from("awards")
+      .select("customer_id, campaign_id")
+      .in("customer_id", allPossibleCustomerIds);
+
+    for (const a of awardRows || []) {
+      if (a.customer_id) {
+        const key = a.customer_id;
+        const normKey = normalizePhone(key);
+        awardsMap.set(key, (awardsMap.get(key) || 0) + 1);
+        if (normKey) {
+          awardsMap.set(normKey, (awardsMap.get(normKey) || 0) + 1);
+          awardsMap.set(`customer-${normKey}`, (awardsMap.get(`customer-${normKey}`) || 0) + 1);
+        }
       }
     }
   }
@@ -670,7 +705,12 @@ export async function listCampaignParticipants({ db, campaignId, page = 1, limit
     const assignedGroupIds = groupIdsMap.get(row.customer_id) || [];
     const plannedRewards = rewardsMap.get(row.customer_id) || [];
     const noteText = row.note || row.imported_group || "";
-    const spinsUsed = spinsMap.get(row.customer_id) || 0;
+    
+    const normPhone = row.customers?.phone ? normalizePhone(row.customers.phone) : "";
+    const spinsFromEvents = (spinsMap.get(row.customer_id) || 0) || (normPhone ? (spinsMap.get(normPhone) || 0) : 0);
+    const spinsFromAwards = (awardsMap.get(row.customer_id) || 0) || (normPhone ? (awardsMap.get(normPhone) || 0) : 0);
+    const spinsUsed = Math.max(spinsFromEvents, spinsFromAwards);
+
     const totalQuota = Number(row.spin_quota || 0);
     const remainingSpins = Math.max(0, totalQuota - spinsUsed);
 
