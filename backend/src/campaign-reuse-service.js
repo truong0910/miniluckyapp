@@ -606,7 +606,17 @@ export async function listCampaignParticipants({ db, campaignId, page = 1, limit
     .order("created_at", { ascending: false });
 
   if (cleanSearch) {
-    query = query.or(`customer_id.ilike.%${cleanSearch}%,customers.name.ilike.%${cleanSearch}%,customers.phone.ilike.%${cleanSearch}%`);
+    const { data: matchedCusts } = await db
+      .from("customers")
+      .select("id")
+      .or(`phone.ilike.%${cleanSearch}%,name.ilike.%${cleanSearch}%`);
+    const matchedIds = (matchedCusts || []).map((c) => c.id).filter(Boolean);
+
+    if (matchedIds.length > 0) {
+      query = query.or(`customer_id.ilike.%${cleanSearch}%,note.ilike.%${cleanSearch}%,customer_id.in.(${matchedIds.join(",")})`);
+    } else {
+      query = query.or(`customer_id.ilike.%${cleanSearch}%,note.ilike.%${cleanSearch}%`);
+    }
   }
 
   const start = (page - 1) * limit;
