@@ -75,7 +75,7 @@ function Shell({ tab, setTab, onLogout, children }) {
             ["awards", "Kho Voucher"],
             ["campaign", "Luật quay"],
             ["rules", "Thể lệ"],
-            ["settings", "Môi trường (Env)"],
+            // ["settings", "Môi trường (Env)"],
           ].map(([id, label]) => (
             <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>
               {label}
