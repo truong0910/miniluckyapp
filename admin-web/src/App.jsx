@@ -1279,8 +1279,9 @@ function CampaignParticipants() {
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
+                );
+              })
+            )}
             </tbody>
           </table>
         </div>
