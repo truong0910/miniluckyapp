@@ -1135,7 +1135,8 @@ function CampaignParticipants() {
                 <th>Số điện thoại</th>
                 <th>Nhóm KH</th>
                 <th>Ghi chú</th>
-                <th>Lượt quay</th>
+                <th>Tổng lượt cấp</th>
+                <th>Lượt còn lại</th>
                 <th>Voucher cấp sẵn</th>
                 <th>Trạng thái</th>
                 <th>Ngày tạo</th>
@@ -1144,27 +1145,45 @@ function CampaignParticipants() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="9" style={{ textAlign: "center", padding: "24px" }}>Đang tải...</td></tr>
+                <tr><td colSpan="10" style={{ textAlign: "center", padding: "24px" }}>Đang tải...</td></tr>
               ) : participants.length === 0 ? (
-                <tr><td colSpan="9" style={{ textAlign: "center", padding: "24px" }}>Sự kiện chưa có khách hàng nào. Bấm "+ Thêm thủ công Khách hàng" hoặc "Nhập danh sách Excel" để thêm.</td></tr>
+                <tr><td colSpan="10" style={{ textAlign: "center", padding: "24px" }}>Sự kiện chưa có khách hàng nào. Bấm "+ Thêm thủ công Khách hàng" hoặc "Nhập danh sách Excel" để thêm.</td></tr>
               ) : (
-                participants.map((item) => (
-                  <tr key={item.id}>
-                    <td><strong>{item.customerName}</strong></td>
-                    <td>{item.customerPhone || item.customerId}</td>
-                    <td>
-                      {item.assignedGroups?.length > 0 ? (
-                        item.assignedGroups.map((g, i) => (
-                          <span key={i} style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", padding: "2px 6px", borderRadius: "4px", fontSize: "11px", fontWeight: "700", marginRight: "4px", display: "inline-block" }}>
-                            {g}
-                          </span>
-                        ))
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td>{item.note || "—"}</td>
-                    <td><strong>{item.spinQuota}</strong> lượt</td>
+                participants.map((item) => {
+                  const remSpins = item.remainingSpins ?? item.spinQuota ?? 0;
+                  return (
+                    <tr key={item.id}>
+                      <td><strong>{item.customerName}</strong></td>
+                      <td>{item.customerPhone || item.customerId}</td>
+                      <td>
+                        {item.assignedGroups?.length > 0 ? (
+                          item.assignedGroups.map((g, i) => (
+                            <span key={i} style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", padding: "2px 6px", borderRadius: "4px", fontSize: "11px", fontWeight: "700", marginRight: "4px", display: "inline-block" }}>
+                              {g}
+                            </span>
+                          ))
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td>{item.note || "—"}</td>
+                      <td><span style={{ fontWeight: "600", color: "#475569" }}>{item.spinQuota} lượt</span></td>
+                      <td>
+                        <span
+                          style={{
+                            fontWeight: "700",
+                            color: remSpins > 0 ? "#16a34a" : "#dc2626",
+                            background: remSpins > 0 ? "#f0fdf4" : "#fef2f2",
+                            border: remSpins > 0 ? "1px solid #bbf7d0" : "1px solid #fecaca",
+                            padding: "3px 8px",
+                            borderRadius: "6px",
+                            fontSize: "11px",
+                            display: "inline-block",
+                          }}
+                        >
+                          {remSpins} lượt
+                        </span>
+                      </td>
                     <td>
                       {item.plannedRewards?.length > 0 ? (
                         <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>

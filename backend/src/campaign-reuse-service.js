@@ -651,6 +651,17 @@ export async function listCampaignParticipants({ db, campaignId, page = 1, limit
       existingList.push({ title: r.title, value: Number(r.value), code: r.code });
       rewardsMap.set(r.customer_id, existingList);
     }
+
+    const spinsMap = new Map();
+    const { data: spinRows } = await db
+      .from("spin_events")
+      .select("customer_id")
+      .eq("campaign_id", campaignId)
+      .in("customer_id", customerIds);
+
+    for (const s of spinRows || []) {
+      spinsMap.set(s.customer_id, (spinsMap.get(s.customer_id) || 0) + 1);
+    }
   }
 
   const items = (rows || []).map((row) => {
@@ -658,6 +669,9 @@ export async function listCampaignParticipants({ db, campaignId, page = 1, limit
     const assignedGroupIds = groupIdsMap.get(row.customer_id) || [];
     const plannedRewards = rewardsMap.get(row.customer_id) || [];
     const noteText = row.note || row.imported_group || "";
+    const spinsUsed = spinsMap.get(row.customer_id) || 0;
+    const totalQuota = Number(row.spin_quota || 0);
+    const remainingSpins = Math.max(0, totalQuota - spinsUsed);
 
     return {
       id: row.id,
@@ -672,7 +686,9 @@ export async function listCampaignParticipants({ db, campaignId, page = 1, limit
       groupName: assignedGroupNames.join(", ") || "",
       plannedRewards: plannedRewards,
       status: row.status,
-      spinQuota: row.spin_quota,
+      spinQuota: totalQuota,
+      spinsUsed,
+      remainingSpins,
       registrationSource: row.registration_source || "admin",
       createdAt: row.created_at,
     };
