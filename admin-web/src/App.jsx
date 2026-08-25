@@ -1066,7 +1066,7 @@ function CampaignParticipants() {
             ))}
           </select>
           <input
-            placeholder="🔍 Tìm tên hoặc số điện thoại..."
+            placeholder="Tìm tên hoặc số điện thoại..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{ padding: "8px 12px", width: "240px" }}
@@ -1204,104 +1204,104 @@ function CampaignParticipants() {
                           {remSpins} lượt
                         </span>
                       </td>
-                    <td>
-                      {item.plannedRewards?.length > 0 ? (
-                        <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-                          {formatGroupedRewards(item.plannedRewards).map((rw, i) => (
-                            <span
-                              key={i}
-                              title={rw.description ? `Sản phẩm áp dụng: ${rw.description}` : undefined}
-                              style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "600", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}
-                            >
-                              <span>
-                                {rw.title} ({rw.value.toLocaleString("vi-VN")}đ)
-                                {rw.description && <span style={{ opacity: 0.75, fontSize: "10px", marginLeft: "4px" }}>• {rw.description}</span>}
+                      <td>
+                        {item.plannedRewards?.length > 0 ? (
+                          <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                            {formatGroupedRewards(item.plannedRewards).map((rw, i) => (
+                              <span
+                                key={i}
+                                title={rw.description ? `Sản phẩm áp dụng: ${rw.description}` : undefined}
+                                style={{ background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a", padding: "2px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "600", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}
+                              >
+                                <span>
+                                  {rw.title} ({rw.value.toLocaleString("vi-VN")}đ)
+                                  {rw.description && <span style={{ opacity: 0.75, fontSize: "10px", marginLeft: "4px" }}>• {rw.description}</span>}
+                                </span>
+                                {rw.count > 1 && (
+                                  <strong style={{ background: "#d97706", color: "#fff", padding: "1px 6px", borderRadius: "10px", fontSize: "10px", fontWeight: "800" }}>
+                                    x{rw.count}
+                                  </strong>
+                                )}
                               </span>
-                              {rw.count > 1 && (
-                                <strong style={{ background: "#d97706", color: "#fff", padding: "1px 6px", borderRadius: "10px", fontSize: "10px", fontWeight: "800" }}>
-                                  x{rw.count}
-                                </strong>
-                              )}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td><span className={`badge status-${item.status}`}>{item.status === "active" ? "Đang bật" : item.status === "paused" ? "Tạm dừng" : item.status}</span></td>
-                    <td>{new Date(item.createdAt).toLocaleString("vi-VN")}</td>
-                    <td>
-                      <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-                        <button
-                          type="button"
-                          className="primary"
-                          style={{ padding: "4px 8px", fontSize: "11px", borderRadius: "6px" }}
-                          onClick={() =>
-                            setManualAwardModal({
-                              isOpen: true,
-                              customerId: item.customerId,
-                              customerName: item.customerName,
-                              rewardId: rewards[0]?.id || "",
-                              voucherCode: "",
-                              reason: "Cấp bổ sung từ Admin",
-                              saving: false,
-                            })
-                          }
-                        >
-                          + Quà
-                        </button>
-                        {item.plannedRewards?.length > 0 && (
+                            ))}
+                          </div>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td><span className={`badge status-${item.status}`}>{item.status === "active" ? "Đang bật" : item.status === "paused" ? "Tạm dừng" : item.status}</span></td>
+                      <td>{new Date(item.createdAt).toLocaleString("vi-VN")}</td>
+                      <td>
+                        <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
                           <button
                             type="button"
-                            style={{ padding: "4px 8px", fontSize: "11px", borderRadius: "6px", background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a" }}
-                            title="Xóa bớt Voucher trùng do lỡ Import 2 lần"
-                            onClick={() => handleClearParticipantRewards(item)}
-                          >
-                            🧹 Xóa quà
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          style={{ padding: "4px 8px", fontSize: "11px", borderRadius: "6px" }}
-                          onClick={() => {
-                            const currentRewardIds = [];
-                            for (const rw of item.plannedRewards || []) {
-                              const match = rewards.find((r) => r.id === rw.reward_id || (r.title === rw.title && Number(r.value || 0) === Number(rw.value || 0)));
-                              if (match?.id && !currentRewardIds.includes(match.id)) {
-                                currentRewardIds.push(match.id);
-                              }
+                            className="primary"
+                            style={{ padding: "4px 8px", fontSize: "11px", borderRadius: "6px" }}
+                            onClick={() =>
+                              setManualAwardModal({
+                                isOpen: true,
+                                customerId: item.customerId,
+                                customerName: item.customerName,
+                                rewardId: rewards[0]?.id || "",
+                                voucherCode: "",
+                                reason: "Cấp bổ sung từ Admin",
+                                saving: false,
+                              })
                             }
-                            setEditParticipantModal({
-                              isOpen: true,
-                              customerId: item.customerId,
-                              name: item.customerName,
-                              phone: item.customerPhone,
-                              groupId: item.groupId || "",
-                              note: item.note || "",
-                              spinQuota: item.spinQuota,
-                              status: item.status,
-                              selectedRewardIds: currentRewardIds,
-                              saving: false,
-                            });
-                          }}
-                        >
-                          Sửa
-                        </button>
-                        <button
-                          type="button"
-                          className="danger"
-                          style={{ padding: "4px 8px", fontSize: "11px", borderRadius: "6px" }}
-                          onClick={() => handleDeleteParticipant(item)}
-                        >
-                          Xóa
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
+                          >
+                            + Quà
+                          </button>
+                          {item.plannedRewards?.length > 0 && (
+                            <button
+                              type="button"
+                              style={{ padding: "4px 8px", fontSize: "11px", borderRadius: "6px", background: "#fef3c7", color: "#92400e", border: "1px solid #fde68a" }}
+                              title="Xóa bớt Voucher trùng do lỡ Import 2 lần"
+                              onClick={() => handleClearParticipantRewards(item)}
+                            >
+                              Xóa quà
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            style={{ padding: "4px 8px", fontSize: "11px", borderRadius: "6px" }}
+                            onClick={() => {
+                              const currentRewardIds = [];
+                              for (const rw of item.plannedRewards || []) {
+                                const match = rewards.find((r) => r.id === rw.reward_id || (r.title === rw.title && Number(r.value || 0) === Number(rw.value || 0)));
+                                if (match?.id && !currentRewardIds.includes(match.id)) {
+                                  currentRewardIds.push(match.id);
+                                }
+                              }
+                              setEditParticipantModal({
+                                isOpen: true,
+                                customerId: item.customerId,
+                                name: item.customerName,
+                                phone: item.customerPhone,
+                                groupId: item.groupId || "",
+                                note: item.note || "",
+                                spinQuota: item.spinQuota,
+                                status: item.status,
+                                selectedRewardIds: currentRewardIds,
+                                saving: false,
+                              });
+                            }}
+                          >
+                            Sửa
+                          </button>
+                          <button
+                            type="button"
+                            className="danger"
+                            style={{ padding: "4px 8px", fontSize: "11px", borderRadius: "6px" }}
+                            onClick={() => handleDeleteParticipant(item)}
+                          >
+                            Xóa
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
