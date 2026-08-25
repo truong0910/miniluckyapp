@@ -29,10 +29,16 @@ test("spinOnce takes customer identity from the participant session and forwards
 });
 
 test("spinOnce maps database business errors to safe HTTP errors", async () => {
-  const db = { rpc: async () => ({ data: null, error: { code: "P0001", message: "no spins remaining" } }) };
+  const db1 = { rpc: async () => ({ data: null, error: { code: "P0001", message: "no spins remaining" } }) };
   await assert.rejects(
-    () => spinOnce({ db, participant: { customerId: "customer-1" }, idempotencyKey: "request-1" }),
+    () => spinOnce({ db: db1, participant: { customerId: "customer-1" }, idempotencyKey: "request-1" }),
     (error) => error.status === 409 && error.message === "No spins remaining",
+  );
+
+  const db3 = { rpc: async () => ({ data: null, error: { code: "P0003", message: "not a participant" } }) };
+  await assert.rejects(
+    () => spinOnce({ db: db3, participant: { customerId: "customer-1" }, idempotencyKey: "request-1" }),
+    (error) => error.status === 403 && error.message === "Khách hàng chưa đăng ký tham gia sự kiện này",
   );
 });
 

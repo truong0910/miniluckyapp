@@ -11,8 +11,20 @@ export default () => {
     plugins: [zaloMiniApp(), react()],
     server: {
       headers: {
-        "Cache-Control": "no-store",
+        "Cache-Control": "no-store, no-cache, must-revalidate",
       },
+    },
+    optimizeDeps: {
+      include: [
+        "zmp-ui",
+        "zmp-sdk",
+        "react",
+        "react-dom",
+        "react-dom/client",
+        "valibot",
+        "xlsx",
+      ],
+      holdUntilCrawlEnd: true,
     },
     build: {
       assetsInlineLimit: 0,

@@ -6,6 +6,7 @@ import {
 } from "@/services/participant.services";
 import { spinService, type SpinResponse } from "@/services/spin.services";
 import { zbsService } from "@/services/zbs.services";
+import { getWheelLoadState } from "@/services/wheel-load-state";
 import { useEffect, useMemo, useState } from "react";
 import { Button, useNavigate } from "zmp-ui";
 import VoucherCard from "./voucher-card";
@@ -26,6 +27,7 @@ const SLICE_GRADIENTS = [
 
 export default function SlotMachine() {
   const [participant, setParticipant] = useState<Participant | null>(null);
+  const [isLoadingParticipant, setIsLoadingParticipant] = useState(true);
   const [rotation, setRotation] = useState(0);
   const [isSpinning, setIsSpinning] = useState(false);
   const [spinError, setSpinError] = useState<string | null>(null);
@@ -50,6 +52,9 @@ export default function SlotMachine() {
       .catch((error) => {
         console.error("Unable to load wheel", error);
         if (!cancelled) setSpinError("Không thể tải thông tin vòng quay.");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingParticipant(false);
       });
 
     return () => {
@@ -166,6 +171,7 @@ export default function SlotMachine() {
         ...participant,
         spinsRemaining: result.spinsRemaining,
       };
+      participantService.updateCached({ spinsRemaining: result.spinsRemaining });
       setParticipant(updatedParticipant);
       setActiveSpinResult(result);
       setIsSpinning(false);
@@ -185,6 +191,39 @@ export default function SlotMachine() {
       );
     }
   };
+
+  const wheelState = getWheelLoadState({
+    isLoading: isLoadingParticipant,
+    participant,
+    segmentCount: segments.length,
+    error: spinError,
+  });
+
+  if (wheelState === "loading") {
+    return (
+      <div role="status" className="w-full flex flex-col items-center justify-center py-12 gap-3 text-red-200">
+        <div className="w-10 h-10 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+        <span className="font-extrabold text-sm tracking-wide">Đang tải thông tin vòng quay...</span>
+      </div>
+    );
+  }
+
+  if (wheelState === "error" || wheelState === "empty") {
+    return (
+      <div role="alert" className="w-[min(88vw,360px)] mx-auto my-6 p-6 rounded-2xl bg-slate-900/90 border border-red-500/30 text-center shadow-xl">
+        <p className="text-sm font-bold text-red-300 leading-relaxed mb-4">
+          {spinError || "Chưa có thông tin vòng quay."}
+        </p>
+        <Button
+          size="medium"
+          className="bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl"
+          onClick={() => navigate(PATHS.REGISTER)}
+        >
+          Đăng ký / Xác minh Zalo
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full flex flex-col items-center gap-5 py-2 relative z-20">
@@ -357,11 +396,11 @@ export default function SlotMachine() {
             </div>
 
             {/* REWARD OR CLOVER DISPLAY */}
-            {activeSpinResult.outcome === "reward" && activeSpinResult.reward ? (
+            {activeSpinResult.outcome === "reward" ? (
               <div className="w-full">
                 <VoucherCard
-                  title={activeSpinResult.reward.title}
-                  expiresAt={activeSpinResult.reward.expiresAt}
+                  title={activeSpinResult.reward?.title || "Voucher quà tặng"}
+                  expiresAt={activeSpinResult.reward?.expiresAt}
                 />
 
                 {/* ZNS DELIVERY STATUS */}

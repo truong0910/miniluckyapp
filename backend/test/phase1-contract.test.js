@@ -16,6 +16,13 @@ test("public spin and delivery contracts do not trust client identity or voucher
   assert.match(routes, /router\.get\("\/delivery\/zbs\/templates",\s*requireAdmin/);
 });
 
+test("public content endpoint exposes active campaign metadata", async () => {
+  const routes = await fs.readFile(routesPath, "utf8");
+  assert.match(routes, /import\s*\{[^}]*getActiveCampaign[^}]*\}\s*from\s*"\.\.\/campaign-service\.js"/);
+  assert.match(routes, /getActiveCampaign\(\{\s*db:\s*supabase\s*\}\)/);
+  assert.match(routes, /campaign:\s*activeCampaign/);
+});
+
 test("runtime configuration rejects production preview auth", async () => {
   const source = await fs.readFile(configPath, "utf8");
   assert.match(source, /production.*participantAuthMode.*preview/s);

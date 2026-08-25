@@ -19,6 +19,8 @@ export default function RegisterForm() {
   const [oaWidgetError, setOaWidgetError] = useState<string | null>(null);
   const [showMockButton, setShowMockButton] = useState(false);
   const [isFetchingPhone, setIsFetchingPhone] = useState(false);
+  const [previewPhone, setPreviewPhone] = useState("");
+  const [isPreviewLookup, setIsPreviewLookup] = useState(false);
   const [zaloAvatar, setZaloAvatar] = useState<string | null>(null);
 
 
@@ -55,44 +57,84 @@ export default function RegisterForm() {
   }, []);
 
   useEffect(() => {
+    if (isLoadingProfile) return;
+
     let cancelled = false;
     const oaId = import.meta.env.VITE_ZALO_OA_ID?.trim();
 
-    showOAWidget({
-      id: "registrationOaWidget",
-      ...(oaId ? { oaId } : {}),
-      guidingText: "Theo dõi OA để nhận voucher khi trúng thưởng",
-      color: "#0068FF",
-      onStatusChange: (status) => {
-        if (cancelled) return;
-        const followed = oaService.updateFromWidgetStatus(status);
-        setHasFollowedOA(followed);
-        setOaWidgetError(null);
-      },
-      onError: () => {
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      showOAWidget({
+        id: "registrationOaWidget",
+        ...(oaId ? { oaId } : {}),
+        guidingText: "Theo dõi OA để nhận voucher khi trúng thưởng",
+        color: "#0068FF",
+        onStatusChange: (status) => {
+          if (cancelled) return;
+          const followed = oaService.updateFromWidgetStatus(status);
+          setHasFollowedOA(followed);
+          setOaWidgetError(null);
+        },
+        onError: () => {
+          if (cancelled) return;
+          setOaWidgetError(
+            "Không thể tải nút theo dõi OA thật của Zalo (Môi trường Web / Dev Local)."
+          );
+          setShowMockButton(true);
+        },
+      }).catch(() => {
         if (cancelled) return;
         setOaWidgetError(
           "Không thể tải nút theo dõi OA thật của Zalo (Môi trường Web / Dev Local)."
         );
         setShowMockButton(true);
-      },
-    }).catch(() => {
-      if (cancelled) return;
-      setOaWidgetError(
-        "Không thể tải nút theo dõi OA thật của Zalo (Môi trường Web / Dev Local)."
-      );
-      setShowMockButton(true);
-    });
+      });
+    }, 100);
 
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, []);
+  }, [isLoadingProfile]);
 
   const handleToggleMockFollow = () => {
     const nextState = !hasFollowedOA;
     setHasFollowedOA(nextState);
     oaService.setFollowed(nextState);
+  };
+
+  const handlePreviewLookup = async () => {
+    const phone = previewPhone.trim();
+    if (!phone) {
+      openSnackbar({ icon: true, type: "warning", text: "Vui lòng nhập số điện thoại test.", duration: 3000 });
+      return;
+    }
+    if (!hasFollowedOA) {
+      openSnackbar({ icon: true, type: "warning", text: "Vui lòng bật nút giả lập theo dõi OA trước.", duration: 3500 });
+      return;
+    }
+
+    setIsPreviewLookup(true);
+    try {
+      const found = await participantService.startPreview(phone);
+      setCustomer(found);
+      openSnackbar({
+        icon: true,
+        type: "success",
+        text: `Đã vào chế độ test với ${found.name || found.phone}.`,
+        duration: 3000,
+      });
+      navigate(PATHS.WHEEL);
+    } catch (error) {
+      openSnackbar({
+        icon: true,
+        type: "error",
+        text: error instanceof Error ? error.message : "Không thể tra cứu khách hàng test.",
+        duration: 3500,
+      });
+    } finally {
+      setIsPreviewLookup(false);
+    }
   };
 
   const handleGetZaloPhone = async () => {
@@ -247,23 +289,49 @@ export default function RegisterForm() {
             </div>
           </div>
 
-          {/* ZALO PHONE PERMISSION */}
-          <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200 space-y-3">
-            <p className="text-xs text-slate-600 font-medium">
-              Số điện thoại chỉ được lấy từ quyền xác minh của Zalo, không nhập thủ công.
-            </p>
-            <Button
-              htmlType="button"
-              fullWidth
-              onClick={handleGetZaloPhone}
-              disabled={isFetchingPhone || !hasFollowedOA}
-              className="!h-12 !rounded-2xl !bg-gradient-to-r !from-red-500 !via-red-600 !to-amber-600 !text-white !font-black !shadow-lg active:scale-95 transition-transform"
-            >
-              {isFetchingPhone
-                ? "ĐANG XÁC MINH ZALO..."
-                : "CHO PHÉP ZALO & THAM GIA QUAY"}
-            </Button>
-          </div>
+          {participantService.isZaloMode() ? (
+            <div className="rounded-2xl bg-slate-50 p-4 border border-slate-200 space-y-3">
+              <p className="text-xs text-slate-600 font-medium">
+                Số điện thoại chỉ được lấy từ quyền xác minh của Zalo, không nhập thủ công.
+              </p>
+              <Button
+                htmlType="button"
+                fullWidth
+                onClick={handleGetZaloPhone}
+                disabled={isFetchingPhone || !hasFollowedOA}
+                className="!h-12 !rounded-2xl !bg-gradient-to-r !from-red-500 !via-red-600 !to-amber-600 !text-white !font-black !shadow-lg active:scale-95 transition-transform"
+              >
+                {isFetchingPhone
+                  ? "ĐANG XÁC MINH ZALO..."
+                  : "CHO PHÉP ZALO & THAM GIA QUAY"}
+              </Button>
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-slate-50 p-4 border border-amber-200 space-y-3">
+              <p className="text-xs text-amber-700 font-semibold">
+                Chế độ test local: nhập số điện thoại đã có trong danh sách khách hàng.
+              </p>
+              <input
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                value={previewPhone}
+                onChange={(event) => setPreviewPhone(event.target.value)}
+                placeholder="Ví dụ: 0901234567"
+                className="w-full h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-900 outline-none focus:border-amber-500"
+                disabled={isPreviewLookup}
+              />
+              <Button
+                htmlType="button"
+                fullWidth
+                onClick={handlePreviewLookup}
+                disabled={isPreviewLookup || !hasFollowedOA}
+                className="!h-12 !rounded-2xl !bg-gradient-to-r !from-amber-500 !to-orange-600 !text-white !font-black !shadow-lg active:scale-95 transition-transform"
+              >
+                {isPreviewLookup ? "ĐANG TRA CỨU..." : "TRA CỨU & THAM GIA TEST"}
+              </Button>
+            </div>
+          )}
 
           {/* CUSTOMER FOUND PREVIEW CARD WITH REAL ZALO AVATAR */}
           {customer && (
@@ -302,7 +370,9 @@ export default function RegisterForm() {
         </div>
 
         <p className="text-center text-[11px] text-slate-500 font-medium">
-          Zalo sẽ xác minh số điện thoại và tạo phiên tham gia tự động.
+          {participantService.isZaloMode()
+            ? "Zalo sẽ xác minh số điện thoại và tạo phiên tham gia tự động."
+            : "Chế độ preview chỉ dùng để kiểm thử local, không dùng khi phát hành production."}
         </p>
       </div>
     </div>

@@ -31,21 +31,68 @@ function normalizeZbsPhone(value) {
 
 export async function loadDeliveryContext({ db, delivery }) {
   const customer = await selectSingle(db, "customers", "phone,name", { id: delivery.customer_id });
-  const event = await selectSingle(db, "spin_events", "reward_code,reward_id", { id: delivery.spin_event_id });
-  if (!event?.reward_code && !event?.reward_id) throw deliveryError("Spin has no reward snapshot", 422);
+
+  // 1. Prefer loading reward metadata directly from public.awards
+  const { data: awardRow } = await db
+    .from("awards")
+    .select("code,title_snapshot,value_snapshot,description_snapshot,expires_at,campaign_id")
+    .eq("spin_event_id", delivery.spin_event_id)
+    .maybeSingle();
 
   let reward = null;
-  if (event.reward_code) {
-    reward = await selectSingle(db, "customer_rewards", "code,title,value,description", {
-      customer_id: delivery.customer_id,
-      code: event.reward_code,
-    }, "maybeSingle");
+  let campaignId = awardRow?.campaign_id || null;
+
+  if (awardRow) {
+    reward = {
+      code: awardRow.code,
+      title: awardRow.title_snapshot,
+      value: Number(awardRow.value_snapshot),
+      description: awardRow.description_snapshot || "",
+      expiresAt: awardRow.expires_at || "",
+      applicableProducts: awardRow.applicable_products_snapshot || awardRow.description_snapshot || "Tất cả sản phẩm Kính Hồng Phúc",
+      discountRate: awardRow.discount_rate_snapshot || "100",
+    };
+  } else {
+    // 2. Fallback to legacy spin_events + customer_rewards / reward_catalog
+    const event = await selectSingle(db, "spin_events", "reward_code,reward_id,campaign_id", { id: delivery.spin_event_id });
+    if (!event?.reward_code && !event?.reward_id) throw deliveryError("Spin has no reward snapshot", 422);
+    campaignId = event?.campaign_id || null;
+
+    if (event.reward_code) {
+      reward = await selectSingle(db, "customer_rewards", "code,title,value,description", {
+        customer_id: delivery.customer_id,
+        code: event.reward_code,
+      }, "maybeSingle");
+    }
+    if (!reward && event.reward_id) {
+      reward = await selectSingle(db, "reward_catalog", "id,code_prefix,title,value,description", { id: event.reward_id });
+    }
   }
-  if (!reward && event.reward_id) {
-    reward = await selectSingle(db, "reward_catalog", "id,code_prefix,title,value,description", { id: event.reward_id });
+
+  if (reward) {
+    if (!reward.applicableProducts) reward.applicableProducts = reward.applicable_products || reward.description || "Tất cả sản phẩm Kính Hồng Phúc";
+    if (!reward.discountRate) reward.discountRate = reward.discount_rate || "100";
   }
+
+  let campaign = null;
+  if (campaignId) {
+    const { data: campaignRow } = await db
+      .from("campaigns")
+      .select("id,name,starts_at,ends_at")
+      .eq("id", campaignId)
+      .maybeSingle();
+    if (campaignRow) {
+      campaign = {
+        id: campaignRow.id,
+        name: campaignRow.name,
+        startsAt: campaignRow.starts_at,
+        endsAt: campaignRow.ends_at,
+      };
+    }
+  }
+
   if (!customer?.phone || !reward) throw deliveryError("Delivery data is not available", 422);
-  return { customer, reward, phone: normalizeZbsPhone(customer.phone) };
+  return { customer, reward, campaign, phone: normalizeZbsPhone(customer.phone) };
 }
 
 export async function sendDelivery({ delivery, db, fetchImpl = fetch, config }) {
@@ -53,7 +100,7 @@ export async function sendDelivery({ delivery, db, fetchImpl = fetch, config }) 
   if (delivery.channel && delivery.channel !== "zbs") throw deliveryError("Unsupported delivery channel", 422);
   if (!config?.zbsApiKey || !config?.zbsTemplateId) throw deliveryError("ZBS is not configured", 503);
 
-  const { customer, reward, phone } = await loadDeliveryContext({ db, delivery });
+  const { customer, reward, campaign, phone } = await loadDeliveryContext({ db, delivery });
   const response = await fetchImpl(`${String(config.zbsBaseUrl || "").replace(/\/$/, "")}/v1/send`, {
     method: "POST",
     headers: {
@@ -70,7 +117,12 @@ export async function sendDelivery({ delivery, db, fetchImpl = fetch, config }) 
         voucher_name: reward.title,
         voucher_code: reward.code,
         voucher_value: String(reward.value),
-        expiry_date: "",
+        expiry_date: reward.expiresAt || "",
+        campaign_name: campaign?.name || "Chương trình ưu đãi Kính Hồng Phúc",
+        start_date: campaign?.startsAt ? new Date(campaign.startsAt).toLocaleDateString("vi-VN") : "Hôm nay",
+        end_date: reward.expiresAt ? new Date(reward.expiresAt).toLocaleDateString("vi-VN") : (campaign?.endsAt ? new Date(campaign.endsAt).toLocaleDateString("vi-VN") : "Khi hết hạn"),
+        applicable_products: reward.applicableProducts || reward.description || "Tất cả sản phẩm Kính Hồng Phúc",
+        discount_rate: String(reward.discountRate || "100"),
       },
     }),
   });
@@ -90,6 +142,14 @@ export async function finishDelivery({ db, deliveryId, status, messageId, error,
     p_next_attempt_at: nextAttemptAt || null,
   });
   if (rpcError) throw rpcError;
+
+  if (status === "sent" && data?.spin_event_id) {
+    await db
+      .from("awards")
+      .update({ status: "delivered", delivered_at: new Date().toISOString() })
+      .eq("spin_event_id", data.spin_event_id);
+  }
+
   return data;
 }
 

@@ -8,12 +8,13 @@ function isWithinWindow(rule) {
 }
 
 async function activeRulesForCustomer(customerId) {
-  const [direct, memberships, defaults] = await Promise.all([
+  const [direct, memberships, defaults, guests] = await Promise.all([
     supabase.from("customer_rule_assignments").select("rule_id").eq("customer_id", customerId),
     supabase.from("customer_group_members").select("group_id").eq("customer_id", customerId),
     supabase.from("campaign_rules").select("*").eq("scope", "default").eq("active", true),
+    supabase.from("campaign_rules").select("*").eq("scope", "guest").eq("active", true),
   ]);
-  for (const result of [direct, memberships, defaults]) if (result.error) throw result.error;
+  for (const result of [direct, memberships, defaults, guests]) if (result.error) throw result.error;
 
   const directIds = (direct.data || []).map((item) => item.rule_id);
   const groupIds = (memberships.data || []).map((item) => item.group_id);
@@ -31,7 +32,8 @@ async function activeRulesForCustomer(customerId) {
   if (assigned.error) throw assigned.error;
 
   return [
-    ...(assigned.data || []).map((rule) => ({ rule, scopeRank: rule.scope === "user" ? 3 : 2 })),
+    ...(assigned.data || []).map((rule) => ({ rule, scopeRank: rule.scope === "user" ? 4 : 3 })),
+    ...(guests.data || []).map((rule) => ({ rule, scopeRank: 2 })),
     ...(defaults.data || []).map((rule) => ({ rule, scopeRank: 1 })),
   ]
     .filter(({ rule }) => isWithinWindow(rule))

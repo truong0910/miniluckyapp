@@ -54,6 +54,10 @@ export const participantSession = {
 
   clear() {
     storage()?.removeItem(SESSION_KEY);
+    try {
+      storage()?.removeItem("lucky-wheels:spin-history");
+      storage()?.removeItem("lucky-wheels:last-spin");
+    } catch {}
   },
 
   key: SESSION_KEY,
