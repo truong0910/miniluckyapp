@@ -187,9 +187,10 @@ async function loadAdminCustomer(id) {
   if (error) throw error;
   if (!customer) throw publicError("Không tìm thấy khách hàng", 404);
 
-  const [legacyRes, awardsRes] = await Promise.all([
+  const [legacyRes, awardsRes, spinsRes] = await Promise.all([
     supabase.from("customer_rewards").select("code,title,value,description,wheel_label,result,created_at").eq("customer_id", id).order("created_at", { ascending: true }),
     supabase.from("awards").select("code,title_snapshot,value_snapshot,description_snapshot,result,issued_at").eq("customer_id", id).order("issued_at", { ascending: true }),
+    supabase.from("spin_events").select("id", { count: "exact", head: true }).eq("customer_id", id),
   ]);
 
   if (legacyRes.error) throw legacyRes.error;
@@ -207,7 +208,15 @@ async function loadAdminCustomer(id) {
   }));
 
   const allRewards = [...legacyList, ...awardList];
-  return mapCustomer(customer, allRewards);
+  const usedSpins = spinsRes?.count || 0;
+  const totalSpins = Number(customer.total_spins || 0);
+  const remainingSpins = Math.max(0, totalSpins - usedSpins);
+
+  return {
+    ...mapCustomer(customer, allRewards),
+    usedSpins,
+    remainingSpins,
+  };
 }
 
 router.get("/customers", requireAdmin, asyncRoute(async (req, res) => {

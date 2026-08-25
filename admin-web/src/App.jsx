@@ -2305,68 +2305,88 @@ function Customers() {
           <table>
             <thead>
               <tr>
-                <th>Tên</th>
+                <th>Tên khách hàng</th>
                 <th>Số điện thoại</th>
-                <th>Lượt cấp</th>
-                <th>Voucher</th>
+                <th>Tổng lượt cấp</th>
+                <th>Lượt còn lại</th>
+                <th>Voucher quà tặng</th>
                 <th>Hành động</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan="5" style={{ textAlign: "center", padding: "20px", color: "#94a3b8" }}>
+                  <td colSpan="6" style={{ textAlign: "center", padding: "20px", color: "#94a3b8" }}>
                     Chưa có dữ liệu khách hàng.
                   </td>
                 </tr>
               ) : (
-                paginatedItems.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.name}</td>
-                    <td>{item.phone}</td>
-                    <td>{item.totalSpins}</td>
-                    <td>
-                      {item.rewards?.filter((r) => r.title || r.code).length > 0 ? (
-                        <span style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", display: "inline-block" }}>
-                          {item.rewards.map((r) => r.title || r.code).filter(Boolean).join(", ")}
+                paginatedItems.map((item) => {
+                  const remSpins = item.remainingSpins ?? item.totalSpins ?? 0;
+                  return (
+                    <tr key={item.id}>
+                      <td><strong>{item.name}</strong></td>
+                      <td>{item.phone}</td>
+                      <td><span style={{ fontWeight: "600", color: "#475569" }}>{item.totalSpins} lượt</span></td>
+                      <td>
+                        <span
+                          style={{
+                            fontWeight: "700",
+                            color: remSpins > 0 ? "#16a34a" : "#dc2626",
+                            background: remSpins > 0 ? "#f0fdf4" : "#fef2f2",
+                            border: remSpins > 0 ? "1px solid #bbf7d0" : "1px solid #fecaca",
+                            padding: "3px 8px",
+                            borderRadius: "6px",
+                            fontSize: "11px",
+                            display: "inline-block",
+                          }}
+                        >
+                          {remSpins} lượt
                         </span>
-                      ) : (
-                        <span style={{ color: "#94a3b8" }}>—</span>
-                      )}
-                    </td>
-                    <td style={{ whiteSpace: "nowrap" }}>
-                      <button
-                        className="btn-action secondary"
-                        style={{ padding: "4px 8px", fontSize: "11px", marginRight: "4px" }}
-                        onClick={() => startEdit(item)}
-                      >
-                        Sửa
-                      </button>
-                      <button
-                        type="button"
-                        className="primary"
-                        style={{ padding: "4px 8px", fontSize: "11px", marginRight: "4px" }}
-                        onClick={() =>
-                          setManualAwardModal({
-                            isOpen: true,
-                            customerId: item.id,
-                            customerName: item.name,
-                            campaignId: campaigns[0]?.id || "",
-                            rewardId: rewards[0]?.id || "",
-                            voucherCode: "",
-                            reason: "Cấp bổ sung từ Admin",
-                            saving: false,
-                          })
-                        }
-                      >
-                        Cấp quà
-                      </button>
-                      <button className="danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => remove(item.id)}>
-                        Ẩn
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td>
+                        {item.rewards?.filter((r) => r.title || r.code).length > 0 ? (
+                          <span style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", display: "inline-block" }}>
+                            {item.rewards.map((r) => r.title || r.code).filter(Boolean).join(", ")}
+                          </span>
+                        ) : (
+                          <span style={{ color: "#94a3b8" }}>—</span>
+                        )}
+                      </td>
+                      <td style={{ whiteSpace: "nowrap" }}>
+                        <button
+                          className="btn-action secondary"
+                          style={{ padding: "4px 8px", fontSize: "11px", marginRight: "4px" }}
+                          onClick={() => startEdit(item)}
+                        >
+                          Sửa
+                        </button>
+                        <button
+                          type="button"
+                          className="primary"
+                          style={{ padding: "4px 8px", fontSize: "11px", marginRight: "4px" }}
+                          onClick={() =>
+                            setManualAwardModal({
+                              isOpen: true,
+                              customerId: item.id,
+                              customerName: item.name,
+                              campaignId: campaigns[0]?.id || "",
+                              rewardId: rewards[0]?.id || "",
+                              voucherCode: "",
+                              reason: "Cấp bổ sung từ Admin",
+                              saving: false,
+                            })
+                          }
+                        >
+                          Cấp quà
+                        </button>
+                        <button className="danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => remove(item.id)}>
+                          Ẩn
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
