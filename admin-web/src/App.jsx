@@ -2122,6 +2122,8 @@ function Customers() {
   const [campaigns, setCampaigns] = useState([]);
   const [rewards, setRewards] = useState([]);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [form, setForm] = useState({ name: "", phone: "", totalSpins: 5, selectedRewardId: "" });
@@ -2158,9 +2160,14 @@ function Customers() {
       .catch((e) => setError(e.message));
 
   useEffect(() => {
+    setPage(1);
     const timer = setTimeout(load, 250);
     return () => clearTimeout(timer);
   }, [search]);
+
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedItems = items.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const save = async (event) => {
     event.preventDefault();
@@ -2288,9 +2295,10 @@ function Customers() {
         <div className="panel-heading">
           <h2>Danh sách ({items.length})</h2>
           <input
-            placeholder="Tìm tên hoặc số điện thoại"
+            placeholder="🔍 Tìm tên hoặc số điện thoại..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            style={{ padding: "8px 12px", width: "260px" }}
           />
         </div>
         <div className="table-wrap">
@@ -2305,56 +2313,95 @@ function Customers() {
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
-                <tr key={item.id}>
-                  <td>{item.name}</td>
-                  <td>{item.phone}</td>
-                  <td>{item.totalSpins}</td>
-                  <td>
-                    {item.rewards?.filter((r) => r.title || r.code).length > 0 ? (
-                      <span style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", display: "inline-block" }}>
-                        {item.rewards.map((r) => r.title || r.code).filter(Boolean).join(", ")}
-                      </span>
-                    ) : (
-                      <span style={{ color: "#94a3b8" }}>—</span>
-                    )}
-                  </td>
-                  <td style={{ whiteSpace: "nowrap" }}>
-                    <button
-                      className="btn-action secondary"
-                      style={{ padding: "4px 8px", fontSize: "11px", marginRight: "4px" }}
-                      onClick={() => startEdit(item)}
-                    >
-                      Sửa
-                    </button>
-                    <button
-                      type="button"
-                      className="primary"
-                      style={{ padding: "4px 8px", fontSize: "11px", marginRight: "4px" }}
-                      onClick={() =>
-                        setManualAwardModal({
-                          isOpen: true,
-                          customerId: item.id,
-                          customerName: item.name,
-                          campaignId: campaigns[0]?.id || "",
-                          rewardId: rewards[0]?.id || "",
-                          voucherCode: "",
-                          reason: "Cấp bổ sung từ Admin",
-                          saving: false,
-                        })
-                      }
-                    >
-                      Cấp quà
-                    </button>
-                    <button className="danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => remove(item.id)}>
-                      Ẩn
-                    </button>
+              {items.length === 0 ? (
+                <tr>
+                  <td colSpan="5" style={{ textAlign: "center", padding: "20px", color: "#94a3b8" }}>
+                    Chưa có dữ liệu khách hàng.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                paginatedItems.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.name}</td>
+                    <td>{item.phone}</td>
+                    <td>{item.totalSpins}</td>
+                    <td>
+                      {item.rewards?.filter((r) => r.title || r.code).length > 0 ? (
+                        <span style={{ background: "#e0f2fe", color: "#0369a1", border: "1px solid #bae6fd", padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", display: "inline-block" }}>
+                          {item.rewards.map((r) => r.title || r.code).filter(Boolean).join(", ")}
+                        </span>
+                      ) : (
+                        <span style={{ color: "#94a3b8" }}>—</span>
+                      )}
+                    </td>
+                    <td style={{ whiteSpace: "nowrap" }}>
+                      <button
+                        className="btn-action secondary"
+                        style={{ padding: "4px 8px", fontSize: "11px", marginRight: "4px" }}
+                        onClick={() => startEdit(item)}
+                      >
+                        Sửa
+                      </button>
+                      <button
+                        type="button"
+                        className="primary"
+                        style={{ padding: "4px 8px", fontSize: "11px", marginRight: "4px" }}
+                        onClick={() =>
+                          setManualAwardModal({
+                            isOpen: true,
+                            customerId: item.id,
+                            customerName: item.name,
+                            campaignId: campaigns[0]?.id || "",
+                            rewardId: rewards[0]?.id || "",
+                            voucherCode: "",
+                            reason: "Cấp bổ sung từ Admin",
+                            saving: false,
+                          })
+                        }
+                      >
+                        Cấp quà
+                      </button>
+                      <button className="danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => remove(item.id)}>
+                        Ẩn
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
+
+        {items.length > 0 && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px", paddingTop: "12px", borderTop: "1px solid #e2e8f0" }}>
+            <small style={{ color: "#64748b", fontSize: "13px" }}>
+              Hiển thị <strong>{(currentPage - 1) * pageSize + 1}</strong> - <strong>{Math.min(currentPage * pageSize, items.length)}</strong> trong <strong>{items.length}</strong> khách hàng
+            </small>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <button
+                type="button"
+                className="secondary"
+                disabled={currentPage <= 1}
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                style={{ padding: "5px 12px", fontSize: "12px" }}
+              >
+                ◀ Trang trước
+              </button>
+              <span style={{ fontSize: "13px", fontWeight: "600", color: "#334155", padding: "0 6px" }}>
+                Trang {currentPage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                className="secondary"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                style={{ padding: "5px 12px", fontSize: "12px" }}
+              >
+                Trang sau ▶
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* MANUAL AWARD GRANT MODAL FOR CUSTOMERS */}
