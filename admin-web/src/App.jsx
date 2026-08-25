@@ -709,6 +709,11 @@ function CampaignParticipants() {
   const [importRowsJson, setImportRowsJson] = useState("");
   const [importResult, setImportResult] = useState(null);
 
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
   const [duplicateResolverModal, setDuplicateResolverModal] = useState({
     isOpen: false,
     totalRows: 0,
@@ -777,8 +782,10 @@ function CampaignParticipants() {
     setLoading(true);
     setError("");
     try {
-      const result = await api(`/admin/campaigns/${selectedCampaignId}/participants`);
+      const result = await api(`/admin/campaigns/${selectedCampaignId}/participants?page=${page}&limit=20&search=${encodeURIComponent(search)}`);
       setParticipants(result.items || []);
+      setTotal(result.total || 0);
+      setTotalPages(result.totalPages || 1);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -786,7 +793,14 @@ function CampaignParticipants() {
     }
   };
 
-  useEffect(() => { void load(); }, [selectedCampaignId]);
+  useEffect(() => {
+    setPage(1);
+  }, [selectedCampaignId, search]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => { void load(); }, 250);
+    return () => clearTimeout(timer);
+  }, [selectedCampaignId, search, page]);
 
   const executeFinalImport = async (actionsToUse = rowActions) => {
     if (!selectedCampaignId) return;
@@ -1051,6 +1065,12 @@ function CampaignParticipants() {
               <option key={c.id} value={c.id}>{c.name} ({c.code}) — {c.status}</option>
             ))}
           </select>
+          <input
+            placeholder="🔍 Tìm tên hoặc số điện thoại..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ padding: "8px 12px", width: "240px" }}
+          />
           <div style={{ display: "flex", gap: "8px" }}>
             <button className="primary" onClick={() => setManualAddModal({ isOpen: true, name: "", phone: "", groupId: "", note: "", spinQuota: 1, status: "active", selectedRewardIds: [], saving: false })}>
               + Thêm thủ công Khách hàng
@@ -1285,6 +1305,37 @@ function CampaignParticipants() {
             </tbody>
           </table>
         </div>
+
+        {total > 0 && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px", paddingTop: "12px", borderTop: "1px solid #e2e8f0" }}>
+            <small style={{ color: "#64748b", fontSize: "13px" }}>
+              Hiển thị <strong>{(page - 1) * 20 + 1}</strong> - <strong>{Math.min(page * 20, total)}</strong> trong tổng số <strong>{total}</strong> khách hàng sự kiện
+            </small>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <button
+                type="button"
+                className="secondary"
+                disabled={page <= 1}
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                style={{ padding: "5px 12px", fontSize: "12px" }}
+              >
+                ◀ Trang trước
+              </button>
+              <span style={{ fontSize: "13px", fontWeight: "600", color: "#334155", padding: "0 6px" }}>
+                Trang {page} / {totalPages}
+              </span>
+              <button
+                type="button"
+                className="secondary"
+                disabled={page >= totalPages}
+                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                style={{ padding: "5px 12px", fontSize: "12px" }}
+              >
+                Trang sau ▶
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* MANUAL ADD PARTICIPANT MODAL */}
