@@ -51,7 +51,7 @@ export const permissionService = {
       try {
         const res = await zmp.getUserInfo({
           avatarType: "normal",
-          autoRequestPermission: true,
+          autoRequestPermission: false,
         });
         if (res && res.userInfo) {
           const rawName = res.userInfo.name?.trim();

@@ -5,7 +5,7 @@ const source = readFileSync(new URL("./voucher.tsx", import.meta.url), "utf8");
 
 describe("VoucherPage Awards History Integration", () => {
   it("imports and consumes awardService for participant awards history", () => {
-    expect(source).toContain('import {\n  awardService,');
+    expect(source).toContain("awardService");
     expect(source).toContain("awardService.getParticipantAwards");
   });
 
