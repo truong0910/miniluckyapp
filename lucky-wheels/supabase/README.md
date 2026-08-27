@@ -30,3 +30,32 @@ campaign-aware Admin/API slices are completed.
 
 After the base migration, create an Auth user and add its UUID to
 `public.admin_profiles`; see `SUPABASE_ADMIN_SETUP.md`.
+
+## Phase 2D migration (Campaign Control)
+
+Apply `migrations/0006_campaign_control.sql` after `0005_award_creation_spin_once.sql`.
+The migration is additive: it extends `campaigns.status` to support `'draft'`, `'active'`, `'paused'`, `'ended'`, and `'archived'`, enforces a single-active unique index constraint in the database, and adds `transition_campaign(uuid, text)` RPC function. Re-running the migration is safe; do not use it to delete or reset historical production data.
+
+## Phase 2E migration (Campaign Reuse & Participants)
+
+Apply `migrations/0007_campaign_participants.sql` after `0006_campaign_control.sql`.
+The migration is additive: it adds `public.campaign_participants` for campaign-scoped spin quota allocations, imported group metadata, and customer membership. Re-running the migration is safe.
+
+## Phase 4 (Reporting & Sync)
+
+The Google Sheets sync payload (`buildGoogleSheetsPayload`) is enriched with `campaignId` and `campaignName` top-level fields while keeping existing spin and award columns backward compatible with Apps Script `doPost` handlers.
+
+## Phase 2F/2G (campaign isolation and award audit)
+
+Apply `migrations/0008_campaign_spin_isolation.sql` after `0007`. Public spins
+use the active campaign's `campaign_participants.spin_quota`; only the seeded
+`legacy` campaign may fall back to `customers.total_spins`. A customer without
+membership cannot spin in a newly created campaign.
+
+Apply `migrations/0009_award_status_audit.sql` after `0008` to retain the
+operator reason for award status changes. Both migrations are additive and do
+not delete historical customers, spins, awards, or deliveries.
+
+After updating `docs/google-sheets-webhook-doPost.gs`, redeploy the Apps Script
+web app. New rows append campaign ID and campaign name in columns M and N;
+existing columns A-L and historical rows stay unchanged.

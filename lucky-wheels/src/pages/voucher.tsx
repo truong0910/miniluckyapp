@@ -3,6 +3,10 @@ import Header from "@/components/header";
 import VoucherCard from "@/components/voucher-card";
 import { PATHS } from "@/constants/path";
 import {
+  awardService,
+  type ParticipantAward,
+} from "@/services/award.services";
+import {
   participantService,
   type Participant,
 } from "@/services/participant.services";
@@ -12,7 +16,7 @@ import {
   zbsService,
 } from "@/services/zbs.services";
 import VoucherRibbonImg from "@/static/voucher-ribbon.webp";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button, Page, useNavigate } from "zmp-ui";
 
 type DeliveryStatus =
@@ -25,8 +29,6 @@ type DeliveryStatus =
 export default function VoucherPage() {
   const navigate = useNavigate();
   const spinResult = spinService.getLastSpin();
-  const reward = spinResult?.outcome === "reward" ? spinResult.reward : null;
-  const isWinner = Boolean(reward);
 
   const [participant, setParticipant] = useState<Participant | null>(null);
   const [spinHistory, setSpinHistory] = useState<SpinResponse[]>([]);
@@ -34,13 +36,50 @@ export default function VoucherPage() {
   const [deliveryMessage, setDeliveryMessage] = useState("");
   const [deliveryAttempt, setDeliveryAttempt] = useState(0);
 
+  // Awards API state
+  const [awards, setAwards] = useState<ParticipantAward[]>([]);
+
+  const latestAward = awards.length > 0 ? awards[0] : null;
+  const reward = spinResult?.outcome === "reward" && spinResult.reward
+    ? spinResult.reward
+    : (latestAward ? { title: latestAward.title, expiresAt: latestAward.expiresAt ?? undefined, description: latestAward.description ?? undefined } : null);
+  const isWinner = Boolean(reward);
+  const [awardsLoading, setAwardsLoading] = useState(true);
+  const [awardsLoadingMore, setAwardsLoadingMore] = useState(false);
+  const [awardsError, setAwardsError] = useState<string | null>(null);
+  const [awardsPage, setAwardsPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+
+  const loadAwards = useCallback(async (pageToLoad = 1, append = false) => {
+    if (append) {
+      setAwardsLoadingMore(true);
+    } else {
+      setAwardsLoading(true);
+    }
+    setAwardsError(null);
+
+    try {
+      const res = await awardService.getParticipantAwards(pageToLoad, 10);
+      setAwards((prev) => (append ? [...prev, ...res.items] : res.items));
+      setHasMore(res.hasMore);
+      setAwardsPage(res.page);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "Không thể tải kho voucher từ hệ thống.";
+      setAwardsError(msg);
+    } finally {
+      setAwardsLoading(false);
+      setAwardsLoadingMore(false);
+    }
+  }, []);
+
   useEffect(() => {
     const loadCustomerData = async () => {
       try {
         const customer = await participantService.getCurrent();
         setParticipant(customer);
         if (customer) {
-          const history = spinService.getSpinHistory();
+          const history = await spinService.fetchSpinHistory();
           setSpinHistory(history);
         }
       } catch (error) {
@@ -49,7 +88,8 @@ export default function VoucherPage() {
     };
 
     void loadCustomerData();
-  }, []);
+    void loadAwards(1, false);
+  }, [loadAwards]);
 
   useEffect(() => {
     if (!spinResult || !reward) return;
@@ -107,9 +147,6 @@ export default function VoucherPage() {
     };
   }, [spinResult?.spinId, deliveryAttempt]);
 
-  const winningSpins = spinHistory.filter(
-    (spin) => spin.outcome === "reward" && spin.reward
-  );
   const spinsRemaining = participant?.spinsRemaining ?? (spinResult?.spinsRemaining ?? 0);
 
   return (
@@ -124,11 +161,11 @@ export default function VoucherPage() {
         {/* CELEBRATION HEADER CARD */}
         <div className="glass-card-dark p-6 rounded-3xl border border-amber-500/30 shadow-2xl flex flex-col items-center text-center gap-4 relative overflow-hidden">
           <img
-              src={VoucherRibbonImg}
-              alt=""
-              width={840}
-              height={560}
-              decoding="async"
+            src={VoucherRibbonImg}
+            alt=""
+            width={840}
+            height={560}
+            decoding="async"
             className="absolute top-0 inset-x-0 w-full h-32 object-cover opacity-25 pointer-events-none"
           />
 
@@ -192,27 +229,90 @@ export default function VoucherPage() {
           )}
         </div>
 
-        {/* SECTION 1: KHO VOUCHER ĐÃ TRÚNG THƯỞNG */}
-        {winningSpins.length > 0 && (
-          <div className="space-y-3">
-            <h2 className="text-xs font-extrabold text-gold-gradient uppercase tracking-wider px-1">
-              🎁 Kho Voucher đã tích lũy ({winningSpins.length})
-            </h2>
+        {/* SECTION 1: KHO VOUCHER ĐÃ TÍCH LŨY (API AWARDS HISTORY) */}
+        <div className="space-y-3">
+          <h2 className="text-xs font-extrabold text-gold-gradient uppercase tracking-wider px-1">
+            🎁 Kho Voucher đã tích lũy ({awards.length})
+          </h2>
 
+          {/* LOADING STATE */}
+          {awardsLoading && awards.length === 0 && (
+            <div
+              role="status"
+              aria-label="Loading awards"
+              className="glass-card-dark p-6 rounded-3xl border border-amber-500/20 text-center text-amber-300/80 text-xs font-semibold animate-pulse"
+            >
+              ⏳ Đang tải danh sách kho voucher...
+            </div>
+          )}
+
+          {/* ERROR STATE */}
+          {awardsError && (
+            <div
+              role="alert"
+              className="glass-card-dark p-4 rounded-3xl border border-red-500/40 bg-red-950/40 text-center space-y-2"
+            >
+              <div className="text-xs font-bold text-red-300">
+                ⚠️ {awardsError}
+              </div>
+              <Button
+                htmlType="button"
+                className="!bg-red-600 hover:!bg-red-500 !text-white !font-bold text-xs !py-1 !px-4 !rounded-xl"
+                onClick={() => void loadAwards(1, false)}
+              >
+                Thử lại
+              </Button>
+            </div>
+          )}
+
+          {/* EMPTY STATE */}
+          {!awardsLoading && !awardsError && awards.length === 0 && (
+            <div
+              role="region"
+              aria-label="Empty awards"
+              className="glass-card-dark p-6 rounded-3xl border border-slate-800 text-center text-slate-400 text-xs font-medium space-y-1"
+            >
+              <div className="text-2xl mb-1">🎁</div>
+              <div>Bạn chưa có voucher nào trong kho.</div>
+              <div className="text-[11px] text-slate-500">
+                Hãy thực hiện lượt quay may mắn để tích lũy voucher!
+              </div>
+            </div>
+          )}
+
+          {/* AWARDS LIST & PAGINATION */}
+          {awards.length > 0 && (
             <div className="space-y-3">
-              {winningSpins.map((spin, index) => (
-                <div key={spin.spinId || index} className="space-y-1">
-                  {spin.reward && (
-                    <VoucherCard
-                      title={spin.reward.title}
-                      expiresAt={spin.reward.expiresAt}
-                    />
-                  )}
+              {awards.map((award) => (
+                <div key={award.id} className="space-y-1">
+                  <VoucherCard
+                    title={award.title}
+                    expiresAt={award.expiresAt || undefined}
+                  />
+                  <div className="flex items-center justify-between text-[10px] text-slate-400 px-2">
+                    <span>Mã: <strong className="text-amber-300 font-mono">{award.code}</strong></span>
+                    <span className="capitalize">Trạng thái: <strong className="text-amber-400">{award.status}</strong></span>
+                  </div>
                 </div>
               ))}
+
+              {/* PAGINATION LOAD MORE BUTTON */}
+              {hasMore && (
+                <div className="pt-1 text-center">
+                  <Button
+                    htmlType="button"
+                    variant="secondary"
+                    disabled={awardsLoadingMore}
+                    className="!bg-slate-900/80 hover:!bg-slate-800 !text-amber-300 border border-amber-500/30 !font-bold text-xs !w-full !rounded-2xl !py-2.5"
+                    onClick={() => void loadAwards(awardsPage + 1, true)}
+                  >
+                    {awardsLoadingMore ? "Đang tải..." : "Xem thêm voucher ▼"}
+                  </Button>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* SECTION 2: NHẬT KÝ TẤT CẢ LƯỢT QUAY */}
         {spinHistory.length > 0 && (

@@ -1,5 +1,7 @@
 {
+  "appId": "3487937995355334027",
   "app": {
+    "id": "3487937995355334027",
     "title": "lucky wheels",
     "textColor": {
       "light": "black",
@@ -10,10 +12,15 @@
     "hideIOSSafeAreaBottom": true,
     "hideAndroidBottomNavigationBar": false
   },
+  "pages": [
+    "pages/index/index"
+  ],
   "template": {
     "name": "zaui-lucky-wheel"
   },
   "listCSS": [],
-  "listSyncJS": [],
+  "listSyncJS": [
+    "inline.js"
+  ],
   "listAsyncJS": []
 }

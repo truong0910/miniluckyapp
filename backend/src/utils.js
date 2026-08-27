@@ -27,6 +27,8 @@ export function mapReward(row) {
     wheelLabel: row.wheel_label,
     symbol: row.symbol,
     active: row.active,
+    applicableProducts: row.applicable_products || row.description || "Tất cả sản phẩm Kính Hồng Phúc",
+    discountRate: row.discount_rate || "100",
   };
 }
 

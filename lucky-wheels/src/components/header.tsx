@@ -1,33 +1,33 @@
-import LogoImg from "@/static/logo.webp";
+import LogoImg from "@/static/logo.png";
 
 export default function Header() {
   return (
-    <header className="header sticky top-0 z-40 px-4 py-2.5 border-b border-amber-500/20 bg-slate-950/85 backdrop-blur-md shadow-lg">
+    <header className="header sticky top-0 z-40 px-4 py-2.5 border-b border-red-500/30 bg-slate-950/90 backdrop-blur-md shadow-xl">
       <div className="mx-auto max-w-[420px] flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="relative p-1 rounded-2xl bg-gradient-to-tr from-amber-500/30 via-amber-400/20 to-amber-600/30 border border-amber-400/40 shadow-inner">
+          <div className="relative p-1 rounded-xl bg-white border border-red-500/30 shadow-md">
             <img
               src={LogoImg}
-              alt="Logo"
+              alt="Hồng Phúc Glass Logo"
               width={768}
               height={295}
               fetchPriority="high"
               decoding="async"
-              className="h-9 w-auto object-contain drop-shadow-md rounded-xl"
+              className="h-8 w-auto object-contain"
             />
           </div>
           <div className="flex flex-col text-left">
-            <span className="text-sm font-black text-gold-gradient tracking-wide uppercase leading-tight">
-              VÒNG QUAY MAY MẮN
+            <span className="text-xs font-black text-red-400 tracking-wider uppercase leading-tight">
+              HỒNG PHÚC GLASS
             </span>
-            <span className="text-[10px] text-amber-200/70 font-bold tracking-wider">
-              Tri Ân Khách Hàng VIP
+            <span className="text-[10px] text-amber-200/90 font-extrabold tracking-wide">
+              Vòng Quay May Mắn Tri Ân
             </span>
           </div>
         </div>
 
-        <div className="px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 font-extrabold text-[10px] uppercase tracking-wider shadow-sm">
-          ✨ Official
+        <div className="px-2.5 py-1 rounded-full bg-red-600/20 border border-red-500/40 text-red-300 font-extrabold text-[10px] uppercase tracking-wider shadow-sm">
+          Chính Hãng
         </div>
       </div>
     </header>

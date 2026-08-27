@@ -3,8 +3,13 @@ import { config } from "../config.js";
 import { supabase } from "../supabase.js";
 import { requireAdmin, requireParticipant } from "../middleware.js";
 import { assertPreviewAuthAllowed, createParticipantSession, resolveZaloPhone } from "../participant-auth.js";
+import { parseAwardsPagination, listParticipantAwards } from "../award-service.js";
+import { getActiveCampaign } from "../campaign-service.js";
+import { syncSpinToGoogleSheets } from "../google-sheets-service.js";
 import { spinOnce } from "../spin-service.js";
 import { asyncRoute, isValidVietnamesePhone, mapAssignment, mapBanner, mapCustomer, mapReward, normalizePhone, publicError } from "../utils.js";
+
+import { ensureCampaignParticipant } from "../campaign-reuse-service.js";
 
 const router = Router();
 
@@ -42,61 +47,176 @@ function buildWheelSegments(customer, catalog) {
 }
 
 async function loadParticipantResponse(row, session) {
-  const customer = await loadCustomer(row);
-  const { count, error: countError } = await supabase
-    .from("spin_events")
-    .select("id", { count: "exact", head: true })
-    .eq("customer_id", row.id);
-  if (countError) throw countError;
-  const catalogResult = await supabase
-    .from("reward_catalog")
-    .select("id,code_prefix,title,value,description,wheel_label,symbol,active")
-    .eq("active", true)
-    .order("value", { ascending: false });
+  const [customer, activeCampaign, catalogResult] = await Promise.all([
+    loadCustomer(row),
+    getActiveCampaign({ db: supabase }),
+    supabase
+      .from("reward_catalog")
+      .select("id,code_prefix,title,value,description,wheel_label,symbol,active")
+      .eq("active", true)
+      .order("value", { ascending: false }),
+  ]);
+
   if (catalogResult.error) throw catalogResult.error;
+
+  let spinsTotal = customer.totalSpins;
+  let spinCount = 0;
+
+  if (activeCampaign?.id) {
+    const [partResult, countResult] = await Promise.all([
+      supabase
+        .from("campaign_participants")
+        .select("spin_quota,status")
+        .eq("campaign_id", activeCampaign.id)
+        .eq("customer_id", row.id)
+        .maybeSingle(),
+      supabase
+        .from("spin_events")
+        .select("id", { count: "exact", head: true })
+        .eq("customer_id", row.id)
+        .eq("campaign_id", activeCampaign.id),
+    ]);
+
+    if (partResult.error) throw partResult.error;
+    if (countResult.error) throw countResult.error;
+
+    if (partResult.data) {
+      spinsTotal = Number(partResult.data.spin_quota || 0);
+    } else if (activeCampaign.id !== "00000000-0000-0000-0000-000000000001") {
+      spinsTotal = 0;
+    }
+    spinCount = Number(countResult.count || 0);
+  } else {
+    const { count, error: countError } = await supabase
+      .from("spin_events")
+      .select("id", { count: "exact", head: true })
+      .eq("customer_id", row.id);
+    if (countError) throw countError;
+    spinCount = Number(count || 0);
+  }
+
   const participant = {
     ...customer,
-    spinsTotal: customer.totalSpins,
+    spinsTotal,
     rewardsTotal: customer.rewards.length,
-    spinsRemaining: Math.max(0, customer.totalSpins - Number(count || 0)),
+    spinsRemaining: Math.max(0, spinsTotal - spinCount),
     wheelSegments: buildWheelSegments(customer, (catalogResult.data || []).map(mapReward)),
   };
   return { ...participant, session: session ? { token: session.token, expiresAt: session.expiresAt } : undefined };
 }
 
 router.get("/content", asyncRoute(async (_req, res) => {
-  const [banners, rewards, settings] = await Promise.all([
+  const [banners, rewards, settings, activeCampaign] = await Promise.all([
     supabase.from("banners").select("id,title,image_url,link_url,active,display_order").eq("active", true).order("display_order", { ascending: true }),
     supabase.from("reward_catalog").select("id,code_prefix,title,value,description,wheel_label,symbol,active").eq("active", true).order("value", { ascending: false }),
     supabase.from("program_settings").select("key,value").eq("key", "program_rules").maybeSingle(),
+    getActiveCampaign({ db: supabase }),
   ]);
   for (const result of [banners, rewards, settings]) if (result.error) throw result.error;
   res.json({
     banners: (banners.data || []).map(mapBanner),
     rewards: (rewards.data || []).map(mapReward),
     rules: settings.data?.value || null,
+    campaign: activeCampaign ? {
+      id: activeCampaign.id,
+      code: activeCampaign.code,
+      name: activeCampaign.name,
+      status: activeCampaign.status,
+      startsAt: activeCampaign.startsAt,
+      endsAt: activeCampaign.endsAt,
+      timezone: activeCampaign.timezone,
+    } : null,
     // Only expose a boolean; never expose the ZBS credentials to the Mini App.
     zbsConfigured: Boolean(config.zbsApiKey && config.zbsTemplateId),
   });
 }));
 
-async function findParticipantCustomer(phone) {
+async function findParticipantCustomer(phone, registrationSource = "zalo_guest") {
   const normalizedPhone = normalizePhone(phone);
-  if (!isValidVietnamesePhone(normalizedPhone)) throw publicError("Invalid phone number");
-  const { data: row, error } = await supabase
+  if (!isValidVietnamesePhone(normalizedPhone)) throw publicError("Số điện thoại không hợp lệ");
+
+  let { data: row, error } = await supabase
     .from("customers")
     .select("id,name,phone,sex,job,total_spins,deleted_at")
     .eq("phone", normalizedPhone)
     .is("deleted_at", null)
     .maybeSingle();
+
   if (error) throw error;
-  if (!row) throw publicError("Phone number is not eligible", 404);
+
+  const activeCampaign = await getActiveCampaign({ db: supabase });
+
+  if (!row) {
+    // Check if customer exists under any ID (including soft-deleted)
+    const { data: existingAny } = await supabase
+      .from("customers")
+      .select("id,name,phone,sex,job,total_spins,deleted_at")
+      .eq("phone", normalizedPhone)
+      .maybeSingle();
+
+    if (existingAny) {
+      if (existingAny.deleted_at) {
+        await supabase.from("customers").update({ deleted_at: null }).eq("id", existingAny.id);
+      }
+      row = { ...existingAny, deleted_at: null };
+    } else {
+      if (!activeCampaign || !activeCampaign.allowUnlisted) {
+        throw publicError("Khách chưa được đăng ký trong sự kiện này", 403, "P0003");
+      }
+
+      const id = `customer-${normalizedPhone}`;
+      const newRecord = {
+        id,
+        phone: normalizedPhone,
+        name: `Khách hàng ${normalizedPhone}`,
+        sex: "other",
+        job: "other",
+        total_spins: 0,
+        deleted_at: null,
+      };
+
+      const { data: created, error: createError } = await supabase
+        .from("customers")
+        .upsert(newRecord)
+        .select("id,name,phone,sex,job,total_spins,deleted_at")
+        .single();
+
+      if (createError) {
+        if (createError.code === "23505" || String(createError.message).includes("customers_phone_key")) {
+          const { data: fallbackRow } = await supabase
+            .from("customers")
+            .select("id,name,phone,sex,job,total_spins,deleted_at")
+            .eq("phone", normalizedPhone)
+            .maybeSingle();
+          if (fallbackRow) {
+            row = fallbackRow;
+          } else {
+            throw createError;
+          }
+        } else {
+          throw createError;
+        }
+      } else {
+        row = created;
+      }
+    }
+  }
+
+  if (activeCampaign?.id) {
+    await ensureCampaignParticipant({
+      db: supabase,
+      campaignId: activeCampaign.id,
+      customerId: row.id,
+      registrationSource,
+    });
+  }
+
   return row;
 }
 
 router.post("/participant/sessions/preview", asyncRoute(async (req, res) => {
   assertPreviewAuthAllowed(config);
-  const row = await findParticipantCustomer(req.body?.phone);
+  const row = await findParticipantCustomer(req.body?.phone, "zalo_guest");
   const session = await createParticipantSession({ db: supabase, customerId: row.id, authMethod: "preview", ttlSeconds: config.participantSessionTtlSeconds });
   res.status(201).json(await loadParticipantResponse(row, session));
 }));
@@ -109,7 +229,7 @@ router.post("/participant/sessions/zalo", asyncRoute(async (req, res) => {
     appSecret: config.zaloAppSecret,
     baseUrl: config.zaloGraphBaseUrl,
   });
-  const row = await findParticipantCustomer(phone);
+  const row = await findParticipantCustomer(phone, "zalo_guest");
   const zaloName = String(req.body?.zaloName || "").trim();
   if (zaloName && /^(khach hang|khach moi|customer|new customer)\s/i.test(String(row.name || ""))) {
     const { error } = await supabase.from("customers").update({ name: zaloName }).eq("id", row.id);
@@ -130,6 +250,12 @@ router.get("/participant/me", requireParticipant, asyncRoute(async (req, res) =>
   if (error) throw error;
   if (!row) throw publicError("Participant is not available", 404);
   res.json(await loadParticipantResponse(row));
+}));
+
+router.get("/participant/me/awards", requireParticipant, asyncRoute(async (req, res) => {
+  const { page, limit } = parseAwardsPagination(req.query);
+  const customerId = req.participant.customerId;
+  res.json(await listParticipantAwards({ db: supabase, customerId, page, limit }));
 }));
 
 router.get("/participant/me/spins", requireParticipant, asyncRoute(async (req, res) => {
@@ -213,6 +339,13 @@ router.post("/spins", requireParticipant, asyncRoute(async (req, res) => {
     oaFollowed: false,
     source: "participant",
   });
+  // Google Sheets is a reporting sink: a webhook failure must never undo a committed spin.
+  void syncSpinToGoogleSheets({
+    db: supabase,
+    spin: result,
+    customerId: req.participant.customerId,
+    config,
+  }).catch((error) => console.error("Google Sheets sync failed", error));
   res.json(result);
 }));
 

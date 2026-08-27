@@ -3,6 +3,8 @@ import { publicError } from "./utils.js";
 function mapSpinError(error) {
   if (error?.code === "P0001") return publicError("No spins remaining", 409);
   if (error?.code === "P0002") return publicError("Participant is not available", 404);
+  if (error?.code === "P0003") return publicError("Khách hàng chưa đăng ký tham gia sự kiện này", 403);
+  if (error?.code === "P0004") return publicError("Sự kiện chưa sẵn sàng hoặc bị xung đột trạng thái", 409);
   if (error?.code === "22023") return publicError("Invalid spin request", 400);
   return error;
 }

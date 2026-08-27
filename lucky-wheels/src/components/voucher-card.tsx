@@ -1,6 +1,6 @@
 import VoucherImg from "@/static/voucher.png";
 
-function formatExpiration(expiresAt?: string) {
+function formatExpiration(expiresAt?: string | null) {
   if (!expiresAt) return "Hạn sử dụng: Theo điều kiện chương trình";
   const [year, month, day] = expiresAt.split("-");
   return day && month && year ? `HSD đến hết ngày ${day}/${month}/${year}` : expiresAt;
@@ -11,7 +11,7 @@ export default function VoucherCard({
   expiresAt,
 }: {
   title: string;
-  expiresAt?: string;
+  expiresAt?: string | null;
 }) {
   return (
     <div className="relative w-full rounded-3xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 p-4 text-slate-950 shadow-[0_15px_35px_rgba(245,158,11,0.4)] border-2 border-yellow-200 overflow-hidden shine-sweep-container">
