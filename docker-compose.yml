@@ -30,7 +30,7 @@ services:
       context: ./admin-web
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8787/api/v1}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://luckyapi.wiai.vn/api/v1}
     container_name: minilucky_admin_web
     restart: unless-stopped
     ports:

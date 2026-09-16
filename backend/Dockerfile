@@ -7,7 +7,7 @@ RUN apk add --no-cache curl
 
 # Install production dependencies
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN (npm ci --omit=dev || npm install --omit=dev) && npm cache clean --force
 
 # Copy source code
 COPY src/ ./src/
