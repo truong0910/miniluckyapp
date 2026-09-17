@@ -49,10 +49,12 @@ export const permissionService = {
 
     userProfileRequest = (async () => {
       try {
-        const res = await zmp.getUserInfo({
-          avatarType: "normal",
-          autoRequestPermission: false,
-        });
+        const res = await Promise.resolve(
+          zmp.getUserInfo({
+            avatarType: "normal",
+            autoRequestPermission: false,
+          })
+        ).catch(() => null);
         if (res && res.userInfo) {
           const rawName = res.userInfo.name?.trim();
           const isGenericPlaceholder =
@@ -71,19 +73,14 @@ export const permissionService = {
         cachedUserProfile = null;
         return null;
       } catch (error) {
-        // A preview/dev app that has not been activated cannot access profile APIs.
-        // Cache this expected failure so every form render does not spam the console.
         if (isAppNotActivatedError(error)) {
           cachedUserProfile = null;
           return null;
         }
-        // Zalo uses -1401 when the user has declined name/avatar access.
-        // Keep the app usable with the fallback customer name until permission
-        // is enabled from Mini App settings.
         if (isUserInfoPermissionDeniedError(error)) {
           return null;
         }
-        console.warn("Unable to fetch Zalo user profile from SDK", error);
+        cachedUserProfile = null;
         return null;
       } finally {
         userProfileRequest = null;

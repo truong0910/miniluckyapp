@@ -33,6 +33,8 @@ export default function RegisterForm() {
       if (profile?.avatar) {
         setZaloAvatar(profile.avatar);
       }
+    }).catch(() => {
+      // Gracefully ignore Zalo SDK errors when opening outside Zalo App
     });
 
     const loadProfile = async () => {
