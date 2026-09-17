@@ -18,6 +18,18 @@ if (!window.APP_CONFIG) {
   window.APP_CONFIG = appConfig as any;
 }
 
+// Gracefully handle Zalo SDK login auto-auth promise rejections when running in standard web browser
+window.addEventListener("unhandledrejection", (event) => {
+  const reason = event.reason;
+  if (
+    reason &&
+    typeof reason === "object" &&
+    (reason.api === "login" || reason.code === -2000 || String(reason.message).includes("Unknown error"))
+  ) {
+    event.preventDefault();
+  }
+});
+
 declare global {
   interface Window {}
 }
