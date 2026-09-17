@@ -78,7 +78,7 @@ jobs:
 
             echo ">>> 3. Tạo file backend/.env từ GitHub Secrets & Variables..."
             cat << 'ENV_EOF' > backend/.env
-            PORT=8787
+            PORT=${{ vars.PORT || '6000' }}
             APP_ENV=${{ vars.APP_ENV || 'production' }}
             PARTICIPANT_AUTH_MODE=${{ vars.PARTICIPANT_AUTH_MODE || 'zalo' }}
             ADMIN_AUTH_MODE=${{ vars.ADMIN_AUTH_MODE || 'supabase' }}

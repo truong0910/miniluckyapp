@@ -73,7 +73,7 @@ Giả định tên miền của bạn là `wifim.vn` (thay thế bằng tên mi�
 3. **Cài Reverse Proxy về Docker Backend**:
    - Vẫn trong cài đặt Site > Chọn menu **Reverse Proxy** bên trái > Bấm **Add reverse proxy**:
      - **Proxy Name**: `backend_api`
-     - **Target URL**: `http://127.0.0.1:8787`
+     - **Target URL**: `http://127.0.0.1:6000` (hoặc `http://0.0.0.0:6000`)
      - **Sent Domain**: `$host`
      - Bấm **Submit**.
 4. **Tối ưu cấu hình Proxy**:

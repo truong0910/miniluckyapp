@@ -6,7 +6,7 @@ services:
     container_name: minilucky_backend_api
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8787:8787"
+      - "0.0.0.0:6000:6000"
     env_file:
       - ./backend/.env
     networks:

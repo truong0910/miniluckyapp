@@ -13,11 +13,11 @@ RUN (npm ci --omit=dev || npm install --omit=dev) && npm cache clean --force
 COPY src/ ./src/
 
 ENV NODE_ENV=production
-ENV PORT=8787
+ENV PORT=6000
 
-EXPOSE 8787
+EXPOSE 6000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:8787/health || exit 1
+  CMD curl -f http://localhost:6000/health || exit 1
 
 CMD ["node", "src/server.js"]

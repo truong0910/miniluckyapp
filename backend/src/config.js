@@ -10,7 +10,7 @@ export const config = {
   appEnv,
   participantAuthMode,
   adminAuthMode,
-  port: Number(process.env.PORT || 8787),
+  port: Number(process.env.PORT || 6000),
   participantSessionTtlSeconds: Number(process.env.PARTICIPANT_SESSION_TTL_SECONDS || 1800),
   devAuthSecret: required("DEV_AUTH_SECRET"),
   supabaseUrl: required("SUPABASE_URL"),
