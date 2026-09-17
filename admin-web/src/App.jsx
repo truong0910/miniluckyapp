@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, auth, downloadFile, fileToDataUrl, login, logout, setUnauthorizedHandler } from "./api.js";
+import { api, auth, changeAdminPassword, downloadFile, fileToDataUrl, login, logout, setUnauthorizedHandler } from "./api.js";
 import { parseCsvToRows, parseWorkbookToRows } from "./import-parser.js";
+import { getDefaultCampaignId } from "./campaign-selection.js";
+import { getInitialSpinSelection, getSpinSummary, getTargetSpins as getRuleTargetSpins } from "./rule-spins.js";
 import UiAlert from "./components/common/UiAlert.jsx";
 import ConfirmModal from "./components/common/ConfirmModal.jsx";
 import LogoImg from "./assets/logo.png";
@@ -12,19 +14,76 @@ const EMPTY_CAMPAIGN = { code: "", name: "", startsAt: "", endsAt: "", timezone:
 function Login({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
+  const [showPasswordChange, setShowPasswordChange] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
   const [error, setError] = useState("");
   const submit = async (event) => {
     event.preventDefault();
     setError("");
     try {
-      await login(email, password);
+      await login(email, password, rememberMe);
       onLogin();
     } catch (e) {
       setError(e.message);
     }
   };
+  const submitPasswordChange = async (event) => {
+    event.preventDefault();
+    setError("");
+    setChangingPassword(true);
+    try {
+      await changeAdminPassword({ email, currentPassword, newPassword, confirmPassword });
+      setPassword("");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowPasswordChange(false);
+      alert("Đổi mật khẩu thành công. Bạn có thể đăng nhập bằng mật khẩu mới.");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setChangingPassword(false);
+    }
+  };
   return (
     <main className="login-shell">
+      {showPasswordChange ? (
+        <form className="login-card" onSubmit={submitPasswordChange}>
+          <div style={{ textAlign: "center", marginBottom: "8px" }}>
+            <img src={LogoImg} alt="Hồng Phúc Glass Logo" style={{ height: "48px", objectFit: "contain" }} />
+          </div>
+          <div className="eyebrow" style={{ textAlign: "center" }}>HỒNG PHÚC GLASS</div>
+          <h1 style={{ textAlign: "center", fontSize: "22px" }}>Đổi mật khẩu Admin</h1>
+          <p style={{ textAlign: "center" }}>Nhập mật khẩu hiện tại để xác minh tài khoản.</p>
+          <label>
+            Email
+            <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </label>
+          <label>
+            Mật khẩu hiện tại
+            <input type="password" autoComplete="current-password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
+          </label>
+          <label>
+            Mật khẩu mới
+            <input type="password" autoComplete="new-password" minLength={8} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
+          </label>
+          <label>
+            Nhập lại mật khẩu mới
+            <input type="password" autoComplete="new-password" minLength={8} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+          </label>
+          {error && <div className="error">{error}</div>}
+          <button className="primary" disabled={changingPassword}>
+            {changingPassword ? "Đang đổi mật khẩu…" : "Xác nhận đổi mật khẩu"}
+          </button>
+          <button type="button" onClick={() => { setShowPasswordChange(false); setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); setError(""); }}>
+            Quay lại đăng nhập
+          </button>
+        </form>
+      ) : (
       <form className="login-card" onSubmit={submit}>
         <div style={{ textAlign: "center", marginBottom: "8px" }}>
           <img src={LogoImg} alt="Hồng Phúc Glass Logo" style={{ height: "48px", objectFit: "contain" }} />
@@ -34,15 +93,23 @@ function Login({ onLogin }) {
         <p style={{ textAlign: "center" }}>Cổng thông tin quản lý sự kiện tri ân khách hàng Hồng Phúc Glass.</p>
         <label>
           Email
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </label>
         <label>
           Mật khẩu
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        </label>
+        <label className="check" style={{ fontWeight: "600", cursor: "pointer" }}>
+          <input type="checkbox" style={{ width: "auto", padding: 0, border: 0, boxShadow: "none" }} checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+          Nhớ đăng nhập trên thiết bị này
         </label>
         {error && <div className="error">{error}</div>}
         <button className="primary">Đăng nhập</button>
+        <button type="button" onClick={() => { setPassword(""); setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); setShowPasswordChange(true); setError(""); }}>
+          Đổi mật khẩu
+        </button>
       </form>
+      )}
     </main>
   );
 }
@@ -330,7 +397,7 @@ function Overview() {
     api("/admin/campaigns")
       .then((r) => {
         setCampaigns(r.items || []);
-        if (r.items?.[0]) setSelectedCampaignId(r.items[0].id);
+        setSelectedCampaignId(getDefaultCampaignId(r.items || []));
       })
       .catch((e) => setError(e.message));
   }, []);
@@ -762,7 +829,7 @@ function CampaignParticipants() {
   useEffect(() => {
     api("/admin/campaigns").then((r) => {
       setCampaigns(r.items || []);
-      if (r.items?.[0]) setSelectedCampaignId(r.items[0].id);
+      setSelectedCampaignId(getDefaultCampaignId(r.items || []));
     }).catch((e) => setError(e.message));
 
     api("/admin/rewards").then((r) => {
@@ -1999,7 +2066,9 @@ function Rewards() {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(EMPTY_REWARD);
   const [editing, setEditing] = useState(null);
+  const [showHidden, setShowHidden] = useState(false);
   const [error, setError] = useState("");
+  const displayedItems = items.filter((item) => item.hidden === showHidden);
 
   // Extract unique applicable product names dynamically from database rewards
   const productOptions = useMemo(() => {
@@ -2014,7 +2083,7 @@ function Rewards() {
 
   const load = async () => {
     try {
-      const result = await api("/admin/rewards");
+      const result = await api("/admin/rewards?includeHidden=true");
       setItems(result.items || []);
     } catch (e) {
       setError(e.message);
@@ -2043,10 +2112,16 @@ function Rewards() {
     }
   };
 
-  const remove = async (id) => {
-    if (!confirm("Xóa giải thưởng này?")) return;
+  const setHidden = async (id, hidden) => {
+    const message = hidden
+      ? "Ẩn giải thưởng khỏi danh mục và các lựa chọn tạo mới? Luật quay hiện tại và lịch sử giải vẫn được giữ nguyên."
+      : "Khôi phục giải thưởng này vào danh mục và các lựa chọn?";
+    if (!confirm(message)) return;
     try {
-      await api(`/admin/rewards/${id}`, { method: "DELETE" });
+      await api(`/admin/rewards/${id}/visibility`, {
+        method: "PATCH",
+        body: JSON.stringify({ hidden }),
+      });
       await load();
     } catch (e) {
       setError(e.message);
@@ -2150,14 +2225,24 @@ function Rewards() {
         </form>
 
         <section className="panel">
-          <h2>Danh mục ({items.length})</h2>
+          <div className="actions" style={{ justifyContent: "space-between", alignItems: "center" }}>
+            <h2 style={{ margin: 0 }}>{showHidden ? "Giải thưởng đã ẩn" : "Danh mục giải thưởng"} ({displayedItems.length})</h2>
+            <button type="button" onClick={() => setShowHidden((value) => !value)}>
+              {showHidden ? "Quay lại danh mục" : `Xem đã ẩn (${items.filter((item) => item.hidden).length})`}
+            </button>
+          </div>
+          <p style={{ color: "#64748b", fontSize: "13px", margin: "10px 0 16px" }}>
+            {showHidden
+              ? "Giải đã ẩn được giữ lại; bạn có thể khôi phục bất cứ lúc nào."
+              : "Ẩn giải sẽ bỏ giải khỏi danh mục và lựa chọn tạo mới; luật quay hiện tại và lịch sử không bị xóa."}
+          </p>
           <div className="items">
-            {items.map((item) => (
+            {displayedItems.map((item) => (
               <article className="item reward-item" key={item.id}>
                 <div>
                   <strong>{item.title}</strong>
                   <small>
-                    {item.value.toLocaleString("vi-VN")}đ · Mã: {item.codePrefix} · {item.active ? "Đang bật" : "Đang tắt"}
+                    {item.value.toLocaleString("vi-VN")}đ · Mã: {item.codePrefix} · {item.active ? "Đang bật" : "Đang tắt"}{item.hidden ? " · Đã ẩn" : ""}
                   </small>
                   <small style={{ color: "#0369a1", fontWeight: "600", marginTop: "2px", display: "block" }}>
                     Sản phẩm: {item.applicableProducts || ""} | Khấu trừ max: {item.discountRate || "100"}%
@@ -2172,12 +2257,20 @@ function Rewards() {
                   >
                     Sửa
                   </button>
-                  <button className="danger" onClick={() => remove(item.id)}>
-                    Xóa
+                  <button
+                    className={item.hidden ? "primary" : "danger"}
+                    onClick={() => void setHidden(item.id, !item.hidden)}
+                  >
+                    {item.hidden ? "Khôi phục" : "Ẩn"}
                   </button>
                 </div>
               </article>
             ))}
+            {displayedItems.length === 0 && (
+              <p style={{ color: "#64748b", padding: "12px 0" }}>
+                {showHidden ? "Chưa có giải thưởng nào bị ẩn." : "Chưa có giải thưởng trong danh mục."}
+              </p>
+            )}
           </div>
         </section>
       </div>
@@ -2933,7 +3026,8 @@ function CampaignRules() {
   const [spinMode, setSpinMode] = useState("all");
   const [rangeStart, setRangeStart] = useState(1);
   const [rangeEnd, setRangeEnd] = useState(5);
-  const [customSpins, setCustomSpins] = useState([1, 2, 3, 4, 5]);
+  const [customSpins, setCustomSpins] = useState([]);
+  const [customSpinInput, setCustomSpinInput] = useState("");
 
   // Multi-reward list state
   const [rewardItems, setRewardItems] = useState([
@@ -2950,13 +3044,14 @@ function CampaignRules() {
       const query = campaignId ? `?campaignId=${encodeURIComponent(campaignId)}` : "";
       const [rules, catalog] = await Promise.all([
         api(`/admin/campaign-rules${query}`),
-        api("/admin/rewards"),
+        api("/admin/rewards?includeHidden=true"),
       ]);
       setItems(rules.items || []);
       const rItems = catalog.items || [];
       setRewards(rItems);
-      if (!rewardItems[0]?.rewardId && rItems[0]) {
-        setRewardItems([{ rewardId: rItems[0].id, probability: 100, quantity: 10 }]);
+      const firstVisibleReward = rItems.find((reward) => !reward.hidden);
+      if (!rewardItems[0]?.rewardId && firstVisibleReward) {
+        setRewardItems([{ rewardId: firstVisibleReward.id, probability: 100, quantity: 10 }]);
       }
     } catch (e) {
       setError(e.message);
@@ -2968,7 +3063,7 @@ function CampaignRules() {
       .then((result) => {
         const available = result.items || [];
         setCampaigns(available);
-        if (!campaignId && available[0]) setCampaignId(available[0].id);
+        if (!campaignId) setCampaignId(getDefaultCampaignId(available));
       })
       .catch((e) => setError(e.message));
   }, []);
@@ -2977,24 +3072,9 @@ function CampaignRules() {
     void load();
   }, [campaignId]);
 
-  const getTargetSpins = () => {
-    if (spinMode === "all") {
-      const list = [];
-      for (let i = 1; i <= 50; i++) list.push(i);
-      return list;
-    }
-    if (spinMode === "range") {
-      const start = Math.max(1, Math.min(rangeStart, rangeEnd));
-      const end = Math.max(start, Math.max(rangeStart, rangeEnd));
-      const list = [];
-      for (let i = start; i <= end; i++) list.push(i);
-      return list;
-    }
-    return customSpins.length > 0 ? [...customSpins].sort((a, b) => a - b) : [1];
-  };
-
   const handleAddRewardRow = () => {
-    setRewardItems((prev) => [...prev, { rewardId: rewards[0]?.id || "", probability: 100, quantity: 5 }]);
+    const firstVisibleReward = rewards.find((reward) => !reward.hidden);
+    setRewardItems((prev) => [...prev, { rewardId: firstVisibleReward?.id || "", probability: 100, quantity: 5 }]);
   };
 
   const handleRemoveRewardRow = (idx) => {
@@ -3008,10 +3088,15 @@ function CampaignRules() {
     );
   };
 
-  const toggleCustomSpin = (num) => {
-    setCustomSpins((prev) =>
-      prev.includes(num) ? prev.filter((s) => s !== num) : [...prev, num]
-    );
+  const addCustomSpin = () => {
+    const spinNumber = Number(customSpinInput);
+    if (!Number.isSafeInteger(spinNumber) || spinNumber < 1 || spinNumber > 2_147_483_647) {
+      setError("Số lượt phải là số nguyên dương hợp lệ.");
+      return;
+    }
+    setError("");
+    setCustomSpins((prev) => [...new Set([...prev, spinNumber])].sort((a, b) => a - b));
+    setCustomSpinInput("");
   };
 
   const save = async (event) => {
@@ -3019,8 +3104,13 @@ function CampaignRules() {
     setError("");
     setSuccessMsg("");
 
-    const targetSpins = getTargetSpins();
+    const targetSpins = getRuleTargetSpins({ mode: spinMode, rangeStart, rangeEnd, customSpins });
     const validRewards = rewardItems.filter((rw) => rw.rewardId && Number(rw.quantity) > 0);
+
+    if (targetSpins.length === 0) {
+      setError(spinMode === "custom" ? "Vui lòng thêm ít nhất một lượt quay." : "Vui lòng kiểm tra khoảng lượt quay.");
+      return;
+    }
 
     if (validRewards.length === 0) {
       setError("Vui lòng chọn ít nhất 1 giải thưởng hợp lệ.");
@@ -3057,7 +3147,11 @@ function CampaignRules() {
       setForm(EMPTY);
       setEditing(null);
       setSpinMode("all");
-      setRewardItems([{ rewardId: rewards[0]?.id || "", probability: 100, quantity: 10 }]);
+      setRangeStart(1);
+      setRangeEnd(50);
+      setCustomSpins([]);
+      setCustomSpinInput("");
+      setRewardItems([{ rewardId: rewards.find((reward) => !reward.hidden)?.id || "", probability: 100, quantity: 10 }]);
       await load();
     } catch (e) {
       setError(e.message);
@@ -3067,16 +3161,16 @@ function CampaignRules() {
   const edit = (item) => {
     setEditing(item.id);
     const existingSpins = (item.spins || []).map((s) => s.spinNumber ?? s.spin_number).filter(Boolean);
-    if (existingSpins.length >= 10) {
-      setSpinMode("all");
-    } else {
-      setSpinMode("custom");
-      setCustomSpins(existingSpins.length > 0 ? existingSpins : [1]);
-    }
+    const spinSelection = getInitialSpinSelection(existingSpins);
+    setSpinMode(spinSelection.mode);
+    setRangeStart(spinSelection.rangeStart);
+    setRangeEnd(spinSelection.rangeEnd);
+    setCustomSpins(spinSelection.customSpins);
+    setCustomSpinInput("");
 
     const firstSpin = item.spins?.[0] || {};
     const existingRewards = (firstSpin.rewards || []).map((rw) => ({
-      rewardId: rw.rewardId || rw.reward_id || rewards[0]?.id || "",
+      rewardId: rw.rewardId || rw.reward_id || rewards.find((reward) => !reward.hidden)?.id || "",
       probability: rw.probability ?? 100,
       quantity: rw.quantity ?? 1,
     }));
@@ -3091,7 +3185,7 @@ function CampaignRules() {
       winRate: firstSpin.win_rate ?? firstSpin.winRate ?? 100,
     });
 
-    setRewardItems(existingRewards.length > 0 ? existingRewards : [{ rewardId: rewards[0]?.id || "", probability: 100, quantity: 10 }]);
+    setRewardItems(existingRewards.length > 0 ? existingRewards : [{ rewardId: rewards.find((reward) => !reward.hidden)?.id || "", probability: 100, quantity: 10 }]);
   };
 
   const confirmRemove = (id, name) => {
@@ -3130,6 +3224,11 @@ function CampaignRules() {
                 setCampaignId(e.target.value);
                 setEditing(null);
                 setForm(EMPTY);
+                setSpinMode("all");
+                setRangeStart(1);
+                setRangeEnd(50);
+                setCustomSpins([]);
+                setCustomSpinInput("");
               }}
               required
             >
@@ -3180,12 +3279,12 @@ function CampaignRules() {
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "10px" }}>
               <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}>
                 <input type="radio" name="advSpinMode" checked={spinMode === "all"} onChange={() => setSpinMode("all")} />
-                Tất cả
+                Tất cả lượt (1–50)
               </label>
 
               <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}>
                 <input type="radio" name="advSpinMode" checked={spinMode === "range"} onChange={() => setSpinMode("range")} />
-                Khoảng lượt
+                Khoảng lượt (1–50)
               </label>
 
               <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: "700", cursor: "pointer" }}>
@@ -3202,26 +3301,41 @@ function CampaignRules() {
             )}
 
             {spinMode === "custom" && (
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "6px" }}>
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map((num) => (
-                  <button
-                    type="button"
-                    key={num}
-                    style={{
-                      padding: "4px 10px",
-                      borderRadius: "6px",
-                      border: customSpins.includes(num) ? "2px solid #e11b22" : "1px solid #cbd5e1",
-                      background: customSpins.includes(num) ? "#fee2e2" : "#fff",
-                      color: customSpins.includes(num) ? "#b91c1c" : "#475569",
-                      fontWeight: "700",
-                      fontSize: "11px",
-                      cursor: "pointer",
+              <div style={{ display: "grid", gap: "8px", marginTop: "8px" }}>
+                <label htmlFor="custom-spin-number" style={{ fontSize: "12px", fontWeight: "700" }}>Thêm lượt cụ thể</label>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <input
+                    id="custom-spin-number"
+                    type="number"
+                    min="1"
+                    max="2147483647"
+                    step="1"
+                    value={customSpinInput}
+                    onChange={(e) => setCustomSpinInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addCustomSpin();
+                      }
                     }}
-                    onClick={() => toggleCustomSpin(num)}
-                  >
-                    Lượt {num}
-                  </button>
-                ))}
+                    placeholder="Nhập số lượt, ví dụ 21 hoặc 100"
+                    style={{ flex: "1 1 220px", minWidth: 0 }}
+                  />
+                  <button type="button" onClick={addCustomSpin} disabled={!customSpinInput}>Thêm lượt</button>
+                </div>
+                <small style={{ color: "#64748b" }}>Có thể thêm các lượt bất kỳ, kể cả lớn hơn 50.</small>
+                {customSpins.length > 0 ? (
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }} aria-label="Các lượt đã chọn">
+                    {customSpins.map((num) => (
+                      <span key={num} style={{ display: "inline-flex", alignItems: "center", gap: "6px", border: "1px solid #cbd5e1", borderRadius: "999px", padding: "4px 8px", background: "#fff", fontSize: "12px" }}>
+                        Lượt {num}
+                        <button type="button" aria-label={`Bỏ lượt ${num}`} onClick={() => setCustomSpins((prev) => prev.filter((spin) => spin !== num))} style={{ border: 0, padding: 0, background: "transparent", color: "#b91c1c", fontWeight: "700", cursor: "pointer" }}>×</button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <small style={{ color: "#b45309" }}>Chưa chọn lượt nào. Hãy thêm ít nhất một lượt.</small>
+                )}
               </div>
             )}
           </div>
@@ -3252,14 +3366,15 @@ function CampaignRules() {
                 <div key={idx} style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr auto", gap: "8px", alignItems: "flex-end", background: "#f8fafc", padding: "10px", borderRadius: "10px", border: "1px solid #f1f5f9", minWidth: 0 }}>
                   <div style={{ minWidth: 0 }}>
                     <label style={{ fontSize: "11px", color: "#475569", fontWeight: "700", display: "block", marginBottom: "4px" }}>Tên Giải thưởng {idx + 1}</label>
-                    <select style={{ width: "100%", padding: "6px 8px", fontSize: "11px", boxSizing: "border-box" }} value={item.rewardId || rewards[0]?.id || ""} onChange={(e) => handleUpdateRewardRow(idx, "rewardId", e.target.value)} required>
-                      {rewards.map((r) => {
+                    <select style={{ width: "100%", padding: "6px 8px", fontSize: "11px", boxSizing: "border-box" }} value={item.rewardId || rewards.find((reward) => !reward.hidden)?.id || ""} onChange={(e) => handleUpdateRewardRow(idx, "rewardId", e.target.value)} required>
+                      <option value="" disabled>-- Chọn giải thưởng --</option>
+                      {rewards.filter((reward) => !reward.hidden || reward.id === item.rewardId).map((r) => {
                         const prod = r.applicableProducts || r.applicable_products;
                         const prodText = prod ? ` · SP: ${prod}` : "";
                         const codeText = r.codePrefix || r.code_prefix ? ` [Mã: ${r.codePrefix || r.code_prefix}]` : "";
                         return (
-                          <option key={r.id} value={r.id}>
-                            {r.title} ({r.value ? Number(r.value).toLocaleString("vi-VN") + "đ" : ""}){codeText}{prodText}
+                          <option key={r.id} value={r.id} disabled={r.hidden === true}>
+                            {r.title}{r.hidden ? " (Đã ẩn)" : ""} ({r.value ? Number(r.value).toLocaleString("vi-VN") + "đ" : ""}){codeText}{prodText}
                           </option>
                         );
                       })}
@@ -3299,7 +3414,7 @@ function CampaignRules() {
 
           <div className="actions">
             <button className="primary">{editing ? "Lưu luật quay" : "Tạo luật quay"}</button>
-            {editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY); }}>Hủy</button>}
+            {editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY); setSpinMode("all"); setRangeStart(1); setRangeEnd(50); setCustomSpins([]); setCustomSpinInput(""); }}>Hủy</button>}
           </div>
         </form>
 
@@ -3308,7 +3423,7 @@ function CampaignRules() {
           <div className="items">
             {items.map((item) => {
               const spinNums = (item.spins || []).map((s) => s.spin_number ?? s.spinNumber).filter(Boolean);
-              const spinSummary = spinNums.length >= 10 ? "Tất cả các lượt (1 - 10)" : `Lượt: ${spinNums.join(", ")}`;
+              const spinSummary = getSpinSummary(spinNums);
               return (
                 <article className="item reward-item" key={item.id} style={{ minWidth: 0, flexWrap: "wrap" }}>
                   <div style={{ minWidth: 0 }}>
@@ -3393,7 +3508,7 @@ function CustomerGroups() {
     api("/admin/campaigns").then((r) => {
       const available = r.items || [];
       setCampaigns(available);
-      if (!selectedCampaignId && available[0]) setSelectedCampaignId(available[0].id);
+      if (!selectedCampaignId) setSelectedCampaignId(getDefaultCampaignId(available));
     }).catch(() => { });
   }, []);
 
@@ -3769,7 +3884,7 @@ export default function App() {
         <div className="card">
           <h2>🔗 Kết nối Google Sheets</h2>
           <p style={{ color: "#475569", fontSize: "13px", lineHeight: "1.6" }}>
-            Dán URL Web App `/exec` của Google Apps Script đã gắn với bảng tính đích. Đây là cấu hình riêng trong Admin, không cần sửa file `.env`.
+            Dán URL Web App `/exec` của Google Apps Script đã gắn với bảng tính đích.
           </p>
           <label style={{ display: "grid", gap: "6px", marginTop: "16px" }}>
             <strong>Google Apps Script Web App URL</strong>

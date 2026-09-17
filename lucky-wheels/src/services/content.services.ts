@@ -1,4 +1,3 @@
-import slideImg from "@/static/slide-img.webp";
 import type { SymbolCode } from "@/types/campaign";
 import { apiRequest } from "@/services/api.client";
 import { zbsService } from "@/services/zbs.services";
@@ -27,15 +26,7 @@ let memoryBanners: BannerConfig[] | null = null;
 let memoryRewardCatalog: RewardCatalogItem[] | null = null;
 let memoryProgramRules: Record<string, unknown> | null = null;
 
-const DEFAULT_BANNERS: BannerConfig[] = [
-  {
-    id: "default-slide",
-    title: "Vòng quay may mắn",
-    imageUrl: slideImg,
-    active: true,
-    order: 0,
-  },
-];
+const DEFAULT_BANNERS: BannerConfig[] = [];
 
 const DEFAULT_REWARD_CATALOG: RewardCatalogItem[] = [
   {
@@ -156,9 +147,7 @@ export function getActiveBanners() {
     .filter((banner) => banner.active && banner.imageUrl.trim())
     .sort((a, b) => a.order - b.order);
 
-  return active.length > 0
-    ? active
-    : DEFAULT_BANNERS.map((banner) => ({ ...banner }));
+  return active;
 }
 
 export function getDefaultBanners() {

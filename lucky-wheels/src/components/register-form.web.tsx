@@ -60,10 +60,6 @@ export default function WebRegisterForm() {
         />
       </label>
 
-      <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-relaxed text-amber-900">
-        Số điện thoại nhập tại đây chưa được xác minh bằng OTP.
-      </p>
-
       {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</p>}
 
       <button

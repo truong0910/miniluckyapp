@@ -46,7 +46,6 @@ export default function BannerCarousel() {
   if (!banner) return null;
 
   const handleImageError = () => {
-    if (banner.id === "default-slide") return;
     setBrokenBannerIds((current) =>
       current.includes(banner.id) ? current : [...current, banner.id]
     );

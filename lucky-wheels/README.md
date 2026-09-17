@@ -16,7 +16,7 @@ npm run build:miniapp         # Mini App production build
 npm run deploy:miniapp        # Deploy through the ZMP CLI
 ```
 
-Set `VITE_API_BASE_URL` in `.env` to the shared backend. The web form sends the entered phone to the backend without OTP; show users that this number is unverified. The Mini App obtains a phone token from Zalo. Keep Zalo and ZBS secrets in backend System Settings or its environment.
+Set `VITE_API_BASE_URL` in `.env` to the shared backend. The web form uses the entered phone as an unverified participant identifier and does not send an OTP. The Mini App obtains a phone token from Zalo. Keep Zalo and ZBS secrets in backend System Settings or its environment.
 
 After a winning spin, both targets use the backend ZBS delivery outbox. The ZBS key and template ID stay on the backend; run its `worker:delivery` process to send the approved template.
 

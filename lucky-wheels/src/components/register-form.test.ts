@@ -5,10 +5,9 @@ const web = readFileSync(new URL("./register-form.web.tsx", import.meta.url), "u
 const miniapp = readFileSync(new URL("./register-form.miniapp.tsx", import.meta.url), "utf8");
 
 describe("target-specific registration", () => {
-  it("lets browser users enter a phone and explains that it has no OTP verification", () => {
+  it("lets browser users identify themselves by phone without Zalo authentication", () => {
     expect(web).toMatch(/type=["']tel["']/);
     expect(web).toContain("participantService.authenticate(phone)");
-    expect(web).toMatch(/không được xác minh|chưa được xác minh/i);
     expect(web).not.toMatch(/zalo|zmp-sdk|oa/i);
   });
 

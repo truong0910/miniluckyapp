@@ -3,8 +3,14 @@ import { authClient, supabase } from "../supabase.js";
 import { requireAdmin } from "../middleware.js";
 import { config } from "../config.js";
 import { normalizeGoogleSheetsWebhookUrl, saveGoogleSheetsWebhookUrl } from "../runtime-system-config.js";
-import { createDevelopmentAdminToken } from "../auth/admin-session.js";
+import {
+  createDevelopmentAdminRefreshToken,
+  createDevelopmentAdminToken,
+  refreshDevelopmentAdminSession,
+} from "../auth/admin-session.js";
 import { asyncRoute, mapAssignment, mapBanner, mapCustomer, mapReward, normalizePhone, publicError } from "../utils.js";
+import { listRewards, setRewardHidden } from "../reward-service.js";
+import { changeAdminPassword, refreshSupabaseAdminSession } from "../admin-auth-service.js";
 import {
   createCampaign,
   dryRunSpin,
@@ -69,8 +75,10 @@ router.post("/auth/login", asyncRoute(async (req, res) => {
     user = authResult.data.user;
   } else if (config.appEnv === "development" && config.adminAuthMode === "development" && config.adminEmail && config.adminPassword && email === config.adminEmail && password === config.adminPassword) {
     // Local fallback only for development. Production should use Supabase Auth.
-    const accessToken = createDevelopmentAdminToken({ id: "local-development-admin", email, role: "admin" }, config.devAuthSecret);
-    res.json({ accessToken, refreshToken: "", expiresAt: Date.now() + 30 * 60 * 1000, user: { email }, local: true });
+    const user = { id: "local-development-admin", email, role: "admin" };
+    const accessToken = createDevelopmentAdminToken(user, config.devAuthSecret);
+    const refreshToken = createDevelopmentAdminRefreshToken(user, config.devAuthSecret);
+    res.json({ accessToken, refreshToken, expiresAt: Math.floor((Date.now() + 30 * 60 * 1000) / 1000), user: { email }, local: true });
     return;
   } else {
     throw publicError("Email hoặc mật khẩu không đúng", 401);
@@ -79,6 +87,51 @@ router.post("/auth/login", asyncRoute(async (req, res) => {
   const { data: profile } = await supabase.from("admin_profiles").select("user_id,role").eq("user_id", user.id).maybeSingle();
   if (!profile) throw publicError("Tài khoản chưa được cấp quyền Admin", 403);
   res.json({ accessToken: session.access_token, refreshToken: session.refresh_token, expiresAt: session.expires_at, user: { id: user.id, email: user.email }, local: false });
+}));
+
+router.post("/auth/refresh", asyncRoute(async (req, res) => {
+  if (config.appEnv === "development" && config.adminAuthMode === "development" && req.body?.local === true) {
+    let session;
+    try {
+      session = refreshDevelopmentAdminSession(req.body?.refreshToken, config.devAuthSecret);
+    } catch {
+      throw publicError("Phiên quản trị đã hết hạn. Vui lòng đăng nhập lại.", 401);
+    }
+    res.json(session);
+    return;
+  }
+
+  const session = await refreshSupabaseAdminSession({
+    authClient,
+    adminDb: supabase,
+    refreshToken: req.body?.refreshToken,
+  });
+  res.json({ ...session, local: false });
+}));
+
+router.post("/auth/change-password", asyncRoute(async (req, res) => {
+  const credentials = {
+    authClient,
+    adminDb: supabase,
+    email: req.body?.email,
+    currentPassword: req.body?.currentPassword,
+    newPassword: req.body?.newPassword,
+    confirmPassword: req.body?.confirmPassword,
+  };
+  let result;
+  try {
+    result = await changeAdminPassword(credentials);
+  } catch (error) {
+    const usingLocalFallback = config.appEnv === "development"
+      && config.adminAuthMode === "development"
+      && String(credentials.email || "").trim() === config.adminEmail
+      && String(credentials.currentPassword || "") === config.adminPassword;
+    if (error.status === 401 && usingLocalFallback) {
+      throw publicError("Tài khoản local fallback lấy mật khẩu từ cấu hình môi trường nên không đổi được tại màn này.", 501);
+    }
+    throw error;
+  }
+  res.json({ ok: true, ...result });
 }));
 
 router.get("/auth/me", requireAdmin, (req, res) => {
@@ -130,10 +183,9 @@ router.delete("/banners/:id", requireAdmin, asyncRoute(async (req, res) => {
   res.status(204).end();
 }));
 
-router.get("/rewards", requireAdmin, asyncRoute(async (_req, res) => {
-  const { data, error } = await supabase.from("reward_catalog").select("id,code_prefix,title,value,description,wheel_label,symbol,active,applicable_products,discount_rate").order("value", { ascending: false });
-  if (error) throw error;
-  res.json({ items: (data || []).map(mapReward) });
+router.get("/rewards", requireAdmin, asyncRoute(async (req, res) => {
+  const items = await listRewards({ db: supabase, includeHidden: req.query.includeHidden === "true" });
+  res.json({ items });
 }));
 
 router.post("/rewards", requireAdmin, asyncRoute(async (req, res) => {
@@ -149,10 +201,11 @@ router.post("/rewards", requireAdmin, asyncRoute(async (req, res) => {
     wheel_label: String(body.wheelLabel || `${value.toLocaleString("vi-VN")}đ`),
     symbol: String(body.symbol || "star"),
     active: body.active !== false,
+    hidden: false,
     applicable_products: String(body.applicableProducts || body.description || "Tất cả sản phẩm Kính Hồng Phúc").trim(),
     discount_rate: String(body.discountRate || "100").trim(),
   };
-  const { data, error } = await supabase.from("reward_catalog").upsert(record).select("id,code_prefix,title,value,description,wheel_label,symbol,active,applicable_products,discount_rate").single();
+  const { data, error } = await supabase.from("reward_catalog").upsert(record).select("id,code_prefix,title,value,description,wheel_label,symbol,active,hidden,applicable_products,discount_rate").single();
   if (error) throw error;
   res.status(201).json(mapReward(data));
 }));
@@ -172,14 +225,18 @@ router.put("/rewards/:id", requireAdmin, asyncRoute(async (req, res) => {
     applicable_products: String(body.applicableProducts || body.description || "Tất cả sản phẩm Kính Hồng Phúc").trim(),
     discount_rate: String(body.discountRate || "100").trim(),
   };
-  const { data, error } = await supabase.from("reward_catalog").update(record).eq("id", req.params.id).select("id,code_prefix,title,value,description,wheel_label,symbol,active,applicable_products,discount_rate").single();
+  const { data, error } = await supabase.from("reward_catalog").update(record).eq("id", req.params.id).select("id,code_prefix,title,value,description,wheel_label,symbol,active,hidden,applicable_products,discount_rate").single();
   if (error) throw error;
   res.json(mapReward(data));
 }));
 
+router.patch("/rewards/:id/visibility", requireAdmin, asyncRoute(async (req, res) => {
+  const reward = await setRewardHidden({ db: supabase, id: req.params.id, hidden: req.body?.hidden });
+  res.json(reward);
+}));
+
 router.delete("/rewards/:id", requireAdmin, asyncRoute(async (req, res) => {
-  const { error } = await supabase.from("reward_catalog").delete().eq("id", req.params.id);
-  if (error) throw publicError(`Không thể xóa quà: ${error.message}`, 409);
+  await setRewardHidden({ db: supabase, id: req.params.id, hidden: true });
   res.status(204).end();
 }));
 
