@@ -3,7 +3,7 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Accept Vite API Base URL as build argument
-ARG VITE_API_BASE_URL=http://localhost:8787/api/v1
+ARG VITE_API_BASE_URL=https://luckyapi.wiai.vn/api/v1
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 COPY package*.json ./
@@ -20,4 +20,3 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
 
 CMD ["nginx", "-g", "daemon off;"]
-

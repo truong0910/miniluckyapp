@@ -55,7 +55,14 @@ jobs:
           port: ${{ vars.SSH_PORT || 22 }}
           script: |
             set -e
-            APP_DIR="/www/wwwroot/miniluckyapp"
+            if [ -d "/www/dk_project/miniluckyapp" ]; then
+              APP_DIR="/www/dk_project/miniluckyapp"
+            elif [ -n "${{ vars.SERVER_APP_DIR }}" ]; then
+              APP_DIR="${{ vars.SERVER_APP_DIR }}"
+            else
+              APP_DIR="/www/wwwroot/miniluckyapp"
+            fi
+            echo ">>> Thư mục triển khai: $APP_DIR"
 
             echo ">>> 1. Đảm bảo thư mục triển khai tồn tại..."
             if [ ! -d "$APP_DIR/.git" ]; then

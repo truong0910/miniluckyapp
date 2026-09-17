@@ -41,4 +41,3 @@ services:
 networks:
   minilucky-network:
     driver: bridge
-
