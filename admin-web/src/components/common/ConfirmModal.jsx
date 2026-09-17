@@ -18,9 +18,9 @@ export default function ConfirmModal({
   return (
     <div className="modal-overlay" onClick={onCancel}>
       <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
+        <div className={`modal-header modal-header-${variant}`}>
           <h3 className="modal-title">{title}</h3>
-          <button type="button" className="modal-close-btn" onClick={onCancel}>
+          <button type="button" className="modal-close-btn" onClick={onCancel} aria-label="Đóng">
             &times;
           </button>
         </div>

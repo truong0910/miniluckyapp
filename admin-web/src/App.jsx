@@ -826,6 +826,16 @@ function CampaignParticipants() {
     saving: false,
   });
 
+  const [confirmModalState, setConfirmModalState] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    variant: "danger",
+    confirmText: "Xác nhận",
+    onConfirm: null,
+    loading: false,
+  });
+
   useEffect(() => {
     api("/admin/campaigns").then((r) => {
       setCampaigns(r.items || []);
@@ -1071,27 +1081,50 @@ function CampaignParticipants() {
     }
   };
 
-  const handleDeleteParticipant = async (item) => {
-    if (!confirm(`Xóa khách hàng ${item.customerName} (${item.customerPhone}) khỏi sự kiện này?`)) return;
-    setError("");
-    try {
-      await api(`/admin/campaigns/${selectedCampaignId}/participants/${item.customerId}`, { method: "DELETE" });
-      await load();
-    } catch (err) {
-      setError(`Lỗi xóa khách hàng: ${err.message}`);
-    }
+  const handleDeleteParticipant = (item) => {
+    setConfirmModalState({
+      isOpen: true,
+      title: "Xác nhận xóa khách hàng",
+      message: `Xóa khách hàng ${item.customerName} (${item.customerPhone}) khỏi sự kiện này?`,
+      variant: "danger",
+      confirmText: "Xóa khách hàng",
+      loading: false,
+      onConfirm: async () => {
+        setConfirmModalState((prev) => ({ ...prev, loading: true }));
+        setError("");
+        try {
+          await api(`/admin/campaigns/${selectedCampaignId}/participants/${item.customerId}`, { method: "DELETE" });
+          await load();
+          setConfirmModalState((prev) => ({ ...prev, isOpen: false, loading: false }));
+        } catch (err) {
+          setError(`Lỗi xóa khách hàng: ${err.message}`);
+          setConfirmModalState((prev) => ({ ...prev, isOpen: false, loading: false }));
+        }
+      },
+    });
   };
 
-  const handleClearParticipantRewards = async (item) => {
-    if (!confirm(`Xóa tất cả Voucher cấp sẵn của khách hàng ${item.customerName} (${item.customerPhone})? Sau khi xóa, bạn có thể cấp lại chính xác 1 lần.`)) return;
-    setError("");
-    try {
-      await api(`/admin/campaigns/${selectedCampaignId}/participants/${item.customerId}/rewards`, { method: "DELETE" });
-      await load();
-      alert("Đã làm sạch danh sách Voucher cấp sẵn thành công!");
-    } catch (err) {
-      setError(`Lỗi xóa voucher: ${err.message}`);
-    }
+  const handleClearParticipantRewards = (item) => {
+    setConfirmModalState({
+      isOpen: true,
+      title: "Xác nhận xóa Voucher cấp sẵn",
+      message: `Xóa tất cả Voucher cấp sẵn của khách hàng ${item.customerName} (${item.customerPhone})? Sau khi xóa, bạn có thể cấp lại chính xác 1 lần.`,
+      variant: "warning",
+      confirmText: "Xóa Voucher",
+      loading: false,
+      onConfirm: async () => {
+        setConfirmModalState((prev) => ({ ...prev, loading: true }));
+        setError("");
+        try {
+          await api(`/admin/campaigns/${selectedCampaignId}/participants/${item.customerId}/rewards`, { method: "DELETE" });
+          await load();
+          setConfirmModalState((prev) => ({ ...prev, isOpen: false, loading: false }));
+        } catch (err) {
+          setError(`Lỗi xóa voucher: ${err.message}`);
+          setConfirmModalState((prev) => ({ ...prev, isOpen: false, loading: false }));
+        }
+      },
+    });
   };
 
   const handleExecuteManualAward = async (e) => {
@@ -2048,18 +2081,101 @@ function CampaignParticipants() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmModalState.isOpen}
+        title={confirmModalState.title}
+        message={confirmModalState.message}
+        variant={confirmModalState.variant}
+        confirmText={confirmModalState.confirmText}
+        loading={confirmModalState.loading}
+        onConfirm={confirmModalState.onConfirm}
+        onCancel={() => setConfirmModalState((prev) => ({ ...prev, isOpen: false }))}
+      />
     </>
   );
 }
 
 function Banners() {
-  const [items, setItems] = useState([]); const [form, setForm] = useState(EMPTY_BANNER); const [editing, setEditing] = useState(null); const [error, setError] = useState(""); const [saving, setSaving] = useState(false);
+  const [items, setItems] = useState([]);
+  const [form, setForm] = useState(EMPTY_BANNER);
+  const [editing, setEditing] = useState(null);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, loading: false });
+
   const load = async () => { try { const result = await api("/admin/banners"); setItems(result.items || []); } catch (e) { setError(e.message); } };
   useEffect(() => { void load(); }, []);
   const save = async (event) => { event.preventDefault(); setSaving(true); setError(""); try { const body = { ...form }; const path = editing ? `/admin/banners/${editing}` : "/admin/banners"; await api(path, { method: editing ? "PUT" : "POST", body: JSON.stringify(body) }); setForm(EMPTY_BANNER); setEditing(null); await load(); } catch (e) { setError(e.message); } finally { setSaving(false); } };
   const upload = async (event) => { const file = event.target.files?.[0]; if (!file) return; if (file.size > 8_000_000) { setError("Ảnh tối đa 8MB"); return; } const imageData = await fileToDataUrl(file); setForm((x) => ({ ...x, imageData, imageUrl: "" })); };
-  const remove = async (id) => { if (!confirm("Xóa banner này?")) return; try { await api(`/admin/banners/${id}`, { method: "DELETE" }); await load(); } catch (e) { setError(e.message); } };
-  return <><Header helpTopic="banners" title="Quản lý banner" subtitle="Quản lý hình ảnh banner truyền thông hiển thị trên trang chủ Mini App." />{error && <div className="error">{error}</div>}<div className="split"><form className="panel form" onSubmit={save}><h2>{editing ? "Sửa banner" : "Thêm banner"}</h2><label>Tiêu đề<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label><label>URL ảnh<input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value, imageData: undefined })} placeholder="https://..." /></label><label>Hoặc tải file<input type="file" accept="image/*" onChange={upload} /></label>{(form.imageUrl || form.imageData) && <img className="banner-preview" src={form.imageData || form.imageUrl} />}<label>Link khi bấm<input value={form.linkUrl} onChange={(e) => setForm({ ...form, linkUrl: e.target.value })} /></label><label className="check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Hiển thị</label><div className="actions"><button className="primary" disabled={saving}>{saving ? "Đang lưu…" : editing ? "Lưu thay đổi" : "Thêm banner"}</button>{editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY_BANNER); }}>Hủy</button>}</div></form><section className="panel"><h2>Danh sách ({items.length})</h2><div className="items">{items.map((item) => <article className="item" key={item.id}><img src={item.imageUrl} /><div><strong>{item.title}</strong><small>{item.active ? "Đang hiển thị" : "Đang tắt"}</small><div className="actions"><button onClick={() => { setEditing(item.id); setForm(item); }}>Sửa</button><button className="danger" onClick={() => remove(item.id)}>Xóa</button></div></div></article>)}</div></section></div></>;
+
+  const promptRemove = (id) => {
+    setDeleteModal({ isOpen: true, id, loading: false });
+  };
+
+  const handleConfirmRemove = async () => {
+    if (!deleteModal.id) return;
+    setDeleteModal((prev) => ({ ...prev, loading: true }));
+    try {
+      await api(`/admin/banners/${deleteModal.id}`, { method: "DELETE" });
+      await load();
+      setDeleteModal({ isOpen: false, id: null, loading: false });
+    } catch (e) {
+      setError(e.message);
+      setDeleteModal({ isOpen: false, id: null, loading: false });
+    }
+  };
+
+  return (
+    <>
+      <Header helpTopic="banners" title="Quản lý banner" subtitle="Quản lý hình ảnh banner truyền thông hiển thị trên trang chủ Mini App." />
+      {error && <div className="error">{error}</div>}
+      <div className="split">
+        <form className="panel form" onSubmit={save}>
+          <h2>{editing ? "Sửa banner" : "Thêm banner"}</h2>
+          <label>Tiêu đề<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
+          <label>URL ảnh<input value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value, imageData: undefined })} placeholder="https://..." /></label>
+          <label>Hoặc tải file<input type="file" accept="image/*" onChange={upload} /></label>
+          {(form.imageUrl || form.imageData) && <img className="banner-preview" src={form.imageData || form.imageUrl} />}
+          <label>Link khi bấm<input value={form.linkUrl} onChange={(e) => setForm({ ...form, linkUrl: e.target.value })} /></label>
+          <label className="check"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Hiển thị</label>
+          <div className="actions">
+            <button className="primary" disabled={saving}>{saving ? "Đang lưu…" : editing ? "Lưu thay đổi" : "Thêm banner"}</button>
+            {editing && <button type="button" onClick={() => { setEditing(null); setForm(EMPTY_BANNER); }}>Hủy</button>}
+          </div>
+        </form>
+        <section className="panel">
+          <h2>Danh sách ({items.length})</h2>
+          <div className="items">
+            {items.map((item) => (
+              <article className="item" key={item.id}>
+                <img src={item.imageUrl} />
+                <div>
+                  <strong>{item.title}</strong>
+                  <small>{item.active ? "Đang hiển thị" : "Đang tắt"}</small>
+                  <div className="actions">
+                    <button onClick={() => { setEditing(item.id); setForm(item); }}>Sửa</button>
+                    <button className="danger" onClick={() => promptRemove(item.id)}>Xóa</button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        title="Xác nhận xóa Banner"
+        message="Bạn có chắc chắn muốn xóa banner truyền thông này?"
+        variant="danger"
+        confirmText="Xóa banner"
+        loading={deleteModal.loading}
+        onConfirm={handleConfirmRemove}
+        onCancel={() => setDeleteModal({ isOpen: false, id: null, loading: false })}
+      />
+    </>
+  );
 }
 
 function Rewards() {
@@ -2068,6 +2184,12 @@ function Rewards() {
   const [editing, setEditing] = useState(null);
   const [showHidden, setShowHidden] = useState(false);
   const [error, setError] = useState("");
+  const [visibilityModal, setVisibilityModal] = useState({
+    isOpen: false,
+    id: null,
+    hidden: false,
+    loading: false,
+  });
   const displayedItems = items.filter((item) => item.hidden === showHidden);
 
   // Extract unique applicable product names dynamically from database rewards
@@ -2112,19 +2234,23 @@ function Rewards() {
     }
   };
 
-  const setHidden = async (id, hidden) => {
-    const message = hidden
-      ? "Ẩn giải thưởng khỏi danh mục và các lựa chọn tạo mới? Luật quay hiện tại và lịch sử giải vẫn được giữ nguyên."
-      : "Khôi phục giải thưởng này vào danh mục và các lựa chọn?";
-    if (!confirm(message)) return;
+  const promptSetHidden = (id, hidden) => {
+    setVisibilityModal({ isOpen: true, id, hidden, loading: false });
+  };
+
+  const handleConfirmVisibility = async () => {
+    if (!visibilityModal.id) return;
+    setVisibilityModal((prev) => ({ ...prev, loading: true }));
     try {
-      await api(`/admin/rewards/${id}/visibility`, {
+      await api(`/admin/rewards/${visibilityModal.id}/visibility`, {
         method: "PATCH",
-        body: JSON.stringify({ hidden }),
+        body: JSON.stringify({ hidden: visibilityModal.hidden }),
       });
       await load();
+      setVisibilityModal({ isOpen: false, id: null, hidden: false, loading: false });
     } catch (e) {
       setError(e.message);
+      setVisibilityModal({ isOpen: false, id: null, hidden: false, loading: false });
     }
   };
 
@@ -2259,7 +2385,7 @@ function Rewards() {
                   </button>
                   <button
                     className={item.hidden ? "primary" : "danger"}
-                    onClick={() => void setHidden(item.id, !item.hidden)}
+                    onClick={() => promptSetHidden(item.id, !item.hidden)}
                   >
                     {item.hidden ? "Khôi phục" : "Ẩn"}
                   </button>
@@ -2274,6 +2400,21 @@ function Rewards() {
           </div>
         </section>
       </div>
+
+      <ConfirmModal
+        isOpen={visibilityModal.isOpen}
+        title={visibilityModal.hidden ? "Xác nhận Ẩn giải thưởng" : "Xác nhận Khôi phục giải thưởng"}
+        message={
+          visibilityModal.hidden
+            ? "Ẩn giải thưởng khỏi danh mục và các lựa chọn tạo mới? Luật quay hiện tại và lịch sử giải vẫn được giữ nguyên."
+            : "Khôi phục giải thưởng này vào danh mục và các lựa chọn?"
+        }
+        variant={visibilityModal.hidden ? "warning" : "primary"}
+        confirmText={visibilityModal.hidden ? "Ẩn giải thưởng" : "Khôi phục"}
+        loading={visibilityModal.loading}
+        onConfirm={handleConfirmVisibility}
+        onCancel={() => setVisibilityModal({ isOpen: false, id: null, hidden: false, loading: false })}
+      />
     </>
   );
 }
@@ -2289,6 +2430,7 @@ function Customers() {
   const [successMsg, setSuccessMsg] = useState("");
   const [form, setForm] = useState({ name: "", phone: "", totalSpins: 5, selectedRewardId: "" });
   const [editingId, setEditingId] = useState(null);
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, loading: false });
 
   const [manualAwardModal, setManualAwardModal] = useState({
     isOpen: false,
@@ -2373,16 +2515,23 @@ function Customers() {
     });
   };
 
-  const remove = async (id) => {
-    if (!confirm("Ẩn khách hàng này?")) return;
+  const promptRemove = (id) => {
+    setDeleteModal({ isOpen: true, id, loading: false });
+  };
+
+  const handleConfirmRemove = async () => {
+    if (!deleteModal.id) return;
+    setDeleteModal((prev) => ({ ...prev, loading: true }));
     setError("");
     setSuccessMsg("");
     try {
-      await api(`/admin/customers/${id}`, { method: "DELETE" });
+      await api(`/admin/customers/${deleteModal.id}`, { method: "DELETE" });
       setSuccessMsg("Đã ẩn khách hàng thành công!");
       await load();
+      setDeleteModal({ isOpen: false, id: null, loading: false });
     } catch (e) {
       setError(e.message);
+      setDeleteModal({ isOpen: false, id: null, loading: false });
     }
   };
 
@@ -2541,7 +2690,7 @@ function Customers() {
                         >
                           Cấp quà
                         </button>
-                        <button className="danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => remove(item.id)}>
+                        <button className="danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => promptRemove(item.id)}>
                           Ẩn
                         </button>
                       </td>
@@ -2669,6 +2818,17 @@ function Customers() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        title="Xác nhận Ẩn khách hàng"
+        message="Bạn có chắc chắn muốn ẩn khách hàng này khỏi danh sách?"
+        variant="warning"
+        confirmText="Ẩn khách hàng"
+        loading={deleteModal.loading}
+        onConfirm={handleConfirmRemove}
+        onCancel={() => setDeleteModal({ isOpen: false, id: null, loading: false })}
+      />
     </>
   );
 }
