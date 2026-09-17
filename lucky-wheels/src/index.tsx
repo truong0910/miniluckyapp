@@ -33,13 +33,15 @@ window.addEventListener("error", (event) => {
 // Gracefully handle Zalo SDK login auto-auth promise rejections when running in standard web browser
 window.addEventListener("unhandledrejection", (event) => {
   const reason = event.reason;
-  console.warn("[Web Unhandled Rejection]", reason);
-  if (
+  const isZaloLoginError =
     reason &&
     typeof reason === "object" &&
-    (reason.api === "login" || reason.code === -2000 || String(reason.message).includes("Unknown error"))
-  ) {
-    event.preventDefault();
+    (reason.api === "login" || reason.code === -2000 || String(reason.message).includes("Unknown error"));
+
+  if (isZaloLoginError) {
+    event.preventDefault(); // Silently suppress Zalo SDK auto-login error in web browser
+  } else {
+    console.warn("[Web Unhandled Rejection]", reason);
   }
 });
 
