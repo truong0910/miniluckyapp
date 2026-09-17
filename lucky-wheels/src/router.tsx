@@ -9,9 +9,11 @@ const WheelPage = lazy(() => import("./pages/wheel"));
 
 const routes = [
   { path: PATHS.HOME, element: <HomePage /> },
+  { path: "/index.html", element: <HomePage /> },
   { path: PATHS.REWARD, element: <RewardPage /> },
   { path: PATHS.WHEEL, element: <WheelPage /> },
   { path: PATHS.VOUCHER, element: <VoucherPage /> },
+  { path: "*", element: <HomePage /> },
 ];
 
 export default function AppRouter() {
