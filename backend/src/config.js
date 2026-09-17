@@ -3,12 +3,10 @@ import "dotenv/config";
 const required = (name) => String(process.env[name] || "").trim();
 
 const appEnv = required("APP_ENV") || "development";
-const participantAuthMode = required("PARTICIPANT_AUTH_MODE") || (appEnv === "production" ? "zalo" : "preview");
 const adminAuthMode = required("ADMIN_AUTH_MODE") || "supabase";
 
 export const config = {
   appEnv,
-  participantAuthMode,
   adminAuthMode,
   port: Number(process.env.PORT || 6000),
   participantSessionTtlSeconds: Number(process.env.PARTICIPANT_SESSION_TTL_SECONDS || 1800),
@@ -43,23 +41,14 @@ export function validateRuntimeConfig(input = config) {
   if (!["development", "production"].includes(input.appEnv)) {
     throw new Error("APP_ENV must be development or production");
   }
-  if (!["preview", "zalo"].includes(input.participantAuthMode)) {
-    throw new Error("PARTICIPANT_AUTH_MODE must be preview or zalo");
-  }
   if (!["supabase", "development"].includes(input.adminAuthMode)) {
     throw new Error("ADMIN_AUTH_MODE must be supabase or development");
-  }
-  if (input.appEnv === "production" && input.participantAuthMode === "preview") {
-    throw new Error("Preview participant auth is not allowed in production");
   }
   if (input.appEnv === "production" && input.adminAuthMode === "development") {
     throw new Error("Development admin auth is not allowed in production");
   }
   if (input.adminAuthMode === "development" && !input.devAuthSecret) {
     throw new Error("Development admin auth requires DEV_AUTH_SECRET");
-  }
-  if (input.appEnv === "production" && input.participantAuthMode === "zalo" && !input.zaloAppSecret) {
-    throw new Error("Production Zalo auth requires ZALO_APP_SECRET");
   }
   if (!Number.isFinite(input.participantSessionTtlSeconds) || input.participantSessionTtlSeconds <= 0) {
     throw new Error("PARTICIPANT_SESSION_TTL_SECONDS must be positive");

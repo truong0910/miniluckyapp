@@ -58,7 +58,6 @@ test("spin_once is idempotent and decrements inventory atomically", { skip: !tes
   const { data, error } = await db.rpc("spin_once", {
     p_customer_id: fixtureId,
     p_idempotency_key: idempotencyKey,
-    p_oa_followed: false,
     p_source: "integration-test",
   });
   assert.ifError(error);
@@ -66,7 +65,6 @@ test("spin_once is idempotent and decrements inventory atomically", { skip: !tes
   const { data: replay, error: replayError } = await db.rpc("spin_once", {
     p_customer_id: fixtureId,
     p_idempotency_key: idempotencyKey,
-    p_oa_followed: false,
     p_source: "integration-test",
   });
   assert.ifError(replayError);

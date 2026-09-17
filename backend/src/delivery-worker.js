@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
 import { supabase } from "./supabase.js";
 import { claimDeliveryBatch, finishDelivery, sendDelivery } from "./delivery-service.js";
+import { getEffectiveRuntimeConfig } from "./runtime-system-config.js";
 
 export function retryDelayMs(attempt) {
   return Math.min(15 * 60 * 1000, 30 * 1000 * (2 ** Math.max(0, Number(attempt) || 0)));
@@ -11,7 +12,8 @@ export function retryDelayMs(attempt) {
 export async function processDelivery({ db, config: workerConfig, fetchImpl = fetch, delivery, now = new Date() }) {
   if (delivery.status === "sent") return { status: "sent", messageId: delivery.provider_message_id || "" };
   try {
-    const result = await sendDelivery({ db, fetchImpl, config: workerConfig, delivery });
+    const runtimeConfig = await getEffectiveRuntimeConfig({ db, config: workerConfig });
+    const result = await sendDelivery({ db, fetchImpl, config: runtimeConfig, delivery });
     await finishDelivery({ db, deliveryId: delivery.id, status: "sent", messageId: result.messageId });
     return { status: "sent", messageId: result.messageId };
   } catch (error) {

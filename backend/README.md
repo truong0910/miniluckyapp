@@ -1,54 +1,36 @@
-# Lucky Wheels Backend
+# Lucky Wheels backend
 
-Backend local mặc định tại `http://localhost:8787`.
+The API supports both frontend targets: phone sessions for the web build and Zalo phone-token sessions for the Mini App. The web phone entry has no OTP check. Set `ZALO_APP_SECRET` in the backend environment or System Settings so the Mini App can verify its phone token.
 
-## Chạy local
+## Run locally
 
 ```bash
-cd backend
 npm install
 copy .env.example .env
 npm run dev
 ```
 
-Worker gửi voucher chạy riêng:
+Start the ZBS sender separately:
 
 ```bash
 npm run worker:delivery
 ```
 
-Backend là lớp duy nhất giữ `SUPABASE_SERVICE_ROLE_KEY`, `ZALO_APP_SECRET`
-và `ZBS_API_KEY`. Không đưa các secret này vào Mini App hoặc Admin Web.
-
-## Environment
-
-- Local: `APP_ENV=development`, `PARTICIPANT_AUTH_MODE=preview`.
-- Production: `APP_ENV=production`, `PARTICIPANT_AUTH_MODE=zalo`,
-  `ZALO_APP_SECRET` bắt buộc; không dùng development admin auth.
-- `PARTICIPANT_SESSION_TTL_SECONDS` mặc định 1800 giây.
-- Worker dùng `WORKER_ID`, `DELIVERY_POLL_MS`, `DELIVERY_BATCH_SIZE` và
-  `DELIVERY_MAX_ATTEMPTS` (mặc định 8).
+The backend holds `SUPABASE_SERVICE_ROLE_KEY`, `ZALO_APP_SECRET`, and `ZBS_API_KEY`. Zalo and ZBS settings saved by an admin are read server-side from `program_settings`; environment variables remain the fallback. Do not expose them in either frontend.
 
 ## Participant API
 
-- `POST /api/v1/participant/sessions/preview` — chỉ development, nhận số điện thoại nhập tay.
-- `POST /api/v1/participant/sessions/zalo` — production, đổi Zalo phone token ở Backend.
-- `GET /api/v1/participant/me` và `/participant/me/spins` — Bearer session.
-- `POST /api/v1/spins` — Bearer session + `Idempotency-Key`; customer identity,
-  quota, reward và inventory chỉ lấy từ server/RPC.
-- `POST /api/v1/delivery/zbs` — Bearer session, chỉ xếp hàng delivery của chính spin.
+- `POST /api/v1/participant/sessions/phone` — web phone entry, no OTP.
+- `POST /api/v1/participant/sessions/zalo` — Zalo Mini App phone-token exchange.
+- `GET /api/v1/participant/me` and `/participant/me/spins` — participant Bearer session.
+- `POST /api/v1/spins` — participant session and `Idempotency-Key`; the database transaction records the spin, award, and ZBS outbox item.
+- `POST /api/v1/delivery/zbs` — read the queued delivery for the participant's own winning spin.
+- `GET /api/v1/delivery/zbs/templates` — admin-only ZBS template lookup.
 
-Các route customer cũ trả `410` và không còn dùng để cấp quyền. Templates ZBS
-là route admin-only.
+The worker sends queued deliveries, retries temporary failures, and updates award status. Configure `ZBS_API_KEY`, `ZBS_TEMPLATE_ID`, and `ZBS_API_BASE_URL` in the backend environment.
 
-## Database rollout
+## Database
 
-Áp dụng lần lượt:
+Apply migrations in `lucky-wheels/supabase/migrations/` in order. Migration `0018_dual_auth_zbs_delivery.sql` adds the phone session method and `phone_guest` registration source, removes OA as a spin requirement, and retains award creation plus ZBS outbox enqueueing. It does not delete historical participant, award, or delivery records.
 
-1. `lucky-wheels/supabase/migrations/0001_lucky_wheels.sql`
-2. `lucky-wheels/supabase/migrations/0002_phase1_production_safety.sql`
-
-Migration thứ hai là additive, không reset hoặc xóa dữ liệu hiện có. Nó thêm
-participant sessions, `spin_once`, idempotency, delivery outbox và claim/finish
-RPC cho worker. Chỉ chạy `npm run test:db` với một Supabase test project riêng;
-runner yêu cầu `SUPABASE_TEST_URL` và `SUPABASE_TEST_SERVICE_ROLE_KEY`.
+Use `npm run test:db` only with a dedicated Supabase test project configured through `SUPABASE_TEST_URL` and `SUPABASE_TEST_SERVICE_ROLE_KEY`.

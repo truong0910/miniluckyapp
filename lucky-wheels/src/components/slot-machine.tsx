@@ -1,5 +1,4 @@
 import { PATHS } from "@/constants/path";
-import { oaService } from "@/services/oa.services";
 import {
   participantService,
   type Participant,
@@ -107,12 +106,12 @@ export default function SlotMachine() {
     });
   }, [segments, segmentAngle]);
 
-  const handleSendZns = async (result: SpinResponse, customer: Participant) => {
+  const handleSendZbs = async (result: SpinResponse, customer: Participant) => {
     if (result.outcome !== "reward" || !result.reward) return;
 
     if (!zbsService.isConfigured()) {
       setDeliveryStatus("failed");
-      setDeliveryMessage("Voucher đã lưu vào tài khoản (Chưa cấu hình ZBS gửi tin ZNS).");
+      setDeliveryMessage("Voucher đã lưu vào tài khoản; tin ZBS chưa được cấu hình.");
       return;
     }
 
@@ -120,8 +119,16 @@ export default function SlotMachine() {
     setDeliveryMessage("Đang gửi Voucher qua tin nhắn Zalo...");
     try {
       const delivery = await zbsService.sendWinnerVoucher(result, customer);
-      setDeliveryStatus(delivery.status === "sent" ? "sent" : "sending");
-      setDeliveryMessage("Voucher đã được gửi thành công về Zalo của bạn!");
+      if (delivery.status === "sent") {
+        setDeliveryStatus("sent");
+        setDeliveryMessage("Tin nhắn voucher đã được gửi đến Zalo của bạn.");
+      } else if (delivery.status === "failed") {
+        setDeliveryStatus("failed");
+        setDeliveryMessage(delivery.message || "Chưa gửi được tin nhắn voucher. Vui lòng liên hệ nhân viên hỗ trợ.");
+      } else {
+        setDeliveryStatus("sending");
+        setDeliveryMessage("Đã ghi nhận yêu cầu; tin nhắn voucher đang chờ ZBS gửi.");
+      }
     } catch (error) {
       setDeliveryStatus("failed");
       setDeliveryMessage(
@@ -133,13 +140,8 @@ export default function SlotMachine() {
   const spin = async () => {
     if (isSpinning) return;
 
-    if (!oaService.isFollowed()) {
-      setSpinError("Vui lòng theo dõi Official Account trước khi quay.");
-      return;
-    }
-
     if (!participantService.getToken() || !participant) {
-      setSpinError("Vui lòng tra cứu khách hàng trước khi quay.");
+      setSpinError("Vui lòng nhập số điện thoại trước khi quay.");
       return;
     }
     if (participant.spinsRemaining < 1) {
@@ -176,8 +178,8 @@ export default function SlotMachine() {
       setActiveSpinResult(result);
       setIsSpinning(false);
 
-      // Trigger ZNS delivery in background if won
-      void handleSendZns(result, updatedParticipant);
+      // Queue ZBS delivery in the background after a winning spin.
+      void handleSendZbs(result, updatedParticipant);
 
       // Open Modal on current page
       setShowResultModal(true);
@@ -219,7 +221,7 @@ export default function SlotMachine() {
           className="bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl"
           onClick={() => navigate(PATHS.REGISTER)}
         >
-          Đăng ký / Xác minh Zalo
+          Nhập số điện thoại
         </Button>
       </div>
     );
@@ -403,7 +405,7 @@ export default function SlotMachine() {
                   expiresAt={activeSpinResult.reward?.expiresAt}
                 />
 
-                {/* ZNS DELIVERY STATUS */}
+                {/* ZBS delivery status */}
                 {deliveryStatus !== "idle" && (
                   <div
                     role="status"

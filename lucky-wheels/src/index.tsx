@@ -1,5 +1,3 @@
-// ZaUI stylesheet
-import "zmp-ui/zaui.css";
 // Tailwind stylesheet
 import "@/css/tailwind.scss";
 // Your stylesheet
@@ -9,40 +7,20 @@ import "@/css/app.scss";
 import React from "react";
 import { createRoot } from "react-dom/client";
 
-// Expose app configuration
-import appConfig from "../app-config.json";
 import MiniApp from "./app";
-import { SnackbarProvider } from "zmp-ui";
+import { configureRuntime } from "@/platform/runtime-config";
 
-if (!window.APP_CONFIG) {
-  window.APP_CONFIG = appConfig as any;
-}
+configureRuntime();
 
 console.log("[LuckyWheels Web Init]", {
   API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
-  PARTICIPANT_AUTH_MODE: import.meta.env.VITE_PARTICIPANT_AUTH_MODE,
-  ZALO_OA_ID: import.meta.env.VITE_ZALO_OA_ID,
+  BUILD_MODE: import.meta.env.MODE,
   URL: window.location.href,
 });
 
 // Global error logger
 window.addEventListener("error", (event) => {
   console.error("[Web Global Error]", event.error || event.message);
-});
-
-// Gracefully handle Zalo SDK login auto-auth promise rejections when running in standard web browser
-window.addEventListener("unhandledrejection", (event) => {
-  const reason = event.reason;
-  const isZaloLoginError =
-    reason &&
-    typeof reason === "object" &&
-    (reason.api === "login" || reason.code === -2000 || String(reason.message).includes("Unknown error"));
-
-  if (isZaloLoginError) {
-    event.preventDefault(); // Silently suppress Zalo SDK auto-login error in web browser
-  } else {
-    console.warn("[Web Unhandled Rejection]", reason);
-  }
 });
 
 interface ErrorBoundaryState {
@@ -78,7 +56,7 @@ class GlobalErrorBoundary extends React.Component<{ children: React.ReactNode },
             </pre>
             <div style={{ marginTop: "15px", fontSize: "12px", color: "#94a3b8" }}>
               <div>API Base URL: {String(import.meta.env.VITE_API_BASE_URL)}</div>
-              <div>Auth Mode: {String(import.meta.env.VITE_PARTICIPANT_AUTH_MODE)}</div>
+              <div>Build Target: {String(import.meta.env.VITE_APP_TARGET)}</div>
             </div>
             <button
               onClick={() => window.location.reload()}
@@ -102,9 +80,7 @@ const root = createRoot(document.getElementById("app")!);
 root.render(
   <React.StrictMode>
     <GlobalErrorBoundary>
-      <SnackbarProvider>
-        <MiniApp />
-      </SnackbarProvider>
+      <MiniApp />
     </GlobalErrorBoundary>
   </React.StrictMode>
 );

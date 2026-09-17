@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  assertPreviewAuthAllowed,
   createParticipantSession,
   findParticipantSession,
+  normalizeParticipantPhone,
   resolveZaloPhone,
 } from "../src/participant-auth.js";
 
@@ -87,7 +87,7 @@ test("Zalo phone token is exchanged and normalized", async () => {
   assert.equal(request.options.headers.secret_key, "app-secret");
 });
 
-test("preview participant auth is rejected outside development", () => {
-  assert.doesNotThrow(() => assertPreviewAuthAllowed({ appEnv: "development", participantAuthMode: "preview" }));
-  assert.throws(() => assertPreviewAuthAllowed({ appEnv: "production", participantAuthMode: "preview" }), /preview/i);
+test("phone auth accepts Vietnamese mobile numbers and rejects invalid input", () => {
+  assert.equal(normalizeParticipantPhone("+84 901 234 567"), "0901234567");
+  assert.throws(() => normalizeParticipantPhone("not a phone"), /Số điện thoại không hợp lệ/);
 });

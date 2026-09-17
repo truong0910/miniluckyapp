@@ -40,8 +40,7 @@ async function activeRulesForCustomer(customerId) {
     .sort((a, b) => Number(b.rule.priority || 0) - Number(a.rule.priority || 0) || b.scopeRank - a.scopeRank);
 }
 
-async function chooseFromRule(rule, customer, spinNumber, oaFollowed) {
-  if (rule.oa_required && !oaFollowed) return null;
+async function chooseFromRule(rule, customer, spinNumber) {
   const { data: spinConfig, error: configError } = await supabase
     .from("rule_spin_configs")
     .select("*")
@@ -101,10 +100,10 @@ async function chooseFromRule(rule, customer, spinNumber, oaFollowed) {
   };
 }
 
-export async function chooseRuleOutcome(customer, spinNumber, oaFollowed) {
+export async function chooseRuleOutcome(customer, spinNumber) {
   const candidates = await activeRulesForCustomer(customer.id);
   for (const { rule } of candidates) {
-    const outcome = await chooseFromRule(rule, customer, spinNumber, oaFollowed);
+    const outcome = await chooseFromRule(rule, customer, spinNumber);
     if (outcome) return { ...outcome, ruleId: rule.id };
   }
   return null;

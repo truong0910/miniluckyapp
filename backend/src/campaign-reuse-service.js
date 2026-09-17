@@ -199,7 +199,6 @@ export async function cloneCampaign({ db, sourceCampaignId, newCode, newName, cl
           priority: rule.priority,
           active: rule.active,
           allow_unlisted: rule.allow_unlisted,
-          oa_required: rule.oa_required,
           allow_refollow: rule.allow_refollow,
           max_total_wins: rule.max_total_wins,
         })

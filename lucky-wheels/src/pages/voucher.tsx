@@ -104,7 +104,7 @@ export default function VoucherPage() {
     if (!zbsService.isConfigured()) {
       setDeliveryStatus("not_configured");
       setDeliveryMessage(
-        "Voucher đã được ghi nhận vào tài khoản của bạn (Chưa cấu hình ZBS gửi tin ZNS)."
+        "Voucher đã được ghi nhận vào tài khoản của bạn (Chưa cấu hình ZBS gửi tin)."
       );
       return;
     }
@@ -199,7 +199,7 @@ export default function VoucherPage() {
               : "Chúc bạn sẽ nhận được phần thưởng giá trị ở lượt quay tiếp theo."}
           </div>
 
-          {/* ZNS DELIVERY STATUS */}
+          {/* ZBS delivery status */}
           {reward && deliveryStatus !== "idle" && (
             <div
               role="status"

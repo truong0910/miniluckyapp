@@ -23,8 +23,10 @@ test("public content endpoint exposes active campaign metadata", async () => {
   assert.match(routes, /campaign:\s*activeCampaign/);
 });
 
-test("runtime configuration rejects production preview auth", async () => {
+test("phone and Mini App auth routes share configurable Zalo credentials", async () => {
   const source = await fs.readFile(configPath, "utf8");
-  assert.match(source, /production.*participantAuthMode.*preview/s);
-  assert.match(source, /Production Zalo auth requires ZALO_APP_SECRET/);
+  const routes = await fs.readFile(routesPath, "utf8");
+  assert.match(source, /ZALO_APP_SECRET/);
+  assert.match(routes, /participant\/sessions\/phone/);
+  assert.match(routes, /participant\/sessions\/zalo/);
 });

@@ -14,7 +14,6 @@ test("spinOnce takes customer identity from the participant session and forwards
     db,
     participant: { customerId: "customer-from-session" },
     idempotencyKey: "request-123",
-    oaFollowed: true,
   });
   assert.deepEqual(result, { spinId: "spin-1", outcome: "better_luck" });
   assert.deepEqual(calls, [{
@@ -22,7 +21,6 @@ test("spinOnce takes customer identity from the participant session and forwards
     args: {
       p_customer_id: "customer-from-session",
       p_idempotency_key: "request-123",
-      p_oa_followed: true,
       p_source: "participant",
     },
   }]);

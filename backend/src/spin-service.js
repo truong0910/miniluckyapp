@@ -9,7 +9,7 @@ function mapSpinError(error) {
   return error;
 }
 
-export async function spinOnce({ db, participant, idempotencyKey, oaFollowed = false, source = "participant" }) {
+export async function spinOnce({ db, participant, idempotencyKey, source = "participant" }) {
   const customerId = String(participant?.customerId || "").trim();
   const key = String(idempotencyKey || "").trim();
   if (!customerId) throw publicError("Participant session is required", 401);
@@ -18,7 +18,6 @@ export async function spinOnce({ db, participant, idempotencyKey, oaFollowed = f
   const { data, error } = await db.rpc("spin_once", {
     p_customer_id: customerId,
     p_idempotency_key: key,
-    p_oa_followed: Boolean(oaFollowed),
     p_source: source,
   });
   if (error) throw mapSpinError(error);

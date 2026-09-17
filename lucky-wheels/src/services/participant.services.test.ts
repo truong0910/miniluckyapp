@@ -1,35 +1,19 @@
-// Mock window global before zmp-sdk import
-if (typeof globalThis.window === "undefined") {
-  (globalThis as any).window = globalThis;
-}
-
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { participantService, Participant } from "./participant.services";
+import { participantService, type Participant } from "./participant.services";
 import { apiRequest } from "./api.client";
 import { participantSession } from "./participant-session";
+import { authenticateParticipant } from "@/platform/participant-auth";
 
-vi.mock("zmp-sdk/apis", () => ({
-  getAccessToken: vi.fn(),
-}));
-
-vi.mock("./api.client", () => ({
-  apiRequest: vi.fn(),
-}));
-
+vi.mock("./api.client", () => ({ apiRequest: vi.fn() }));
+vi.mock("@/platform/participant-auth", () => ({ authenticateParticipant: vi.fn() }));
 vi.mock("./participant-session", () => {
   let storedToken: string | null = null;
   return {
     participantSession: {
       getToken: vi.fn(() => storedToken),
-      save: vi.fn((session: { token: string }) => {
-        storedToken = session.token;
-      }),
-      clear: vi.fn(() => {
-        storedToken = null;
-      }),
-      __setToken: (token: string | null) => {
-        storedToken = token;
-      },
+      save: vi.fn((session: { token: string }) => { storedToken = session.token; }),
+      clear: vi.fn(() => { storedToken = null; }),
+      __setToken: (token: string | null) => { storedToken = token; },
     },
   };
 });
@@ -53,18 +37,18 @@ describe("participantService in-memory cache & deduplication", () => {
     (participantSession as any).__setToken(null);
   });
 
-  it("returns session response without a second GET /participant/me", async () => {
-    (apiRequest as any).mockResolvedValueOnce({
+  it("caches the session response so it does not issue a second profile request", async () => {
+    (authenticateParticipant as any).mockResolvedValueOnce({
       ...mockParticipant,
       session: { token: "token-123", expiresAt: "2026-12-31T23:59:59Z" },
     });
 
-    const created = await participantService.startPreview("0901234567");
+    const created = await participantService.authenticate("0901234567");
     const current = await participantService.getCurrent();
 
     expect(current).toEqual(created);
-    expect(apiRequest).toHaveBeenCalledTimes(1);
-    expect(apiRequest).toHaveBeenCalledWith("/participant/sessions/preview", expect.anything());
+    expect(authenticateParticipant).toHaveBeenCalledWith("0901234567");
+    expect(apiRequest).not.toHaveBeenCalled();
   });
 
   it("shares one in-flight GET when two callers arrive together", async () => {
@@ -73,28 +57,21 @@ describe("participantService in-memory cache & deduplication", () => {
       () => new Promise((resolve) => setTimeout(() => resolve(mockParticipant), 50))
     );
 
-    const first = participantService.getCurrent();
-    const second = participantService.getCurrent();
-    const [res1, res2] = await Promise.all([first, second]);
-
+    const [res1, res2] = await Promise.all([participantService.getCurrent(), participantService.getCurrent()]);
     expect(res1).toEqual(mockParticipant);
     expect(res2).toEqual(mockParticipant);
     expect(apiRequest).toHaveBeenCalledTimes(1);
   });
 
   it("does not return a payload cached for a different session token", async () => {
-    (participantSession as any).__setToken("token-a");
-    (apiRequest as any).mockResolvedValueOnce({
+    (authenticateParticipant as any).mockResolvedValueOnce({
       ...mockParticipant,
       session: { token: "token-a", expiresAt: "2026-12-31T23:59:59Z" },
     });
+    await participantService.authenticate("0901234567");
 
-    await participantService.startPreview("0901234567");
-
-    // Switch token to token-b
     (participantSession as any).__setToken("token-b");
     (apiRequest as any).mockResolvedValueOnce({ ...mockParticipant, id: "p-2" });
-
     const current = await participantService.getCurrent();
     expect(apiRequest).toHaveBeenCalledWith("/participant/me");
     expect(current?.id).toBe("p-2");
@@ -103,7 +80,6 @@ describe("participantService in-memory cache & deduplication", () => {
   it("clears cached participant data when a 401 clears the session", async () => {
     (participantSession as any).__setToken("token-expired");
     (apiRequest as any).mockRejectedValueOnce(Object.assign(new Error("expired"), { status: 401 }));
-
     await expect(participantService.getCurrent({ force: true })).resolves.toBeNull();
     expect(participantService.getCached()).toBeNull();
   });

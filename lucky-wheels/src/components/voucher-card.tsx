@@ -47,7 +47,7 @@ export default function VoucherCard({
       {/* Ticket Dashed Separator Line */}
       <div className="mt-3 pt-2.5 border-t border-dashed border-slate-950/30 flex items-center justify-between text-[10px] font-bold text-slate-900/80 px-2">
         <span>MÃ VOUCHER ĐÃ ĐƯỢC LƯU</span>
-        <span>HỆ THỐNG ZALO ZNS ⚡</span>
+        <span>TIN ZALO QUA ZBS ⚡</span>
       </div>
     </div>
   );

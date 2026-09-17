@@ -1,5 +1,5 @@
 function isZaloAuthMode() {
-  return String(import.meta.env.VITE_PARTICIPANT_AUTH_MODE || "").toLowerCase() === "zalo";
+  return import.meta.env.VITE_APP_TARGET === "miniapp";
 }
 
 async function getZmpApis() {

@@ -6,13 +6,10 @@ import {
   verifyDevelopmentAdminToken,
 } from "../src/auth/admin-session.js";
 
-test("production rejects preview participant auth and development admin auth", () => {
+test("production keeps Supabase admin auth and permits runtime secrets from system settings", () => {
+  assert.doesNotThrow(() => validateRuntimeConfig({ appEnv: "production", adminAuthMode: "supabase", zaloAppSecret: "", participantSessionTtlSeconds: 1800 }));
   assert.throws(
-    () => validateRuntimeConfig({ appEnv: "production", participantAuthMode: "preview", adminAuthMode: "supabase", zaloAppSecret: "secret" }),
-    /preview/i,
-  );
-  assert.throws(
-    () => validateRuntimeConfig({ appEnv: "production", participantAuthMode: "zalo", adminAuthMode: "development", zaloAppSecret: "secret" }),
+    () => validateRuntimeConfig({ appEnv: "production", adminAuthMode: "development", zaloAppSecret: "secret", devAuthSecret: "secret", participantSessionTtlSeconds: 1800 }),
     /development admin/i,
   );
 });

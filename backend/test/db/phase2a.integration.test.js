@@ -79,7 +79,6 @@ test("legacy campaign defaults are applied to fixture rewards and spin events", 
     const { error: spinError } = await db.rpc("spin_once", {
       p_customer_id: fixtureId,
       p_idempotency_key: idempotencyKey,
-      p_oa_followed: false,
       p_source: "phase2a-integration-test",
     });
     assert.ifError(spinError);

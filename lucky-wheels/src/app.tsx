@@ -1,5 +1,5 @@
-import { App } from "zmp-ui";
-import AppRouter from "./router";
+import AppRouter from "@/platform/router";
+import AppShell from "@/platform/app-shell";
 import { syncRemoteContent } from "@/services/content.services";
 import { useEffect } from "react";
 
@@ -9,8 +9,8 @@ export default function MiniApp() {
   }, []);
 
   return (
-    <App>
+    <AppShell>
       <AppRouter />
-    </App>
+    </AppShell>
   );
 }

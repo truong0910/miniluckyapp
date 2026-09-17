@@ -103,7 +103,7 @@ const PAGE_HELP_DATA = {
           <li><strong>Lượt quay đã dùng:</strong> Tổng số lượt quay khách hàng đã thực hiện trên Zalo Mini App.</li>
           <li><strong>Voucher trúng:</strong> Tổng số phần quà/voucher đã phát ra (gồm cả Voucher cấp sẵn & lượt quay trúng quà).</li>
           <li><strong>Voucher đã đổi:</strong> Số lượng voucher khách đã mang tới Showroom quy đổi thành công.</li>
-          <li><strong>Trạng thái Hệ thống:</strong> Tình trạng kết nối Zalo OA, đồng bộ dữ liệu Realtime về Google Sheets.</li>
+          <li><strong>Trạng thái Hệ thống:</strong> Kết nối API, gửi tin ZBS và đồng bộ dữ liệu Realtime về Google Sheets.</li>
         </ul>
       </div>
     ),
@@ -207,9 +207,9 @@ const PAGE_HELP_DATA = {
         </p>
         <ul style={{ fontSize: "12px", color: "#1e293b", lineHeight: "1.7", margin: "8px 0", paddingLeft: "20px" }}>
           <li><code>Issued</code>: Voucher đã cấp/phát thành công cho khách.</li>
-          <li><code>Delivered</code>: Đã gửi thông báo thành công qua ZNS / Zalo.</li>
+          <li><code>Delivered</code>: Đã gửi tin mẫu ZBS thành công qua Zalo.</li>
           <li><code>Redeemed</code>: Khách đã đưa mã Voucher tới showroom quy đổi thành công.</li>
-          <li><strong>Thao tác:</strong> Đổi trạng thái sang Redeemed, Hủy mã, hoặc Gửi lại tin nhắn ZNS.</li>
+          <li><strong>Thao tác:</strong> Đổi trạng thái sang Redeemed, Hủy mã, hoặc gửi lại tin ZBS.</li>
         </ul>
       </div>
     ),
@@ -241,8 +241,8 @@ const PAGE_HELP_DATA = {
         </p>
         <ul style={{ fontSize: "12px", color: "#1e293b", lineHeight: "1.7", margin: "8px 0", paddingLeft: "20px" }}>
           <li><strong>Môi trường:</strong> Chuyển đổi giữa <code>development</code> (local test) và <code>production</code>.</li>
-          <li><strong>Zalo App & OA & ZNS:</strong> Khai báo App Secret, Official Account ID và Mẫu tin ZNS gửi quà.</li>
-          <li><strong>Google Sheets Webhook:</strong> Dán Webhook URL để tự động ghi log dữ liệu realtime về Google Sheets.</li>
+          <li><strong>Zalo Mini App & ZBS:</strong> Khai báo App Secret và mẫu tin ZBS gửi quà khi trúng thưởng.</li>
+          <li><strong>Google Sheets:</strong> Dán URL Web App `/exec` của Apps Script đã gắn với bảng tính đích, sau đó bấm <strong>Lưu Google Sheets</strong>.</li>
         </ul>
       </div>
     ),
@@ -412,7 +412,7 @@ function Overview() {
           </div>
           <div style={{ padding: "16px", borderRadius: "12px", background: "#f8fafc", border: "1px solid #e2e8f0" }}>
             <span style={{ fontSize: "12px", color: "#64748b", fontWeight: "700" }}>BẢO MẬT DỮ LIỆU</span>
-            <strong style={{ display: "block", fontSize: "16px", color: "#1e293b", marginTop: "4px" }}>Xác minh Zalo OA</strong>
+            <strong style={{ display: "block", fontSize: "16px", color: "#1e293b", marginTop: "4px" }}>Gửi tin qua ZBS</strong>
           </div>
         </div>
       </section>
@@ -2061,7 +2061,7 @@ function Rewards() {
       <Header
         helpTopic="rewards"
         title="Giải thưởng & Tồn kho"
-        subtitle="Quản lý danh mục giải thưởng, mệnh giá và cấu hình mẫu ZNS gửi khách hàng."
+        subtitle="Quản lý danh mục giải thưởng, mệnh giá và cấu hình mẫu ZBS gửi khách hàng."
       />
       {error && <div className="error">{error}</div>}
       <div className="split">
@@ -2642,8 +2642,8 @@ function Awards() {
     setError("");
     setConfirmConfig({
       isOpen: true,
-      title: "Gửi lại tin nhắn ZNS",
-      message: `Bạn có chắc chắn muốn gửi lại tin nhắn thông báo Voucher [${item.code}] qua Zalo (ZNS) cho khách hàng ${item.customerName || ""}?`,
+      title: "Gửi lại tin ZBS",
+      message: `Bạn có chắc chắn muốn gửi lại tin Voucher [${item.code}] qua Zalo cho khách hàng ${item.customerName || ""}?`,
       awardId: item.id,
       actionType: "resend",
       targetStatus: "",
@@ -2684,7 +2684,7 @@ function Awards() {
         setSuccessMsg("Đã xác nhận đổi thưởng cho Voucher thành công!");
       } else if (actionType === "resend") {
         await api(`/admin/awards/${awardId}/resend`, { method: "POST" });
-        setSuccessMsg("Đã gửi lại tin nhắn ZNS thành công!");
+        setSuccessMsg("Đã thêm tin ZBS vào hàng đợi gửi.");
       } else if (actionType === "status") {
         await api(`/admin/awards/${awardId}/status`, {
           method: "POST",
@@ -2702,7 +2702,7 @@ function Awards() {
 
   return (
     <>
-      <Header helpTopic="awards" title="Kho Voucher & Vận hành Awards" subtitle="Tra cứu, đổi thưởng, gửi lại ZNS và hủy/chuyển hết hạn voucher của khách hàng." />
+      <Header helpTopic="awards" title="Kho Voucher & Vận hành Awards" subtitle="Tra cứu, đổi thưởng, gửi lại tin ZBS và hủy/chuyển hết hạn voucher của khách hàng." />
       {error && <UiAlert type="error" onClose={() => setError("")}>{error}</UiAlert>}
       {successMsg && <UiAlert type="success" onClose={() => setSuccessMsg("")}>{successMsg}</UiAlert>}
       <section className="panel mt-4">
@@ -2713,7 +2713,7 @@ function Awards() {
               <option value="">Tất cả trạng thái</option>
               <option value="issued">Đã cấp (Issued)</option>
               <option value="delivering">Đang gửi (Delivering)</option>
-              <option value="delivered">Đã gửi ZNS (Delivered)</option>
+              <option value="delivered">Đã gửi tin ZBS (Delivered)</option>
               <option value="redeemed">Đã đổi (Redeemed)</option>
               <option value="expired">Đã hết hạn (Expired)</option>
               <option value="void">Đã hủy (Void)</option>
@@ -2792,7 +2792,7 @@ function Awards() {
                       <button className="primary" style={{ padding: "4px 8px", fontSize: "11px", marginRight: "4px" }} onClick={() => openRedeemModal(item)}>Đổi thưởng</button>
                     )}
                     {item.status !== "redeemed" && (
-                      <button style={{ padding: "4px 8px", fontSize: "11px", marginRight: "4px" }} onClick={() => openResendModal(item)}>Gửi lại ZNS</button>
+                      <button style={{ padding: "4px 8px", fontSize: "11px", marginRight: "4px" }} onClick={() => openResendModal(item)}>Gửi lại tin ZBS</button>
                     )}
                     {item.status !== "redeemed" && item.status !== "void" && item.status !== "expired" && (
                       <button className="danger" style={{ padding: "4px 8px", fontSize: "11px" }} onClick={() => openStatusModal(item, "void")}>Hủy</button>
@@ -2818,7 +2818,7 @@ function Awards() {
         message={confirmConfig.message}
         variant={confirmConfig.variant}
         loading={confirmConfig.loading}
-        confirmText={confirmConfig.actionType === "status" ? "Xác nhận Chuyển" : confirmConfig.actionType === "redeem" ? "Xác nhận Đổi thưởng" : "Gửi lại ZNS"}
+        confirmText={confirmConfig.actionType === "status" ? "Xác nhận Chuyển" : confirmConfig.actionType === "redeem" ? "Xác nhận Đổi thưởng" : "Gửi lại tin ZBS"}
         onConfirm={handleConfirmAction}
         onCancel={() => setConfirmConfig({ isOpen: false, title: "", message: "", awardId: null, actionType: "", targetStatus: "", reason: "", variant: "primary", loading: false })}
       >
@@ -2923,7 +2923,6 @@ function CampaignRules() {
     priority: 100,
     winRate: 100,
     maxTotalWins: "",
-    oaRequired: false,
     active: true,
   };
 
@@ -3039,7 +3038,6 @@ function CampaignRules() {
         scope: form.scope,
         priority: Number(form.priority ?? 100),
         maxTotalWins: form.maxTotalWins !== "" && form.maxTotalWins != null ? Number(form.maxTotalWins) : null,
-        oaRequired: Boolean(form.oaRequired),
         active: form.active !== false,
         spins: targetSpins.map((spinNum) => ({
           spinNumber: spinNum,
@@ -3092,7 +3090,6 @@ function CampaignRules() {
       scope: item.scope,
       priority: item.priority ?? 100,
       maxTotalWins: item.max_total_wins ?? "",
-      oaRequired: item.oa_required ?? item.oaRequired ?? false,
       active: item.active !== false,
       winRate: firstSpin.win_rate ?? firstSpin.winRate ?? 100,
     });
@@ -3300,9 +3297,6 @@ function CampaignRules() {
           <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
             <label className="check">
               <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Đang áp dụng (Active)
-            </label>
-            <label className="check">
-              <input type="checkbox" checked={form.oaRequired} onChange={(e) => setForm({ ...form, oaRequired: e.target.checked })} /> Bắt buộc theo dõi OA
             </label>
           </div>
 
@@ -3771,21 +3765,19 @@ export default function App() {
   function SystemSettings() {
     const [configData, setConfigData] = useState({
       appEnv: "development",
-      participantAuthMode: "preview",
       adminAuthMode: "development",
       apiBaseUrl: "http://localhost:8787/api/v1",
       zaloAppSecret: "",
-      zaloOaId: "",
       zbsApiKey: "",
       zbsTemplateId: "",
       googleSheetsWebhookUrl: "",
       allowUnlisted: false,
       unlistedSpinQuota: 1,
-      oaRequired: false,
     });
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [savingGoogleSheets, setSavingGoogleSheets] = useState(false);
     const [error, setError] = useState("");
     const [successMsg, setSuccessMsg] = useState("");
     const [copiedKey, setCopiedKey] = useState("");
@@ -3826,6 +3818,24 @@ export default function App() {
       }
     };
 
+    const handleSaveGoogleSheets = async () => {
+      setSavingGoogleSheets(true);
+      setError("");
+      setSuccessMsg("");
+      try {
+        const result = await api("/admin/system-config/google-sheets", {
+          method: "PUT",
+          body: JSON.stringify({ googleSheetsWebhookUrl: configData.googleSheetsWebhookUrl }),
+        });
+        setConfigData((current) => ({ ...current, googleSheetsWebhookUrl: result.googleSheetsWebhookUrl }));
+        setSuccessMsg("Đã lưu URL Google Sheets. Lượt quay mới sẽ đồng bộ vào bảng tính này.");
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setSavingGoogleSheets(false);
+      }
+    };
+
     const copyToClipboard = (text, key) => {
       navigator.clipboard.writeText(text);
       setCopiedKey(key);
@@ -3834,16 +3844,15 @@ export default function App() {
 
     const backendEnvContent = `PORT=8787
 APP_ENV=${configData.appEnv}
-PARTICIPANT_AUTH_MODE=${configData.participantAuthMode}
 ADMIN_AUTH_MODE=${configData.adminAuthMode}
 ZALO_APP_SECRET=${configData.zaloAppSecret === "*****" ? "" : configData.zaloAppSecret}
 ZBS_API_KEY=${configData.zbsApiKey === "*****" ? "" : configData.zbsApiKey}
 ZBS_TEMPLATE_ID=${configData.zbsTemplateId}
-GOOGLE_SHEETS_WEBHOOK_URL=${configData.googleSheetsWebhookUrl}`;
+# Google Sheets URL is managed in Admin System Settings`;
 
     const miniAppEnvContent = `VITE_API_BASE_URL=${configData.apiBaseUrl}
-VITE_PARTICIPANT_AUTH_MODE=${configData.participantAuthMode}
-VITE_ZALO_OA_ID=${configData.zaloOaId}`;
+# Build the browser version with: npm run build
+# Build the Zalo Mini App version with: npm run build:miniapp`;
 
     const adminEnvContent = `VITE_API_BASE_URL=${configData.apiBaseUrl}`;
 
@@ -3854,8 +3863,12 @@ VITE_ZALO_OA_ID=${configData.zaloOaId}`;
         <Header
           helpTopic="settings"
           title="⚙️ Cấu hình Môi trường (System & Env)"
-          subtitle="Quản lý biến môi trường Backend, Zalo Mini App, ZNS Webhook và tham số hệ thống"
+          subtitle="Quản lý Backend, Zalo Mini App, ZBS và đồng bộ Google Sheets"
         />
+
+        <p style={{ margin: "0 0 16px", padding: "12px 14px", border: "1px solid #bfdbfe", borderRadius: "10px", background: "#eff6ff", color: "#1e3a8a", fontSize: "13px" }}>
+          Zalo và ZBS credentials được backend áp dụng cho đăng nhập Mini App, danh sách template và worker gửi tin. Không đưa các khóa này vào Web hoặc Mini App.
+        </p>
 
         <UiAlert message={error} type="error" onClose={() => setError("")} />
         <UiAlert message={successMsg} type="success" onClose={() => setSuccessMsg("")} />
@@ -3874,18 +3887,6 @@ VITE_ZALO_OA_ID=${configData.zaloOaId}`;
                 >
                   <option value="development">🛠️ Development (Thử nghiệm Local)</option>
                   <option value="production">🚀 Production (Vận hành Thực tế)</option>
-                </select>
-              </label>
-
-              <label>
-                <strong>Xác thực Khách hàng (PARTICIPANT_AUTH_MODE)</strong>
-                <select
-                  value={configData.participantAuthMode}
-                  onChange={(e) => setConfigData({ ...configData, participantAuthMode: e.target.value })}
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
-                >
-                  <option value="preview">🔍 Preview Mode (Cho phép giả lập lượt quay)</option>
-                  <option value="zalo">🔒 Zalo Token Auth (Xác thực qua Zalo SDK)</option>
                 </select>
               </label>
 
@@ -3914,9 +3915,9 @@ VITE_ZALO_OA_ID=${configData.zaloOaId}`;
             </div>
           </div>
 
-          {/* Card 2: Zalo & ZNS & Google Sheets Integration */}
+          {/* Card 2: Mini App, ZBS and Google Sheets integration */}
           <div className="card">
-            <h2>🔑 Cấu hình Tích hợp Zalo App & ZBS & Webhook</h2>
+            <h2>🔑 Cấu hình Zalo Mini App, ZBS và Google Sheets</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "12px" }}>
               <label>
                 <strong>Zalo App Secret Key (ZALO_APP_SECRET)</strong>
@@ -3930,18 +3931,7 @@ VITE_ZALO_OA_ID=${configData.zaloOaId}`;
               </label>
 
               <label>
-                <strong>Zalo Official Account ID (VITE_ZALO_OA_ID)</strong>
-                <input
-                  type="text"
-                  value={configData.zaloOaId}
-                  onChange={(e) => setConfigData({ ...configData, zaloOaId: e.target.value })}
-                  placeholder="ID Zalo Official Account (OA)"
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
-                />
-              </label>
-
-              <label>
-                <strong>ZBS API Key (Tự động gửi tin nhắn ZNS)</strong>
+                <strong>ZBS API Key (Tự động gửi tin qua Zalo)</strong>
                 <input
                   type="password"
                   value={configData.zbsApiKey}
@@ -3952,26 +3942,40 @@ VITE_ZALO_OA_ID=${configData.zaloOaId}`;
               </label>
 
               <label>
-                <strong>ZBS Template ID (Mẫu tin ZNS gửi Voucher)</strong>
+                <strong>ZBS Template ID (Mẫu tin gửi Voucher)</strong>
                 <input
                   type="text"
                   value={configData.zbsTemplateId}
                   onChange={(e) => setConfigData({ ...configData, zbsTemplateId: e.target.value })}
-                  placeholder="ID Mẫu tin ZNS"
+                  placeholder="ID Mẫu tin ZBS"
                   style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
                 />
               </label>
 
               <label style={{ gridColumn: "span 2" }}>
-                <strong>Google Sheets Webhook URL (Đồng bộ Báo cáo Realtime)</strong>
+                <strong>Google Sheets Apps Script Web App URL</strong>
                 <input
-                  type="text"
+                  type="url"
                   value={configData.googleSheetsWebhookUrl}
                   onChange={(e) => setConfigData({ ...configData, googleSheetsWebhookUrl: e.target.value })}
-                  placeholder="https://script.google.com/macros/s/..."
+                  placeholder="https://script.google.com/macros/s/.../exec"
                   style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
                 />
+                <small style={{ display: "block", color: "#64748b", marginTop: "6px" }}>
+                  Dán URL Web App `/exec` của Apps Script đã gắn với Google Sheet đích. Để trống rồi lưu để tắt đồng bộ.
+                </small>
               </label>
+              <div style={{ gridColumn: "span 2" }}>
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={savingGoogleSheets}
+                  onClick={handleSaveGoogleSheets}
+                  style={{ padding: "9px 16px" }}
+                >
+                  {savingGoogleSheets ? "Đang lưu Google Sheets..." : "Lưu Google Sheets"}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -4001,14 +4005,6 @@ VITE_ZALO_OA_ID=${configData.zaloOaId}`;
                 </label>
               )}
 
-              <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={configData.oaRequired}
-                  onChange={(e) => setConfigData({ ...configData, oaRequired: e.target.checked })}
-                />
-                <span><strong>Bắt buộc Khách hàng bấm Quan tâm Zalo OA trước khi được quay</strong></span>
-              </label>
             </div>
           </div>
 

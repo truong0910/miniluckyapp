@@ -1,3 +1,5 @@
+import { getEffectiveRuntimeConfig } from "./runtime-system-config.js";
+
 function syncError(message, status = 502) {
   const error = new Error(message);
   error.status = status;
@@ -122,15 +124,16 @@ export async function postSpinToGoogleSheets({ payload, webhookUrl, webhookSecre
 }
 
 export async function syncSpinToGoogleSheets({ db, spin, customerId, config, fetchImpl = fetch }) {
-  if (!String(config?.googleSheetsWebhookUrl || "").trim()) return { status: "disabled" };
+  const runtimeConfig = await getEffectiveRuntimeConfig({ db, config });
+  if (!String(runtimeConfig?.googleSheetsWebhookUrl || "").trim()) return { status: "disabled" };
   const { customer, award, campaign, rewardCatalog } = await loadGoogleSheetsSyncContext({ db, spin, customerId });
   const payload = buildGoogleSheetsPayload({ spin, customer, award, campaign, rewardCatalog });
   return postSpinToGoogleSheets({
     payload,
-    webhookUrl: config.googleSheetsWebhookUrl,
-    webhookSecret: config.googleSheetsWebhookSecret || "",
+    webhookUrl: runtimeConfig.googleSheetsWebhookUrl,
+    webhookSecret: runtimeConfig.googleSheetsWebhookSecret || "",
     fetchImpl,
-    timeoutMs: config.googleSheetsWebhookTimeoutMs,
+    timeoutMs: runtimeConfig.googleSheetsWebhookTimeoutMs,
   });
 }
 

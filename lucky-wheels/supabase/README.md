@@ -3,8 +3,8 @@
 Run `migrations/0001_lucky_wheels.sql` in the Supabase SQL Editor first.
 
 The Backend (`../backend/`) is the only application component that connects
-to Supabase, using the service role key. The Mini App and Admin Web call the
-Backend API instead of connecting directly.
+to Supabase, using the service role key. The Web app, Zalo Mini App, and Admin
+Web call the Backend API instead of connecting directly.
 
 ## Phase 1 migration
 

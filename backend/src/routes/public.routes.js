@@ -2,11 +2,12 @@ import { Router } from "express";
 import { config } from "../config.js";
 import { supabase } from "../supabase.js";
 import { requireAdmin, requireParticipant } from "../middleware.js";
-import { assertPreviewAuthAllowed, createParticipantSession, resolveZaloPhone } from "../participant-auth.js";
+import { createParticipantSession, normalizeParticipantPhone, resolveZaloPhone } from "../participant-auth.js";
 import { parseAwardsPagination, listParticipantAwards } from "../award-service.js";
 import { getActiveCampaign } from "../campaign-service.js";
 import { syncSpinToGoogleSheets } from "../google-sheets-service.js";
 import { spinOnce } from "../spin-service.js";
+import { getEffectiveRuntimeConfig } from "../runtime-system-config.js";
 import { asyncRoute, isValidVietnamesePhone, mapAssignment, mapBanner, mapCustomer, mapReward, normalizePhone, publicError } from "../utils.js";
 
 import { ensureCampaignParticipant } from "../campaign-reuse-service.js";
@@ -106,11 +107,12 @@ async function loadParticipantResponse(row, session) {
 }
 
 router.get("/content", asyncRoute(async (_req, res) => {
-  const [banners, rewards, settings, activeCampaign] = await Promise.all([
+  const [banners, rewards, settings, activeCampaign, runtimeConfig] = await Promise.all([
     supabase.from("banners").select("id,title,image_url,link_url,active,display_order").eq("active", true).order("display_order", { ascending: true }),
     supabase.from("reward_catalog").select("id,code_prefix,title,value,description,wheel_label,symbol,active").eq("active", true).order("value", { ascending: false }),
     supabase.from("program_settings").select("key,value").eq("key", "program_rules").maybeSingle(),
     getActiveCampaign({ db: supabase }),
+    getEffectiveRuntimeConfig({ db: supabase, config }),
   ]);
   for (const result of [banners, rewards, settings]) if (result.error) throw result.error;
   res.json({
@@ -127,7 +129,7 @@ router.get("/content", asyncRoute(async (_req, res) => {
       timezone: activeCampaign.timezone,
     } : null,
     // Only expose a boolean; never expose the ZBS credentials to the Mini App.
-    zbsConfigured: Boolean(config.zbsApiKey && config.zbsTemplateId),
+    zbsConfigured: Boolean(runtimeConfig.zbsApiKey && runtimeConfig.zbsTemplateId),
   });
 }));
 
@@ -214,20 +216,20 @@ async function findParticipantCustomer(phone, registrationSource = "zalo_guest")
   return row;
 }
 
-router.post("/participant/sessions/preview", asyncRoute(async (req, res) => {
-  assertPreviewAuthAllowed(config);
-  const row = await findParticipantCustomer(req.body?.phone, "zalo_guest");
-  const session = await createParticipantSession({ db: supabase, customerId: row.id, authMethod: "preview", ttlSeconds: config.participantSessionTtlSeconds });
+router.post("/participant/sessions/phone", asyncRoute(async (req, res) => {
+  const phone = normalizeParticipantPhone(req.body?.phone);
+  const row = await findParticipantCustomer(phone, "phone_guest");
+  const session = await createParticipantSession({ db: supabase, customerId: row.id, authMethod: "phone", ttlSeconds: config.participantSessionTtlSeconds });
   res.status(201).json(await loadParticipantResponse(row, session));
 }));
 
 router.post("/participant/sessions/zalo", asyncRoute(async (req, res) => {
-  if (config.participantAuthMode !== "zalo") throw publicError("Zalo authentication is not enabled", 404);
+  const runtimeConfig = await getEffectiveRuntimeConfig({ db: supabase, config });
   const phone = await resolveZaloPhone({
     accessToken: req.body?.accessToken,
     phoneToken: req.body?.phoneToken,
-    appSecret: config.zaloAppSecret,
-    baseUrl: config.zaloGraphBaseUrl,
+    appSecret: runtimeConfig.zaloAppSecret,
+    baseUrl: runtimeConfig.zaloGraphBaseUrl,
   });
   const row = await findParticipantCustomer(phone, "zalo_guest");
   const zaloName = String(req.body?.zaloName || "").trim();
@@ -331,12 +333,10 @@ router.get("/customers/:id/spins", asyncRoute(async (req, res) => {
 
 router.post("/spins", requireParticipant, asyncRoute(async (req, res) => {
   const idempotencyKey = String(req.headers["idempotency-key"] || "").trim();
-  // OA follow status is server-owned until a verified OA adapter is enabled.
   const result = await spinOnce({
     db: supabase,
     participant: req.participant,
     idempotencyKey,
-    oaFollowed: false,
     source: "participant",
   });
   // Google Sheets is a reporting sink: a webhook failure must never undo a committed spin.
@@ -347,52 +347,6 @@ router.post("/spins", requireParticipant, asyncRoute(async (req, res) => {
     config,
   }).catch((error) => console.error("Google Sheets sync failed", error));
   res.json(result);
-}));
-
-router.post("/spins-legacy-disabled", asyncRoute(async (req, res) => {
-  throw publicError("This endpoint was replaced by participant sessions", 410);
-  const customerId = "";
-  if (!customerId) throw publicError("Thiếu customerId");
-
-  const { data: row, error } = await supabase.from("customers").select("id,name,phone,sex,job,total_spins,deleted_at").eq("id", customerId).is("deleted_at", null).maybeSingle();
-  if (error) throw error;
-  if (!row) throw publicError("Không tìm thấy khách hàng", 404);
-
-  const { data: events, error: eventError } = await supabase.from("spin_events").select("id").eq("customer_id", customerId);
-  if (eventError) throw eventError;
-  const nextSpinIndex = events?.length || 0;
-  if (nextSpinIndex >= Number(row.total_spins || 0)) throw publicError("Bạn đã hết lượt quay", 409);
-
-  const customer = await loadCustomer(row);
-  const assignment = customer.rewards[nextSpinIndex] || null;
-  const ruleOutcome = await chooseRuleOutcome(customer, nextSpinIndex + 1, Boolean(req.body?.oaFollowed));
-  const outcome = ruleOutcome?.outcome || (assignment ? "reward" : "better_luck");
-  const reward = ruleOutcome?.reward || assignment?.reward || null;
-  const spin = {
-    customer_id: customerId,
-    rule_id: ruleOutcome?.ruleId || null,
-    spin_number: nextSpinIndex + 1,
-    outcome,
-    reward_id: ruleOutcome?.rewardId || null,
-    reward_code: reward?.code || null,
-    metadata: { source: "backend", phone: row.phone },
-  };
-  if (reward && !spin.reward_id) {
-    const { data: rewardRow } = await supabase.from("reward_catalog").select("id").eq("value", reward.value).limit(1).maybeSingle();
-    spin.reward_id = rewardRow?.id || null;
-  }
-  const { data: inserted, error: insertError } = await supabase.from("spin_events").insert(spin).select("id,created_at").single();
-  if (insertError) throw insertError;
-
-  res.json({
-    spinId: inserted.id,
-    timestamp: inserted.created_at,
-    outcome,
-    wheelSegmentId: reward ? `reward-value-${reward.value}` : "better-luck",
-    result: ruleOutcome?.result || assignment?.result || ["cherry", "lemon", "bell"],
-    reward,
-    spinsRemaining: Math.max(0, Number(row.total_spins || 0) - nextSpinIndex - 1),
-  });
 }));
 
 router.post("/delivery/zbs", requireParticipant, asyncRoute(async (req, res) => {
@@ -410,37 +364,10 @@ router.post("/delivery/zbs", requireParticipant, asyncRoute(async (req, res) => 
   res.status(202).json({ spinId, deliveryId: delivery.id, status: delivery.status, messageId: delivery.provider_message_id || undefined });
 }));
 
-router.post("/delivery/zbs-legacy-disabled", asyncRoute(async (req, res) => {
-  throw publicError("This endpoint was replaced by the delivery outbox", 410);
-  const spinId = String(req.body?.spinId || "");
-  if (!spinId || !phone || !reward?.code) throw publicError("Thiếu thông tin gửi Voucher");
-  if (!config.zbsApiKey || !config.zbsTemplateId) throw publicError("Backend chưa cấu hình ZBS WIFIM", 503);
-
-  const compact = String(phone).trim().replace(/[.\s+-]/g, "");
-  const normalizedPhone = compact.startsWith("0") ? `84${compact.slice(1)}` : compact;
-  const response = await fetch(`${config.zbsBaseUrl.replace(/\/$/, "")}/v1/send`, {
-    method: "POST",
-    headers: { Accept: "application/json", "Content-Type": "application/json", "X-API-Key": config.zbsApiKey },
-    body: JSON.stringify({
-      phone: normalizedPhone,
-      template_id: config.zbsTemplateId,
-      template_data: {
-        customer_name: customerName || "Khách hàng",
-        voucher_name: reward.title,
-        voucher_code: reward.code,
-        voucher_value: String(reward.value),
-        expiry_date: reward.expiresAt || "",
-      },
-    }),
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok || body.success !== true) throw publicError(body.message || `ZBS trả về lỗi ${response.status}`, 502);
-  res.json({ spinId, status: "sent", message: body.message, messageId: body.msg_id });
-}));
-
 router.get("/delivery/zbs/templates", requireAdmin, asyncRoute(async (_req, res) => {
-  if (!config.zbsApiKey) throw publicError("Backend chưa cấu hình ZBS WIFIM", 503);
-  const response = await fetch(`${config.zbsBaseUrl.replace(/\/$/, "")}/v1/templates`, { headers: { Accept: "application/json", "X-API-Key": config.zbsApiKey } });
+  const runtimeConfig = await getEffectiveRuntimeConfig({ db: supabase, config });
+  if (!runtimeConfig.zbsApiKey) throw publicError("Backend chưa cấu hình ZBS WIFIM", 503);
+  const response = await fetch(`${runtimeConfig.zbsBaseUrl.replace(/\/$/, "")}/v1/templates`, { headers: { Accept: "application/json", "X-API-Key": runtimeConfig.zbsApiKey } });
   const body = await response.json().catch(() => ({}));
   if (!response.ok || body.success !== true) throw publicError(body.message || `ZBS trả về lỗi ${response.status}`, 502);
   res.json(body.data || []);

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { authClient, supabase } from "../supabase.js";
 import { requireAdmin } from "../middleware.js";
 import { config } from "../config.js";
+import { normalizeGoogleSheetsWebhookUrl, saveGoogleSheetsWebhookUrl } from "../runtime-system-config.js";
 import { createDevelopmentAdminToken } from "../auth/admin-session.js";
 import { asyncRoute, mapAssignment, mapBanner, mapCustomer, mapReward, normalizePhone, publicError } from "../utils.js";
 import {
@@ -670,7 +671,6 @@ async function loadCampaignRule(id) {
   return {
     ...rule,
     campaignId: rule.campaign_id,
-    oaRequired: rule.oa_required,
     allowUnlisted: rule.allow_unlisted,
     spins: mappedSpins,
   };
@@ -688,7 +688,6 @@ async function saveCampaignRule(body, id) {
     priority: Number(body.priority || 0),
     active: body.active !== false,
     allow_unlisted: body.allowUnlisted === true || body.allow_unlisted === true,
-    oa_required: body.oaRequired === true || body.oa_required === true,
     allow_refollow: body.allowRefollow !== false && body.allow_refollow !== false,
     max_total_wins: body.maxTotalWins == null && body.max_total_wins == null ? null : Number(body.maxTotalWins ?? body.max_total_wins),
     starts_at: body.startsAt || body.starts_at || null,
@@ -873,17 +872,16 @@ router.get("/system-config", requireAdmin, asyncRoute(async (_req, res) => {
   const saved = data?.value || {};
   res.json({
     appEnv: saved.appEnv || config.appEnv || "development",
-    participantAuthMode: saved.participantAuthMode || config.participantAuthMode || "preview",
     adminAuthMode: saved.adminAuthMode || config.adminAuthMode || "development",
     apiBaseUrl: saved.apiBaseUrl || process.env.VITE_API_BASE_URL || "http://localhost:8787/api/v1",
     zaloAppSecret: saved.zaloAppSecret ? "*****" : (process.env.ZALO_APP_SECRET ? "*****" : ""),
-    zaloOaId: saved.zaloOaId || process.env.VITE_ZALO_OA_ID || "",
     zbsApiKey: saved.zbsApiKey ? "*****" : (process.env.ZBS_API_KEY ? "*****" : ""),
     zbsTemplateId: saved.zbsTemplateId || process.env.ZBS_TEMPLATE_ID || "",
-    googleSheetsWebhookUrl: saved.googleSheetsWebhookUrl || process.env.GOOGLE_SHEETS_WEBHOOK_URL || "",
+    googleSheetsWebhookUrl: Object.hasOwn(saved, "googleSheetsWebhookUrl")
+      ? String(saved.googleSheetsWebhookUrl ?? "")
+      : (process.env.GOOGLE_SHEETS_WEBHOOK_URL || ""),
     allowUnlisted: saved.allowUnlisted ?? false,
     unlistedSpinQuota: saved.unlistedSpinQuota ?? 1,
-    oaRequired: saved.oaRequired ?? false,
   });
 }));
 
@@ -896,18 +894,16 @@ router.put("/system-config", requireAdmin, asyncRoute(async (req, res) => {
     .maybeSingle();
 
   const prevValue = currentSetting?.value || {};
+  const { participantAuthMode: _participantAuthMode, zaloOaId: _zaloOaId, oaRequired: _oaRequired, ...currentConfig } = prevValue;
   const newValue = {
-    ...prevValue,
+    ...currentConfig,
     appEnv: input.appEnv || "development",
-    participantAuthMode: input.participantAuthMode || "preview",
     adminAuthMode: input.adminAuthMode || "development",
     apiBaseUrl: input.apiBaseUrl || "http://localhost:8787/api/v1",
-    zaloOaId: input.zaloOaId || "",
     zbsTemplateId: input.zbsTemplateId || "",
-    googleSheetsWebhookUrl: input.googleSheetsWebhookUrl || "",
+    googleSheetsWebhookUrl: normalizeGoogleSheetsWebhookUrl(input.googleSheetsWebhookUrl),
     allowUnlisted: Boolean(input.allowUnlisted),
     unlistedSpinQuota: Math.max(0, Number(input.unlistedSpinQuota || 1)),
-    oaRequired: Boolean(input.oaRequired),
     updatedAt: new Date().toISOString(),
   };
 
@@ -923,7 +919,15 @@ router.put("/system-config", requireAdmin, asyncRoute(async (req, res) => {
     .upsert({ key: "system_env_config", value: newValue });
 
   if (error) throw error;
-  res.json({ success: true, config: newValue });
+  res.json({ success: true });
+}));
+
+router.put("/system-config/google-sheets", requireAdmin, asyncRoute(async (req, res) => {
+  const googleSheetsWebhookUrl = await saveGoogleSheetsWebhookUrl({
+    db: supabase,
+    url: req.body?.googleSheetsWebhookUrl,
+  });
+  res.json({ success: true, googleSheetsWebhookUrl });
 }));
 
 export default router;

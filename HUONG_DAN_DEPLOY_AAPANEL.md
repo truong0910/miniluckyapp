@@ -130,13 +130,11 @@ Trên GitHub repository của bạn, vào **Settings** > **Secrets and variables
 |:---|:---|
 | `SSH_PORT` | `22` (hoặc cổng SSH bạn đổi trên aaPanel, ví dụ `2222`) |
 | `APP_ENV` | `production` |
-| `PARTICIPANT_AUTH_MODE` | `zalo` |
 | `ADMIN_AUTH_MODE` | `supabase` |
 | `PARTICIPANT_SESSION_TTL_SECONDS` | `1800` |
 | `SUPABASE_URL` | `https://ndipzfrsqwtfrwalboyd.supabase.co` |
-| `CORS_ORIGINS` | `https://admin.lucky.wifim.vn,https://h5.zalo.me` |
+| `CORS_ORIGINS` | `https://luckywheel.wiai.vn,https://admin.lucky.wifim.vn,https://h5.zalo.me` |
 | `VITE_API_BASE_URL` | `https://api.lucky.wifim.vn/api/v1` |
-| `VITE_ZALO_OA_ID` | `1872524082920628490` |
 | `ZALO_APP_ID` | `1761900008417905543` |
 | `ZALO_GRAPH_BASE_URL` | `https://graph.zalo.me` |
 | `ZBS_API_BASE_URL` | `https://zbs.wifim.vn/api` |
@@ -161,8 +159,8 @@ Trên GitHub repository của bạn, vào **Settings** > **Secrets and variables
 | `ZALO_APP_SECRET` | Khóa Zalo App Secret trong Zalo Developer Console |
 | `ZBS_API_KEY` | Key ZBS Wifim (nếu có) |
 | `ZBS_TEMPLATE_ID` | Template ID ZBS (nếu có) |
-| `GOOGLE_SHEETS_WEBHOOK_URL` | Webhook URL Apps Script |
-| `GOOGLE_SHEETS_WEBHOOK_SECRET` | Secret của Google Sheets (nếu có) |
+| `GOOGLE_SHEETS_WEBHOOK_URL` | URL dự phòng tùy chọn; cấu hình chính trong Admin sau khi deploy |
+| `GOOGLE_SHEETS_WEBHOOK_SECRET` | Secret tùy chọn nếu Apps Script bật kiểm tra `WEBHOOK_SECRET` |
 | `ZMP_TOKEN` | Token CLI Zalo Mini App (`eyJ0eXAiOi...`) |
 
 ---
@@ -174,7 +172,7 @@ Trên GitHub repository của bạn, vào **Settings** > **Secrets and variables
   1. Tự động chạy bộ test để xác thực tính toàn vẹn code.
   2. Tự động SSH vào máy chủ aaPanel, pull code mới về `/www/wwwroot/miniluckyapp`.
   3. Tự động build lại Docker containers (`backend-api`, `delivery-worker`, `admin-web`) và reload không downtime.
-  4. Tự động build và deploy bản mới nhất của Mini App lên Zalo Cloud.
+  4. Docker build của `lucky-wheels` tạo bản Web mặc định. Bản Zalo Mini App được build và deploy riêng bằng `npm run build:miniapp` và `npm run deploy:miniapp` từ thư mục `lucky-wheels/`.
 
 ### Các lệnh kiểm tra & quản lý trên máy chủ aaPanel:
 Mở **Terminal** trên aaPanel và di chuyển vào thư mục dự án:

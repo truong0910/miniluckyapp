@@ -4,12 +4,8 @@ WORKDIR /app
 
 # Arguments for Vite build
 ARG VITE_API_BASE_URL=https://luckyapi.wiai.vn/api/v1
-ARG VITE_PARTICIPANT_AUTH_MODE=preview
-ARG VITE_ZALO_OA_ID=1872524082920628490
 
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
-ENV VITE_PARTICIPANT_AUTH_MODE=$VITE_PARTICIPANT_AUTH_MODE
-ENV VITE_ZALO_OA_ID=$VITE_ZALO_OA_ID
 
 COPY package*.json ./
 RUN (npm ci || npm install) && npm cache clean --force

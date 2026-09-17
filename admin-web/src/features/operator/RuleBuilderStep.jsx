@@ -8,7 +8,6 @@ const EMPTY_RULE = {
   scope: "default",
   active: true,
   priority: 100,
-  oaRequired: false,
   allowUnlisted: false,
   winRate: 100,
   maxWins: 1,
@@ -142,7 +141,6 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
         scope: form.scope,
         active: form.active !== false,
         priority: Number(form.priority ?? 100),
-        oaRequired: Boolean(form.oaRequired),
         allowUnlisted: Boolean(form.allowUnlisted),
         maxTotalWins: form.maxTotalWins !== "" && form.maxTotalWins != null ? Number(form.maxTotalWins) : null,
         startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : null,
@@ -220,7 +218,6 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
       scope: r.scope || "default",
       active: r.active !== false,
       priority: r.priority ?? 100,
-      oaRequired: r.oaRequired ?? r.oa_required ?? false,
       allowUnlisted: r.allowUnlisted ?? r.allow_unlisted ?? false,
       maxTotalWins: r.maxTotalWins ?? r.max_total_wins ?? "",
       startsAt: parseLocalDate(r.startsAt || r.starts_at),
@@ -588,15 +585,6 @@ export default function RuleBuilderStep({ campaign, onNextStep }) {
                       onChange={(e) => setForm({ ...form, active: e.target.checked })}
                     />
                     <span>Bật áp dụng Luật quay này (Active)</span>
-                  </label>
-
-                  <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>
-                    <input
-                      type="checkbox"
-                      checked={form.oaRequired}
-                      onChange={(e) => setForm({ ...form, oaRequired: e.target.checked })}
-                    />
-                    <span>Bắt buộc theo dõi Zalo OA</span>
                   </label>
 
                   <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>

@@ -1,7 +1,7 @@
 import Background from "@/components/background";
 import BannerCarousel from "@/components/banner-carousel";
 import Header from "@/components/header";
-import RegisterForm from "@/components/register-form";
+import RegisterForm from "@/platform/register-form";
 import { Page } from "zmp-ui";
 
 export default function HomePage() {

@@ -137,10 +137,10 @@ Hệ thống tự động rà soát 5 điều kiện vận hành trước khi ch
   2. Chọn lượt quay thử (Lượt 1).
   3. Bấm **Quay thử ngay**.
   4. Hệ thống sẽ mô phỏng và trả về đúng giải thưởng dự kiến (ví dụ: `TRÚNG QUÀ - Voucher mua hàng 10.000.000đ`).
-  5. *Đảm bảo*: Chế độ Quay thử không ghi dữ liệu thật, không trừ tồn kho và không gửi ZNS.
+  5. *Đảm bảo*: Chế độ Quay thử không ghi dữ liệu thật, không trừ tồn kho và không gửi tin ZBS.
 
 #### 🚀 Kích hoạt sự kiện:
-* Khi các điều kiện kiểm tra đã đạt 100%, bấm nút **Kích hoạt sự kiện** để chương trình sẵn sàng đón khách quay trên Zalo Mini App.
+* Khi các điều kiện kiểm tra đã đạt 100%, bấm nút **Kích hoạt sự kiện** để chương trình sẵn sàng đón khách trên Web và Zalo Mini App.
 
 ---
 
@@ -154,7 +154,7 @@ Bên cạnh quy trình tạo sự kiện, thanh điều hướng bên trái cung
 * Bật/Tắt trạng thái hoạt động của từng quà.
 
 ### Quản lý Banner Truyền thông (`/banners`)
-* Đăng tải ảnh banner quảng cáo hiển thị trên trang chủ Mini App.
+* Đăng tải ảnh banner quảng cáo hiển thị trên trang chủ Web và Mini App.
 * Hỗ trợ gán Link liên kết khi khách bấm vào banner.
 * Hỗ trợ tính năng kéo vuốt tay (Touch Swipe) mượt mà trên điện thoại.
 
@@ -168,11 +168,11 @@ Bên cạnh quy trình tạo sự kiện, thanh điều hướng bên trái cung
 * Tìm kiếm theo Mã Voucher, Tên khách hàng hoặc Số điện thoại.
 * Các thao tác vận hành trực tiếp:
   * **Đổi thưởng**: Xác nhận khách hàng đã sử dụng Voucher tại cửa hàng.
-  * **Gửi lại ZNS**: Gửi lại tin nhắn thông báo Voucher qua Zalo cho khách.
+  * **Gửi lại tin ZBS**: Gửi lại tin nhắn thông báo Voucher qua Zalo cho khách.
   * **Hủy / Chuyển Hết hạn**: Hủy bỏ Voucher vi phạm hoặc gia hạn trạng thái (yêu cầu nhập lý do vận hành).
 
 ### Thể lệ chương trình (`/rules`)
-* Cấu hình nội dung văn bản hiển thị công khai trên Mini App gồm:
+* Cấu hình nội dung văn bản hiển thị công khai trên Web và Mini App gồm:
   * **Giới thiệu chung**
   * **Điều kiện tham gia**
   * **Cơ cấu giải thưởng**
@@ -185,7 +185,9 @@ Bên cạnh quy trình tạo sự kiện, thanh điều hướng bên trái cung
 
 Hệ thống được tích hợp sẵn cơ chế **Đồng bộ tự động theo thời gian thực** với Google Sheets:
 
-* **Tự động ghi nhận**: Ngay khi khách hàng thực hiện quay số thành công trên Zalo Mini App, toàn bộ thông tin lượt quay sẽ được đẩy về Google Sheets.
+Trong **Cấu hình Môi trường**, dán URL Web App `/exec` của Apps Script đã gắn với bảng tính đích rồi bấm **Lưu Google Sheets**. Backend ưu tiên URL này đã lưu trong Admin; không cần khai báo URL cố định trong `.env`.
+
+* **Tự động ghi nhận**: Khi khách hàng quay trên Web hoặc Zalo Mini App, thông tin lượt quay được đồng bộ về Google Sheets.
 * **Thông tin đồng bộ bao gồm**:
   1. Thời gian quay (Timestamp).
   2. ID & Tên sự kiện (`campaign_id`, `campaign_name`).

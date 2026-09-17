@@ -44,8 +44,6 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://luckyapi.wiai.vn/api/v1}
-        VITE_PARTICIPANT_AUTH_MODE: ${VITE_PARTICIPANT_AUTH_MODE:-preview}
-        VITE_ZALO_OA_ID: ${VITE_ZALO_OA_ID:-1872524082920628490}
     container_name: minilucky_wheel_web
     restart: unless-stopped
     ports:

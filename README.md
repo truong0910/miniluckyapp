@@ -1,132 +1,49 @@
-# Mini Lucky App — Hệ Thống Vòng Quay May Mắn Zalo Mini App
+# Lucky Wheels
 
-Hệ thống **Vòng Quay May Mắn (Lucky Wheel)** hoàn chỉnh dành cho Zalo Mini App, tích hợp trang Quản trị (Admin Web), Backend Node.js Express, Supabase Database và dịch vụ gửi thông báo ZBS (Wifim).
+Lucky Wheels has two frontend targets that share the same API and database:
 
----
+| Target | Sign in | Run / build |
+| --- | --- | --- |
+| Web | Enter a phone number; there is no OTP verification | `npm run start` / `npm run build` in `lucky-wheels/` |
+| Zalo Mini App | Verify the phone with Zalo | `npm run start:miniapp`, `npm run build:miniapp`, `npm run deploy:miniapp` |
 
-## 📐 Kiến Trúc Hệ Thống
+The web build uses browser routing and does not load the Zalo SDK. The Mini App build keeps Zalo login and ZMP routing. After a winning spin, the shared backend records a ZBS delivery and its worker sends the approved Zalo message template.
 
-Dự án bao gồm 3 thành phần chính:
+## Project layout
 
-```
-miniluckyapp/
-├── lucky-wheels/     # Zalo Mini App Frontend (React, Vite, ZMP SDK, TypeScript)
-├── backend/          # Node.js Express API Server & Worker
-└── admin-web/        # Trang Quản trị Admin (React, Vite, Tailwind CSS)
-```
+- `lucky-wheels/`: both player app build targets
+- `backend/`: participant API, admin API, and ZBS delivery worker
+- `admin-web/`: campaign, prize, and delivery administration
+- `lucky-wheels/supabase/migrations/`: forward-only schema and function updates
 
-1. **`lucky-wheels` (Zalo Mini App)**:
-   - Giao diện người chơi trên Zalo Mini App (hoặc Web Browser local).
-   - Tích hợp Zalo SDK (`zmp-sdk`) lấy thông tin xác thực (`accessToken`, `phoneToken`).
-   - Hỗ trợ 2 chế độ auth (`VITE_PARTICIPANT_AUTH_MODE`): `preview` (dành cho test local qua SĐT) và `zalo` (dành cho môi trường Zalo chính thức).
+## Local setup
 
-2. **`backend` (API Server & Worker)**:
-   - Xử lý các request quay thưởng, xác thực token Zalo, kiểm tra hạn ngạch lượt quay.
-   - Sử dụng **Supabase RPC (`spin_once`)** với cơ chế khóa dữ liệu `FOR UPDATE` và kiểm tra kho nguyên tử (atomic decrement) để phòng chống tuyệt đối lỗi tranh chấp kho khi có nhiều người quay cùng lúc.
-   - Chạy **Delivery Worker** bối cảnh riêng để gửi thông báo trúng thưởng qua ZBS (Zalo Business Service / Wifim) và đồng bộ với Google Sheets Webhook.
+Install dependencies in each app folder, then create `backend/.env` from `backend/.env.example`. Set Supabase credentials. Configure `ZALO_APP_SECRET` and the ZBS key/template either in the backend environment or Admin System Settings. Set the Google Apps Script Web App URL in Admin System Settings; the optional `GOOGLE_SHEETS_WEBHOOK_URL` environment value is only a fallback. Set the API URL in `lucky-wheels/.env` and `admin-web/.env`.
 
-3. **`admin-web` (Trang Quản Trị)**:
-   - Quản lý các chiến dịch (Campaigns), danh sách khách hàng & phân nhóm (Customer Groups).
-   - Cấu hình quy tắc vòng quay (Rule Engine): Tỷ lệ trúng (`win_rate`), lượt trúng tối đa (`max_wins`), giải thưởng (`reward_catalog`).
-   - Tính năng **Dry Run Spin**: Test giả lập kết quả quay theo thuật toán rules mà không làm ảnh hưởng đến dữ liệu thật.
-   - Thống kê & Báo cáo kết quả chiến dịch chi tiết.
+Apply migrations to your Supabase project with `npx supabase db push` from `lucky-wheels/`. Do not use production credentials for database integration tests.
 
----
-
-## ✨ Tính Năng Nổi Bật
-
-- 🔒 **An Toàn Tuyệt Đối Khi Tranh Chấp Kho (Race Condition Protection)**: Hàm `spin_once` trong PostgreSQL đảm bảo nếu giải thưởng chỉ còn 1 cái mà 2 người cùng quay trúng đồng thời, hệ thống sẽ chỉ trao giải cho 1 người và tự động chuyển người còn lại sang *"Chúc bạn may mắn lần sau"*.
-- 🔑 **Đa Dạng Chế Độ Xác Thực**: Linh hoạt chuyển đổi giữa thử nghiệm trên Browser (`preview`) và xác thực bảo mật qua Zalo App Secret (`zalo`).
-- ⚡ **Idempotency & Session An Toàn**: Mỗi lượt quay kèm theo `Idempotency-Key` ngăn chặn gửi trùng request. Session Mini App chỉ lưu Token có thời hạn trong `sessionStorage`.
-- 📊 **Rule Engine Linh Hoạt**: Cấu hình theo từng số lượt quay (Spin Number), độ ưu tiên của rule, hạn ngạch lượt quay theo nhóm khách hàng hoặc khách tự do (`guest`).
-- 📲 **Tự Động Gửi Thông Báo & Sync**: Tích hợp ZBS Wifim tự động gửi SMS/Zalo notification cho người trúng thưởng và đẩy dữ liệu về Google Sheets realtime.
-
----
-
-## 🚀 Hướng Dẫn Khởi Chạy Local
-
-### 1. Cài đặt Dependencies
-
-Tại thư mục gốc dự án:
+Start the backend, admin, and web target in separate terminals:
 
 ```bash
-# Cài đặt cho Backend
-cd backend && npm install
-
-# Cài đặt cho Admin Web
-cd ../admin-web && npm install
-
-# Cài đặt cho Mini App
-cd ../lucky-wheels && npm install
+cd backend && npm run dev
+cd admin-web && npm run dev
+cd lucky-wheels && npm run start
 ```
 
-### 2. Cấu hình File Môi Trường (.env)
+To run or publish the Zalo Mini App, use its explicit commands from `lucky-wheels/`:
 
-* **Backend (`backend/.env`)**: Tạo từ `backend/.env.example`
-  ```env
-  PORT=8787
-  SUPABASE_URL=https://<your-supabase-id>.supabase.co
-  SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
-  SUPABASE_ANON_KEY=<your-anon-key>
-  CORS_ORIGINS=http://localhost:5173,http://localhost:5174
-  ZBS_API_KEY=<your-zbs-key>
-  ZBS_TEMPLATE_ID=<your-template-id>
-  ```
-
-* **Mini App (`lucky-wheels/.env`)**: Tạo từ `lucky-wheels/.env.example`
-  ```env
-  VITE_API_BASE_URL=http://localhost:8787/api/v1
-  VITE_PARTICIPANT_AUTH_MODE=preview   # Đặt 'preview' cho Local Dev, 'zalo' cho Production
-  VITE_ZALO_OA_ID=<your-zalo-oa-id>
-  ```
-
-* **Admin Web (`admin-web/.env`)**: Tạo từ `admin-web/.env.example`
-  ```env
-  VITE_API_BASE_URL=http://localhost:8787/api/v1
-  ```
-
-### 3. Chạy Ứng Dụng
-
-Mở 3 terminal riêng biệt để chạy 3 dịch vụ:
-
-* **Terminal 1: Chạy Backend Server & Delivery Worker**
-  ```bash
-  cd backend
-  npm run dev
-  # Nếu muốn chạy riêng Delivery Worker:
-  # npm run worker:delivery
-  ```
-
-* **Terminal 2: Chạy Admin Web Dashboard**
-  ```bash
-  cd admin-web
-  npm run dev
-  ```
-  *(Admin Web chạy tại: `http://localhost:5174`)*
-
-* **Terminal 3: Chạy Zalo Mini App**
-  ```bash
-  cd lucky-wheels
-  npm run dev
-  ```
-  *(Mini App chạy tại: `http://localhost:2999` hoặc `http://localhost:5173`)*
-
----
-
-## 🛠 Database & Migrations (Supabase)
-
-Tất cả file SQL migration tạo bảng, trigger, RLS policies và hàm `spin_once` được lưu tại:
-`lucky-wheels/supabase/migrations/`
-
-Để áp dụng các migration vào Supabase:
 ```bash
-cd lucky-wheels
-npx supabase db push
+npm run login:miniapp
+npm run start:miniapp
+npm run build:miniapp
+npm run deploy:miniapp
 ```
 
----
+Run `npm run worker:delivery` in `backend/` to start the ZBS sender. It retries temporary provider failures and updates the award delivery status.
 
-## 📜 Giấy Phép & Đóng Góp
+## Verification
 
-Dự án được xây dựng cho hệ sinh thái Zalo Mini App. Mọi đóng góp hoặc báo lỗi vui lòng tạo Issue/Pull Request tại repository:
-👉 [https://github.com/truong0910/miniluckyapp](https://github.com/truong0910/miniluckyapp)
+```bash
+cd backend && npm test
+cd lucky-wheels && npm test && npm run build && npm run build:miniapp
+```

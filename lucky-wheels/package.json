@@ -2,7 +2,7 @@
   "name": "lucky-wheels",
   "private": true,
   "version": "1.0.0",
-  "description": "ZaUI Lucky Wheel là bộ giao diện mẫu (Template) giúp xây dựng các chiến dịch Vòng quay may mắn (Lucky Wheel/Slot Machine) trên Zalo Mini App nhằm thu hút người dùng và tăng tương tác.",
+  "description": "Lucky Wheels web app and Zalo Mini App for promotional campaigns.",
   "repository": "",
   "license": "UNLICENSED",
   "browserslist": [
@@ -15,10 +15,12 @@
     "Samsung >= 5"
   ],
   "scripts": {
-    "login": "zmp login",
-    "start": "zmp start",
-    "build": "vite build",
-    "deploy": "zmp deploy",
+    "login:miniapp": "node scripts/zmp.mjs login",
+    "start": "vite --mode web",
+    "start:miniapp": "node scripts/zmp.mjs start",
+    "build": "vite build --mode web",
+    "build:miniapp": "vite build --mode miniapp",
+    "deploy:miniapp": "node scripts/zmp.mjs deploy",
     "backend:dev": "npm --prefix ../backend run dev",
     "backend:start": "npm --prefix ../backend run start",
     "admin:dev": "npm --prefix ../admin-web run dev",
@@ -30,6 +32,7 @@
     "@tanstack/react-form": "^1.27.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.4",
     "valibot": "^1.2.0",
     "xlsx": "^0.18.5",
     "zmp-sdk": "2.53.0",

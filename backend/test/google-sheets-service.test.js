@@ -68,12 +68,16 @@ test("postSpinToGoogleSheets sends JSON with an idempotency key", async () => {
 
 test("syncSpinToGoogleSheets loads server-owned customer and award fields", async () => {
   const calls = [];
+  const urls = [];
   const db = {
     from(table) {
       const chain = {
         select() { return chain; },
         eq() { return chain; },
         async maybeSingle() {
+          if (table === "program_settings") {
+            return { data: { value: { googleSheetsWebhookUrl: "https://script.google.com/macros/s/admin-sheet/exec" } }, error: null };
+          }
           if (table === "customers") return { data: { name: "Customer", phone: "0912345678" }, error: null };
           return { data: { id: "award-1", status: "issued", delivered_at: null, redeemed_at: null }, error: null };
         },
@@ -85,12 +89,14 @@ test("syncSpinToGoogleSheets loads server-owned customer and award fields", asyn
     db,
     spin: { spinId: "spin-1", outcome: "better_luck", timestamp: "2026-08-16T07:00:00.000Z" },
     customerId: "customer-1",
-    config: { googleSheetsWebhookUrl: "https://script.google.com/macros/s/test/exec", googleSheetsWebhookTimeoutMs: 1000 },
-    fetchImpl: async (_url, options) => {
+    config: { googleSheetsWebhookUrl: "https://script.google.com/macros/s/env-sheet/exec", googleSheetsWebhookTimeoutMs: 1000 },
+    fetchImpl: async (url, options) => {
+      urls.push(url);
       calls.push(JSON.parse(options.body));
       return new Response(JSON.stringify({ status: "success" }), { status: 200 });
     },
   });
+  assert.equal(urls[0], "https://script.google.com/macros/s/admin-sheet/exec");
   assert.equal(calls[0].customerName, "Customer");
   assert.equal(calls[0].phone, "0912345678");
   assert.equal(calls[0].awardId, "award-1");
