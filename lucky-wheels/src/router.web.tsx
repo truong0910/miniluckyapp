@@ -1,5 +1,5 @@
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { PATHS } from "@/constants/path";
-import { AnimationRoutes, Route, ZMPRouter } from "zmp-ui";
 import HomePage from "./pages/home";
 import { lazy, Suspense } from "react";
 
@@ -9,14 +9,16 @@ const WheelPage = lazy(() => import("./pages/wheel"));
 
 const routes = [
   { path: PATHS.HOME, element: <HomePage /> },
+  { path: "/index.html", element: <HomePage /> },
   { path: PATHS.REWARD, element: <RewardPage /> },
   { path: PATHS.WHEEL, element: <WheelPage /> },
   { path: PATHS.VOUCHER, element: <VoucherPage /> },
+  { path: "*", element: <HomePage /> },
 ];
 
-export default function AppRouter() {
+export default function WebRouter() {
   return (
-    <ZMPRouter>
+    <BrowserRouter>
       <Suspense
         fallback={
           <div className="min-h-screen bg-slate-950 text-amber-300 grid place-items-center text-sm font-bold">
@@ -24,12 +26,12 @@ export default function AppRouter() {
           </div>
         }
       >
-        <AnimationRoutes>
+        <Routes>
           {routes.map((route) => (
             <Route key={route.path} path={route.path} element={route.element} />
           ))}
-        </AnimationRoutes>
+        </Routes>
       </Suspense>
-    </ZMPRouter>
+    </BrowserRouter>
   );
 }

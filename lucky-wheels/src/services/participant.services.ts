@@ -2,12 +2,11 @@ import type { TRegisterValues } from "@/schemas/register.schema";
 import type { WheelSegment } from "./campaign.types";
 import { apiRequest } from "./api.client";
 import { participantSession } from "./participant-session";
-import { permissionService } from "./permission.services";
-import { getAccessToken } from "zmp-sdk/apis";
+import { authenticateParticipant } from "@/platform/participant-auth";
 
-const PARTICIPANT_AUTH_MODE = String(
-  import.meta.env.VITE_PARTICIPANT_AUTH_MODE || "preview"
-).toLowerCase();
+const PARTICIPANT_CACHE_TTL_MS = 30_000;
+let cached: { participant: Participant; token: string; cachedAt: number } | null = null;
+let inFlight: Promise<Participant | null> | null = null;
 
 export interface Participant {
   id: string;
@@ -30,67 +29,89 @@ function saveResponse(payload: ParticipantApiResponse): Participant {
     participantSession.save(payload.session);
   }
   const { session: _session, ...participant } = payload;
+  const token = participantSession.getToken();
+  if (token) {
+    cached = { participant, token, cachedAt: Date.now() };
+  }
   return participant;
 }
 
 export const participantService = {
-  isZaloMode() {
-    return PARTICIPANT_AUTH_MODE === "zalo";
-  },
-
   getToken: participantSession.getToken,
-  clearSession: participantSession.clear,
-
-  async startPreview(phone: string): Promise<Participant> {
-    return saveResponse(await apiRequest<ParticipantApiResponse>("/participant/sessions/preview", {
-      method: "POST",
-      body: JSON.stringify({ phone }),
-    }));
+  clearSession() {
+    cached = null;
+    inFlight = null;
+    participantSession.clear();
   },
 
-  async startWithZalo(accessToken: string, phoneToken: string, zaloName?: string): Promise<Participant> {
-    return saveResponse(await apiRequest<ParticipantApiResponse>("/participant/sessions/zalo", {
-      method: "POST",
-      body: JSON.stringify({ accessToken, phoneToken, zaloName }),
-    }));
-  },
-
-  async authenticate(phone: string, options: { phoneToken?: string; zaloName?: string } = {}): Promise<Participant> {
-    if (!this.isZaloMode()) return this.startPreview(phone);
-
-    const phoneResult = options.phoneToken
-      ? { token: options.phoneToken }
-      : await permissionService.getPhoneNumber();
-    if (!phoneResult.token) {
-      throw new Error(phoneResult.error || "Zalo phone verification is required");
+  getCached(): Participant | null {
+    const token = participantSession.getToken();
+    if (!cached || !token || cached.token !== token || Date.now() - cached.cachedAt > PARTICIPANT_CACHE_TTL_MS) {
+      return null;
     }
-    const accessToken = await getAccessToken();
-    return this.startWithZalo(accessToken, phoneResult.token, options.zaloName);
+    return cached.participant;
+  },
+
+  updateCached(patch: Partial<Participant>): void {
+    if (cached) {
+      cached = {
+        ...cached,
+        participant: { ...cached.participant, ...patch },
+        cachedAt: Date.now(),
+      };
+    }
+  },
+
+  clearCached(): void {
+    cached = null;
+    inFlight = null;
+  },
+
+  async authenticate(phone?: string): Promise<Participant> {
+    return saveResponse(await authenticateParticipant<ParticipantApiResponse>(phone));
   },
 
   async lookupCustomerByPhone(phone: string): Promise<Participant | null> {
     try {
-      return await this.startPreview(phone);
+      return await this.authenticate(phone);
     } catch (error) {
       if ((error as Error & { status?: number }).status === 404) return null;
       throw error;
     }
   },
 
-  async getCurrent(): Promise<Participant | null> {
-    if (!participantSession.getToken()) return null;
-    try {
-      return saveResponse(await apiRequest<ParticipantApiResponse>("/participant/me"));
-    } catch (error) {
-      if ((error as Error & { status?: number }).status === 401) {
-        participantSession.clear();
-        return null;
-      }
-      throw error;
+  async getCurrent(options: { force?: boolean } = {}): Promise<Participant | null> {
+    const token = participantSession.getToken();
+    if (!token) {
+      cached = null;
+      return null;
     }
+
+    if (!options.force) {
+      const fresh = this.getCached();
+      if (fresh) return fresh;
+      if (inFlight) return inFlight;
+    }
+
+    inFlight = (async () => {
+      try {
+        const resp = await apiRequest<ParticipantApiResponse>("/participant/me");
+        return saveResponse(resp);
+      } catch (error) {
+        if ((error as Error & { status?: number }).status === 401) {
+          this.clearSession();
+          return null;
+        }
+        throw error;
+      } finally {
+        inFlight = null;
+      }
+    })();
+
+    return inFlight;
   },
 
-  async save(values: TRegisterValues, options: { phoneToken?: string; zaloName?: string } = {}): Promise<Participant> {
-    return this.authenticate(values.phone, options);
+  async save(values: TRegisterValues): Promise<Participant> {
+    return this.authenticate(values.phone);
   },
 };

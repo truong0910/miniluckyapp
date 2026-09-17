@@ -60,4 +60,41 @@ export const spinService = {
       return [];
     }
   },
+
+  async fetchSpinHistory(): Promise<SpinResponse[]> {
+    try {
+      const res = await apiRequest<{ items: any[] }>("/participant/me/spins");
+      if (Array.isArray(res.items)) {
+        const mapped: SpinResponse[] = res.items.map((item) => ({
+          spinId: item.id,
+          outcome: item.outcome === "reward" ? "reward" : "better_luck",
+          wheelSegmentId: item.reward_code ? `reward-${item.reward_id}` : "better-luck",
+          result: item.metadata?.result || ["star", "star", "star"],
+          reward: item.reward_code
+            ? {
+                code: item.reward_code,
+                title: item.metadata?.rewardTitle || item.reward_code,
+                value: 0,
+                description: "",
+                wheelLabel: item.metadata?.wheelLabel || "",
+              }
+            : null,
+          timestamp: item.created_at,
+          spinsRemaining: Number(item.spins_remaining ?? item.spinsRemaining ?? 0),
+        }));
+        window.sessionStorage.setItem(SPIN_HISTORY_KEY, JSON.stringify(mapped));
+        return mapped;
+      }
+    } catch {
+      // Fallback to local sessionStorage history if offline/error
+    }
+    return this.getSpinHistory();
+  },
+
+  clearSpinHistory() {
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.removeItem(LAST_SPIN_KEY);
+      sessionStorage.removeItem(SPIN_HISTORY_KEY);
+    }
+  },
 };

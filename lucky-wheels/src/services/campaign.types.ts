@@ -10,7 +10,7 @@ export interface ProgramRules {
 
 export const DEFAULT_PROGRAM_RULES: ProgramRules = {
   intro: "Chương trình Vòng Quay May Mắn dành cho khách hàng được cấp lượt quay. Mỗi lượt quay được ghi nhận kết quả và trao Voucher tương ứng.",
-  eligibility: ["Nhập đúng số điện thoại đã được cấp quyền tham gia chương trình.", "Theo dõi Zalo Official Account (OA) trước khi quay.", "Số lượt quay hiển thị theo cấu hình tài khoản của bạn."],
+  eligibility: ["Nhập đúng số điện thoại đã được cấp quyền tham gia chương trình.", "Số lượt quay hiển thị theo cấu hình tài khoản của bạn."],
   rewards: [],
   usageNotes: ["Mã Voucher trúng thưởng được lưu trong mục Xem kết quả quay.", "Voucher không có giá trị quy đổi thành tiền mặt."],
 };

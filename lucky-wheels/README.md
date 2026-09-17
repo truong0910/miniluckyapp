@@ -1,56 +1,23 @@
-# Lucky Wheels — Zalo Mini App
+# Lucky Wheels frontend
 
-Ứng dụng gồm Mini App, Admin Web (`../admin-web`) và Backend (`../backend`).
-Backend là nơi duy nhất thực hiện xác thực, đọc Supabase và quyết định kết quả quay.
+This package builds two versions of the same player app. The normal web target is the default and uses browser routing plus phone entry without OTP verification. The separate Zalo Mini App target keeps ZMP navigation, SDK phone verification, and the Zalo app shell.
 
-## Chạy local
+## Commands
 
 ```bash
 npm install
-cd ..\backend && npm install
-cd ..\admin-web && npm install
+npm run start                 # Web development server
+npm run build                 # Web production build in dist/
+npm run test
+
+npm run login:miniapp         # Authenticate the ZMP CLI
+npm run start:miniapp         # Zalo Mini App development server
+npm run build:miniapp         # Mini App production build
+npm run deploy:miniapp        # Deploy through the ZMP CLI
 ```
 
-Tạo `../backend/.env` từ `../backend/.env.example`, rồi chạy:
+Set `VITE_API_BASE_URL` in `.env` to the shared backend. The web form uses the entered phone as an unverified participant identifier and does not send an OTP. The Mini App obtains a phone token from Zalo. Keep Zalo and ZBS secrets in backend System Settings or its environment.
 
-```bash
-npm run backend:dev
-npm run start
-npm run admin:dev
-```
+After a winning spin, both targets use the backend ZBS delivery outbox. The ZBS key and template ID stay on the backend; run its `worker:delivery` process to send the approved template.
 
-Mini App mặc định gọi `http://localhost:8787/api/v1`. Đặt
-`VITE_PARTICIPANT_AUTH_MODE=preview` cho local; production phải dùng `zalo`.
-
-## Đăng ký và số điện thoại
-
-Ô số điện thoại luôn cho phép nhập tay. Nút “Tự động điền SĐT Zalo” gọi
-quyền `scope.userPhonenumber`. Ở local, số nhập tay bắt đầu preview session.
-Ở production, Backend chỉ chấp nhận Zalo phone token và App Secret; số nhập
-tay một mình không thể tạo session.
-
-Session Mini App chỉ lưu opaque token và expiry trong `sessionStorage`. Mọi
-request sau đó tự gắn Bearer token; không lưu customer ID để làm quyền.
-
-## Quay và delivery
-
-Mỗi lần quay gửi `Idempotency-Key` UUID và không gửi `customerId` trong body.
-Backend gọi RPC `spin_once` để khóa customer, kiểm tra quota, khóa inventory,
-ghi event và tạo delivery outbox trong cùng transaction. Worker riêng chạy:
-
-```bash
-cd ..\backend
-npm run worker:delivery
-```
-
-ZBS chỉ nhận dữ liệu do worker đọc từ DB; lỗi provider retry tối đa 8 lần.
-
-## Kiểm tra
-
-```bash
-npm test -- --run
-npm run build
-```
-
-Migration Supabase xem tại `supabase/README.md`. Không apply migration vào
-production khi chưa có test project và quyền Zalo/App Secret phù hợp.
+`nginx.conf` includes SPA fallback routing for direct browser visits to pages such as `/wheel` and `/voucher`.

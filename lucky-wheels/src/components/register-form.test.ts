@@ -1,15 +1,19 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const source = readFileSync(new URL("./register-form.tsx", import.meta.url), "utf8");
+const web = readFileSync(new URL("./register-form.web.tsx", import.meta.url), "utf8");
+const miniapp = readFileSync(new URL("./register-form.miniapp.tsx", import.meta.url), "utf8");
 
-describe("Zalo-only registration", () => {
-  it("does not expose a manual phone input and uses the Zalo token flow", () => {
-    expect(source).not.toContain("<Input");
-    expect(source).not.toContain("form.Field");
-    expect(source).not.toContain("lookupCustomerByPhone");
-    expect(source).toContain("getPhoneNumber");
-    expect(source).toContain("if (!res.token)");
-    expect(source).toContain("startWithZalo");
+describe("target-specific registration", () => {
+  it("lets browser users identify themselves by phone without Zalo authentication", () => {
+    expect(web).toMatch(/type=["']tel["']/);
+    expect(web).toContain("participantService.authenticate(phone)");
+    expect(web).not.toMatch(/zalo|zmp-sdk|oa/i);
+  });
+
+  it("uses Zalo phone permission in Mini App without requiring OA follow", () => {
+    expect(miniapp).toContain("participantService.authenticate()");
+    expect(miniapp).toMatch(/Zalo|ZALO/);
+    expect(miniapp).not.toMatch(/oaService|Official Account|showOAWidget/i);
   });
 });

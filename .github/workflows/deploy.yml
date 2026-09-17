@@ -1,0 +1,171 @@
+name: Deploy to aaPanel & Zalo Mini App
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+jobs:
+  # -------------------------------------------------------------
+  # Job 1: Run Unit & Contract Tests
+  # -------------------------------------------------------------
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Dependencies
+        run: |
+          npm --prefix backend install
+          npm --prefix lucky-wheels install
+
+      - name: Run Backend & Mini App Tests
+        run: npm test
+        env:
+          SUPABASE_URL: https://example.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+          SUPABASE_ANON_KEY: ci-placeholder-anon-key
+
+  # -------------------------------------------------------------
+  # Job 2: Deploy Backend & Admin Web to aaPanel via SSH
+  # -------------------------------------------------------------
+  deploy-aapanel:
+    name: Deploy to aaPanel via SSH
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Deploy Docker Compose over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ vars.SSH_PORT || 22 }}
+          script: |
+            set -e
+            if [ -d "/www/dk_project/miniluckyapp" ]; then
+              APP_DIR="/www/dk_project/miniluckyapp"
+            elif [ -n "${{ vars.SERVER_APP_DIR }}" ]; then
+              APP_DIR="${{ vars.SERVER_APP_DIR }}"
+            else
+              APP_DIR="/www/wwwroot/miniluckyapp"
+            fi
+            echo ">>> Thư mục triển khai: $APP_DIR"
+
+            echo ">>> 1. Đảm bảo thư mục triển khai tồn tại..."
+            if [ ! -d "$APP_DIR/.git" ]; then
+              mkdir -p "$APP_DIR"
+              git clone "${{ github.server_url }}/${{ github.repository }}.git" "$APP_DIR"
+            fi
+
+            cd "$APP_DIR"
+
+            echo ">>> 2. Cập nhật mã nguồn mới nhất từ Git..."
+            git fetch --all
+            git reset --hard origin/${{ github.ref_name }}
+
+            echo ">>> 3. Tạo file backend/.env từ GitHub Secrets & Variables..."
+            cat << 'ENV_EOF' > backend/.env
+            PORT=${{ vars.PORT || '6000' }}
+            APP_ENV=${{ vars.APP_ENV || 'production' }}
+            PARTICIPANT_AUTH_MODE=${{ vars.PARTICIPANT_AUTH_MODE || 'zalo' }}
+            ADMIN_AUTH_MODE=${{ vars.ADMIN_AUTH_MODE || 'supabase' }}
+            PARTICIPANT_SESSION_TTL_SECONDS=${{ vars.PARTICIPANT_SESSION_TTL_SECONDS || '1800' }}
+
+            SUPABASE_URL=${{ vars.SUPABASE_URL }}
+            SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+            SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+
+            CORS_ORIGINS=${{ vars.CORS_ORIGINS }}
+
+            DEV_AUTH_SECRET=${{ secrets.DEV_AUTH_SECRET }}
+            ADMIN_EMAIL=${{ secrets.ADMIN_EMAIL }}
+            ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}
+
+            ZALO_APP_SECRET=${{ secrets.ZALO_APP_SECRET }}
+            ZALO_GRAPH_BASE_URL=${{ vars.ZALO_GRAPH_BASE_URL || 'https://graph.zalo.me' }}
+
+            ZBS_API_KEY=${{ secrets.ZBS_API_KEY }}
+            ZBS_TEMPLATE_ID=${{ secrets.ZBS_TEMPLATE_ID }}
+            ZBS_API_BASE_URL=${{ vars.ZBS_API_BASE_URL || 'https://zbs.wifim.vn/api' }}
+
+            GOOGLE_SHEETS_WEBHOOK_URL=${{ secrets.GOOGLE_SHEETS_WEBHOOK_URL }}
+            GOOGLE_SHEETS_WEBHOOK_SECRET=${{ secrets.GOOGLE_SHEETS_WEBHOOK_SECRET }}
+            GOOGLE_SHEETS_WEBHOOK_TIMEOUT_MS=5000
+
+            DELIVERY_POLL_MS=${{ vars.DELIVERY_POLL_MS || '5000' }}
+            DELIVERY_BATCH_SIZE=${{ vars.DELIVERY_BATCH_SIZE || '10' }}
+            DELIVERY_MAX_ATTEMPTS=${{ vars.DELIVERY_MAX_ATTEMPTS || '8' }}
+            ENV_EOF
+
+            echo ">>> 4. Khởi chạy Docker Compose (Build & Reload)..."
+            export VITE_API_BASE_URL="${{ vars.VITE_API_BASE_URL }}"
+            export VITE_PARTICIPANT_AUTH_MODE="${{ vars.PARTICIPANT_AUTH_MODE || 'preview' }}"
+            export VITE_ZALO_OA_ID="${{ vars.VITE_ZALO_OA_ID || '1872524082920628490' }}"
+            docker compose pull || true
+            docker compose up -d --build --remove-orphans
+
+            echo ">>> 5. Dọn dẹp Docker images cũ để giải phóng ổ cứng..."
+            docker image prune -f
+
+            echo ">>> Deploy lên aaPanel hoàn tất thành công!"
+
+  # -------------------------------------------------------------
+  # Job 3: Deploy Zalo Mini App to Zalo Cloud
+  # -------------------------------------------------------------
+  deploy-zalo:
+    name: Deploy Zalo Mini App
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Mini App Dependencies
+        working-directory: ./lucky-wheels
+        run: npm install
+
+      - name: Prepare Mini App Environment
+        working-directory: ./lucky-wheels
+        run: |
+          cat << ENV_EOF > .env
+          APP_ID=${{ vars.ZALO_APP_ID || '1761900008417905543' }}
+          ZMP_TOKEN=${{ secrets.ZMP_TOKEN }}
+          VITE_ZALO_OA_ID=${{ vars.VITE_ZALO_OA_ID }}
+          VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL }}
+          VITE_PARTICIPANT_AUTH_MODE=${{ vars.PARTICIPANT_AUTH_MODE || 'zalo' }}
+          ENV_EOF
+
+      - name: Build Zalo Mini App
+        working-directory: ./lucky-wheels
+        run: npm run build
+
+      - name: Deploy to Zalo Mini App Platform
+        working-directory: ./lucky-wheels
+        env:
+          ZMP_TOKEN: ${{ secrets.ZMP_TOKEN }}
+        run: |
+          if [ -z "$ZMP_TOKEN" ]; then
+            echo ">>> Cảnh báo: Chưa cấu hình secret ZMP_TOKEN trên GitHub. Bỏ qua bước xuất bản lên Zalo."
+            exit 0
+          fi
+          npx zmp-cli deploy --token "$ZMP_TOKEN"

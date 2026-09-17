@@ -12,19 +12,27 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
     headers.set("content-type", "application/json");
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    if (response.status === 401) participantSession.clear();
-    const error = new Error(
-      typeof payload?.error === "string"
-        ? payload.error
-        : `Backend trả về lỗi ${response.status}`
-    );
-    (error as Error & { status?: number }).status = response.status;
+  const url = `${API_BASE_URL}${path}`;
+
+  try {
+    const response = await fetch(url, { ...options, headers });
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      if (response.status === 401) participantSession.clear();
+      const error = new Error(
+        typeof payload?.error === "string"
+          ? payload.error
+          : `Backend trả về lỗi ${response.status}`
+      );
+      (error as Error & { status?: number }).status = response.status;
+      throw error;
+    }
+    return payload as T;
+  } catch (error) {
+    console.error(`[API Error] ${options.method || "GET"} ${url}`, error);
     throw error;
   }
-  return payload as T;
 }
 
 export function getApiBaseUrl() {

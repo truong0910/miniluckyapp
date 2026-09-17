@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { claimDeliveryBatch, sendDelivery } from "../src/delivery-service.js";
+import { claimDeliveryBatch, loadDeliveryContext, sendDelivery } from "../src/delivery-service.js";
 import { processDelivery, retryDelayMs } from "../src/delivery-worker.js";
 
 test("claimDeliveryBatch claims a bounded batch through the database RPC", async () => {
@@ -16,6 +16,48 @@ test("claimDeliveryBatch claims a bounded batch through the database RPC", async
   assert.deepEqual(calls, [{ name: "claim_deliveries", args: { p_worker_id: "worker-1", p_limit: 100 } }]);
 });
 
+test("loadDeliveryContext prefers award snapshot from awards table when available", async () => {
+  const db = {
+    from(table) {
+      const chain = {
+        select() { return chain; },
+        eq() { return chain; },
+        async single() {
+          if (table === "customers") return { data: { phone: "0987654321", name: "Award Winner" }, error: null };
+          return { data: null, error: null };
+        },
+        async maybeSingle() {
+          if (table === "awards") {
+            return {
+              data: {
+                code: "AWARD_SNAP_CODE",
+                title_snapshot: "Voucher 500k Snapshot",
+                value_snapshot: 500000,
+                description_snapshot: "Mô tả award",
+                expires_at: "2026-12-31T23:59:59.000Z",
+              },
+              error: null,
+            };
+          }
+          return { data: null, error: null };
+        },
+      };
+      return chain;
+    },
+  };
+
+  const context = await loadDeliveryContext({
+    db,
+    delivery: { customer_id: "cust-1", spin_event_id: "spin-award-1" },
+  });
+
+  assert.equal(context.phone, "84987654321");
+  assert.equal(context.customer.name, "Award Winner");
+  assert.equal(context.reward.code, "AWARD_SNAP_CODE");
+  assert.equal(context.reward.title, "Voucher 500k Snapshot");
+  assert.equal(context.reward.value, 500000);
+});
+
 test("sendDelivery loads customer and reward from DB and sends a normalized phone", async () => {
   const fetchCalls = [];
   const db = {
@@ -28,7 +70,10 @@ test("sendDelivery loads customer and reward from DB and sends a normalized phon
           if (table === "spin_events") return { data: { reward_code: "REAL_CODE", reward_id: "reward-1" }, error: null };
           return { data: { code: "REAL_CODE", title: "Real reward", value: 100000, description: "Real description" }, error: null };
         },
-        async maybeSingle() { return this.single(); },
+        async maybeSingle() {
+          if (table === "awards") return { data: null, error: null };
+          return this.single();
+        },
       };
       return chain;
     },
@@ -70,7 +115,12 @@ test("a failed provider call is rescheduled with exponential backoff", async () 
       return { data: {}, error: null };
     },
     from() {
-      const chain = { select() { return chain; }, eq() { return chain; }, async single() { return { data: {}, error: null }; } };
+      const chain = {
+        select() { return chain; },
+        eq() { return chain; },
+        async single() { return { data: {}, error: null }; },
+        async maybeSingle() { return { data: null, error: null }; },
+      };
       return chain;
     },
   };

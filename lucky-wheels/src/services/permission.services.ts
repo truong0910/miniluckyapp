@@ -1,4 +1,11 @@
-import * as zmp from "zmp-sdk/apis";
+function isZaloAuthMode() {
+  return import.meta.env.VITE_APP_TARGET === "miniapp";
+}
+
+async function getZmpApis() {
+  if (!isZaloAuthMode()) return null;
+  return await import("zmp-sdk/apis").catch(() => null);
+}
 
 export interface PhoneResult {
   token?: string;
@@ -34,25 +41,34 @@ function isUserInfoPermissionDeniedError(error: unknown) {
 
 export const permissionService = {
   async request() {
+    const zmp = await getZmpApis();
+    if (!zmp) return {};
     return zmp.authorize({
       scopes: ["scope.userInfo", "scope.userPhonenumber"],
-    });
+    }).catch(() => ({}));
   },
 
   async check() {
-    return await zmp.getSetting();
+    const zmp = await getZmpApis();
+    if (!zmp) return {};
+    return await zmp.getSetting().catch(() => ({}));
   },
 
   async getUserProfile(): Promise<ZaloUserProfile | null> {
+    if (!isZaloAuthMode()) return null;
+    const zmp = await getZmpApis();
+    if (!zmp) return null;
     if (cachedUserProfile !== undefined) return cachedUserProfile;
     if (userProfileRequest) return userProfileRequest;
 
     userProfileRequest = (async () => {
       try {
-        const res = await zmp.getUserInfo({
-          avatarType: "normal",
-          autoRequestPermission: true,
-        });
+        const res = await Promise.resolve(
+          zmp.getUserInfo({
+            avatarType: "normal",
+            autoRequestPermission: false,
+          })
+        ).catch(() => null);
         if (res && res.userInfo) {
           const rawName = res.userInfo.name?.trim();
           const isGenericPlaceholder =
@@ -71,19 +87,14 @@ export const permissionService = {
         cachedUserProfile = null;
         return null;
       } catch (error) {
-        // A preview/dev app that has not been activated cannot access profile APIs.
-        // Cache this expected failure so every form render does not spam the console.
         if (isAppNotActivatedError(error)) {
           cachedUserProfile = null;
           return null;
         }
-        // Zalo uses -1401 when the user has declined name/avatar access.
-        // Keep the app usable with the fallback customer name until permission
-        // is enabled from Mini App settings.
         if (isUserInfoPermissionDeniedError(error)) {
           return null;
         }
-        console.warn("Unable to fetch Zalo user profile from SDK", error);
+        cachedUserProfile = null;
         return null;
       } finally {
         userProfileRequest = null;
@@ -99,13 +110,14 @@ export const permissionService = {
   },
 
   async getPhoneNumber(): Promise<PhoneResult> {
+    if (!isZaloAuthMode()) return { error: "Xác minh SĐT Zalo không được hỗ trợ trong chế độ Web." };
+    const zmp = await getZmpApis();
+    if (!zmp) return { error: "Không thể nạp Zalo SDK." };
     try {
-      // 1. Xin quyền scope.userPhonenumber trước
       await zmp.authorize({
         scopes: ["scope.userPhonenumber"],
       });
 
-      // 2. Gọi SDK lấy phone token; số điện thoại thật chỉ được giải mã ở backend.
       const response = (await zmp.getPhoneNumber({})) as {
         token?: string;
       };

@@ -5,23 +5,15 @@ export interface ParticipantSessionStorage {
   expiresAt: string;
 }
 
+let currentSession: ParticipantSessionStorage | null = null;
+
 function storage() {
   if (typeof sessionStorage === "undefined") return null;
   return sessionStorage;
 }
 
-function read(): ParticipantSessionStorage | null {
-  const value = storage()?.getItem(SESSION_KEY);
-  if (!value) return null;
-  try {
-    const parsed = JSON.parse(value) as Partial<ParticipantSessionStorage>;
-    if (!parsed.token || !parsed.expiresAt) return null;
-    return { token: parsed.token, expiresAt: parsed.expiresAt };
-  } catch {
-    storage()?.removeItem(SESSION_KEY);
-    return null;
-  }
-}
+// Remove sessions saved by older versions; new sessions stay in memory only.
+storage()?.removeItem(SESSION_KEY);
 
 function isExpired(expiresAt: string, now: Date) {
   const timestamp = Date.parse(expiresAt);
@@ -30,11 +22,11 @@ function isExpired(expiresAt: string, now: Date) {
 
 export const participantSession = {
   save(value: ParticipantSessionStorage) {
-    storage()?.setItem(SESSION_KEY, JSON.stringify({ token: value.token, expiresAt: value.expiresAt }));
+    currentSession = { token: value.token, expiresAt: value.expiresAt };
   },
 
   getToken(now = new Date()): string | null {
-    const value = read();
+    const value = currentSession;
     if (!value) return null;
     if (isExpired(value.expiresAt, now)) {
       participantSession.clear();
@@ -44,7 +36,7 @@ export const participantSession = {
   },
 
   getExpiresAt(now = new Date()): string | null {
-    const value = read();
+    const value = currentSession;
     if (!value || isExpired(value.expiresAt, now)) {
       if (value) participantSession.clear();
       return null;
@@ -53,7 +45,12 @@ export const participantSession = {
   },
 
   clear() {
+    currentSession = null;
     storage()?.removeItem(SESSION_KEY);
+    try {
+      storage()?.removeItem("lucky-wheels:spin-history");
+      storage()?.removeItem("lucky-wheels:last-spin");
+    } catch {}
   },
 
   key: SESSION_KEY,

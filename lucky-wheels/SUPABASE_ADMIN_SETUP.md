@@ -2,7 +2,8 @@
 
 Ứng dụng có ba phần độc lập:
 
-- Mini App Zalo: build ở thư mục gốc, chỉ gọi Backend API.
+- Bản Web: build mặc định, dùng browser router và nhập SĐT không OTP.
+- Mini App Zalo: build bằng `npm run build:miniapp`, dùng ZMP SDK xác minh SĐT.
 - Admin Web: thư mục ngang hàng `../admin-web/`, chạy port `5174` khi dev.
 - Backend: thư mục ngang hàng `../backend/`, chạy port `8787`, là nơi duy nhất giữ Supabase service role key.
 
@@ -35,12 +36,15 @@ Không đưa `SUPABASE_SERVICE_ROLE_KEY` vào Mini App, Admin Web, Git hoặc fi
 # terminal 1
 cd ../backend && npm install && npm run dev
 
-# terminal 2 - Mini App
+# terminal 2 - Web
 npm run start
 
-# terminal 3 - Admin Web
+# terminal 3 - Zalo Mini App (cần ZMP CLI)
+npm run start:miniapp
+
+# terminal 4 - Admin Web
 cd ../admin-web && npm install && npm run dev
 ```
 
-Mini App cần `VITE_API_BASE_URL=http://localhost:8787/api/v1` trong `.env`.
+Hai bản người chơi cần `VITE_API_BASE_URL=http://localhost:8787/api/v1` trong `.env`.
 Admin Web cần giá trị tương tự trong `../admin-web/.env`.

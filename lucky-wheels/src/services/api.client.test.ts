@@ -22,4 +22,14 @@ describe("api client participant auth", () => {
     const [, options] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(new Headers(options.headers).get("authorization")).toBe("Bearer session-token");
   });
+
+  it("does not log successful API requests or response payloads", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await apiRequest("/content");
+      expect(log).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+    }
+  });
 });

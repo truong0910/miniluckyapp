@@ -1,10 +1,10 @@
 import { createOpaqueToken, hashToken, timingSafeTokenEqual } from "./auth/token.js";
 import { isValidVietnamesePhone, normalizePhone, publicError } from "./utils.js";
 
-export function assertPreviewAuthAllowed(runtimeConfig) {
-  if (runtimeConfig?.appEnv !== "development" || runtimeConfig?.participantAuthMode !== "preview") {
-    throw publicError("Preview participant auth is only available in development", 403);
-  }
+export function normalizeParticipantPhone(value) {
+  const phone = normalizePhone(value);
+  if (!isValidVietnamesePhone(phone)) throw publicError("Số điện thoại không hợp lệ");
+  return phone;
 }
 
 export async function createParticipantSession({ db, customerId, authMethod, ttlSeconds = 1800, now = Date.now(), tokenFactory = createOpaqueToken }) {

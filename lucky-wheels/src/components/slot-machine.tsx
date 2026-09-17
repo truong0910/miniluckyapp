@@ -1,11 +1,11 @@
 import { PATHS } from "@/constants/path";
-import { oaService } from "@/services/oa.services";
 import {
   participantService,
   type Participant,
 } from "@/services/participant.services";
 import { spinService, type SpinResponse } from "@/services/spin.services";
 import { zbsService } from "@/services/zbs.services";
+import { getWheelLoadState } from "@/services/wheel-load-state";
 import { useEffect, useMemo, useState } from "react";
 import { Button, useNavigate } from "zmp-ui";
 import VoucherCard from "./voucher-card";
@@ -26,6 +26,7 @@ const SLICE_GRADIENTS = [
 
 export default function SlotMachine() {
   const [participant, setParticipant] = useState<Participant | null>(null);
+  const [isLoadingParticipant, setIsLoadingParticipant] = useState(true);
   const [rotation, setRotation] = useState(0);
   const [isSpinning, setIsSpinning] = useState(false);
   const [spinError, setSpinError] = useState<string | null>(null);
@@ -50,6 +51,9 @@ export default function SlotMachine() {
       .catch((error) => {
         console.error("Unable to load wheel", error);
         if (!cancelled) setSpinError("Không thể tải thông tin vòng quay.");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingParticipant(false);
       });
 
     return () => {
@@ -102,12 +106,12 @@ export default function SlotMachine() {
     });
   }, [segments, segmentAngle]);
 
-  const handleSendZns = async (result: SpinResponse, customer: Participant) => {
+  const handleSendZbs = async (result: SpinResponse, customer: Participant) => {
     if (result.outcome !== "reward" || !result.reward) return;
 
     if (!zbsService.isConfigured()) {
       setDeliveryStatus("failed");
-      setDeliveryMessage("Voucher đã lưu vào tài khoản (Chưa cấu hình ZBS gửi tin ZNS).");
+      setDeliveryMessage("Voucher đã lưu vào tài khoản; tin ZBS chưa được cấu hình.");
       return;
     }
 
@@ -115,8 +119,16 @@ export default function SlotMachine() {
     setDeliveryMessage("Đang gửi Voucher qua tin nhắn Zalo...");
     try {
       const delivery = await zbsService.sendWinnerVoucher(result, customer);
-      setDeliveryStatus(delivery.status === "sent" ? "sent" : "sending");
-      setDeliveryMessage("Voucher đã được gửi thành công về Zalo của bạn!");
+      if (delivery.status === "sent") {
+        setDeliveryStatus("sent");
+        setDeliveryMessage("Tin nhắn voucher đã được gửi đến Zalo của bạn.");
+      } else if (delivery.status === "failed") {
+        setDeliveryStatus("failed");
+        setDeliveryMessage(delivery.message || "Chưa gửi được tin nhắn voucher. Vui lòng liên hệ nhân viên hỗ trợ.");
+      } else {
+        setDeliveryStatus("sending");
+        setDeliveryMessage("Đã ghi nhận yêu cầu; tin nhắn voucher đang chờ ZBS gửi.");
+      }
     } catch (error) {
       setDeliveryStatus("failed");
       setDeliveryMessage(
@@ -128,13 +140,8 @@ export default function SlotMachine() {
   const spin = async () => {
     if (isSpinning) return;
 
-    if (!oaService.isFollowed()) {
-      setSpinError("Vui lòng theo dõi Official Account trước khi quay.");
-      return;
-    }
-
     if (!participantService.getToken() || !participant) {
-      setSpinError("Vui lòng tra cứu khách hàng trước khi quay.");
+      setSpinError("Vui lòng nhập số điện thoại trước khi quay.");
       return;
     }
     if (participant.spinsRemaining < 1) {
@@ -166,12 +173,13 @@ export default function SlotMachine() {
         ...participant,
         spinsRemaining: result.spinsRemaining,
       };
+      participantService.updateCached({ spinsRemaining: result.spinsRemaining });
       setParticipant(updatedParticipant);
       setActiveSpinResult(result);
       setIsSpinning(false);
 
-      // Trigger ZNS delivery in background if won
-      void handleSendZns(result, updatedParticipant);
+      // Queue ZBS delivery in the background after a winning spin.
+      void handleSendZbs(result, updatedParticipant);
 
       // Open Modal on current page
       setShowResultModal(true);
@@ -185,6 +193,43 @@ export default function SlotMachine() {
       );
     }
   };
+
+  const wheelState = getWheelLoadState({
+    isLoading: isLoadingParticipant,
+    participant,
+    segmentCount: segments.length,
+    error: spinError,
+  });
+
+  if (wheelState === "loading") {
+    return (
+      <div role="status" className="w-full flex flex-col items-center justify-center py-12 gap-3 text-red-200">
+        <div className="w-10 h-10 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+        <span className="font-extrabold text-sm tracking-wide">Đang tải thông tin vòng quay...</span>
+      </div>
+    );
+  }
+
+  if (wheelState === "error" || wheelState === "empty") {
+    return (
+      <div role="alert" className="w-[min(88vw,360px)] mx-auto my-6 p-6 rounded-2xl bg-slate-900/90 border border-red-500/30 text-center shadow-xl">
+        <p className="text-sm font-bold text-red-300 leading-relaxed mb-4">
+          {spinError || "Chưa có thông tin vòng quay."}
+        </p>
+        <Button
+          size="medium"
+          fullWidth
+          className="bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl"
+          onClick={() => {
+            participantService.clearSession();
+            navigate(PATHS.REGISTER);
+          }}
+        >
+          Đổi số điện thoại
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full flex flex-col items-center gap-5 py-2 relative z-20">
@@ -357,14 +402,14 @@ export default function SlotMachine() {
             </div>
 
             {/* REWARD OR CLOVER DISPLAY */}
-            {activeSpinResult.outcome === "reward" && activeSpinResult.reward ? (
+            {activeSpinResult.outcome === "reward" ? (
               <div className="w-full">
                 <VoucherCard
-                  title={activeSpinResult.reward.title}
-                  expiresAt={activeSpinResult.reward.expiresAt}
+                  title={activeSpinResult.reward?.title || "Voucher quà tặng"}
+                  expiresAt={activeSpinResult.reward?.expiresAt}
                 />
 
-                {/* ZNS DELIVERY STATUS */}
+                {/* ZBS delivery status */}
                 {deliveryStatus !== "idle" && (
                   <div
                     role="status"

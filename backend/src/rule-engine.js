@@ -8,12 +8,13 @@ function isWithinWindow(rule) {
 }
 
 async function activeRulesForCustomer(customerId) {
-  const [direct, memberships, defaults] = await Promise.all([
+  const [direct, memberships, defaults, guests] = await Promise.all([
     supabase.from("customer_rule_assignments").select("rule_id").eq("customer_id", customerId),
     supabase.from("customer_group_members").select("group_id").eq("customer_id", customerId),
     supabase.from("campaign_rules").select("*").eq("scope", "default").eq("active", true),
+    supabase.from("campaign_rules").select("*").eq("scope", "guest").eq("active", true),
   ]);
-  for (const result of [direct, memberships, defaults]) if (result.error) throw result.error;
+  for (const result of [direct, memberships, defaults, guests]) if (result.error) throw result.error;
 
   const directIds = (direct.data || []).map((item) => item.rule_id);
   const groupIds = (memberships.data || []).map((item) => item.group_id);
@@ -31,15 +32,15 @@ async function activeRulesForCustomer(customerId) {
   if (assigned.error) throw assigned.error;
 
   return [
-    ...(assigned.data || []).map((rule) => ({ rule, scopeRank: rule.scope === "user" ? 3 : 2 })),
+    ...(assigned.data || []).map((rule) => ({ rule, scopeRank: rule.scope === "user" ? 4 : 3 })),
+    ...(guests.data || []).map((rule) => ({ rule, scopeRank: 2 })),
     ...(defaults.data || []).map((rule) => ({ rule, scopeRank: 1 })),
   ]
     .filter(({ rule }) => isWithinWindow(rule))
     .sort((a, b) => Number(b.rule.priority || 0) - Number(a.rule.priority || 0) || b.scopeRank - a.scopeRank);
 }
 
-async function chooseFromRule(rule, customer, spinNumber, oaFollowed) {
-  if (rule.oa_required && !oaFollowed) return null;
+async function chooseFromRule(rule, customer, spinNumber) {
   const { data: spinConfig, error: configError } = await supabase
     .from("rule_spin_configs")
     .select("*")
@@ -99,10 +100,10 @@ async function chooseFromRule(rule, customer, spinNumber, oaFollowed) {
   };
 }
 
-export async function chooseRuleOutcome(customer, spinNumber, oaFollowed) {
+export async function chooseRuleOutcome(customer, spinNumber) {
   const candidates = await activeRulesForCustomer(customer.id);
   for (const { rule } of candidates) {
-    const outcome = await chooseFromRule(rule, customer, spinNumber, oaFollowed);
+    const outcome = await chooseFromRule(rule, customer, spinNumber);
     if (outcome) return { ...outcome, ruleId: rule.id };
   }
   return null;
