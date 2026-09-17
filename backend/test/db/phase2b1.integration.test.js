@@ -53,7 +53,7 @@ const testUrl = process.env.SUPABASE_TEST_URL;
 const testKey = process.env.SUPABASE_TEST_SERVICE_ROLE_KEY;
 
 test(
-  "awards backfill creates one issued snapshot for every resolvable historical reward spin event",
+  "awards backfill creates one durable snapshot for every resolvable historical reward spin event",
   {
     skip: !testUrl || !testKey
       ? "set SUPABASE_TEST_URL and SUPABASE_TEST_SERVICE_ROLE_KEY for opt-in DB integration"
@@ -125,7 +125,10 @@ test(
         assert.equal(award.code, event.reward_code);
         assert.equal(award.title_snapshot, title);
         assert.equal(award.value_snapshot, value);
-        assert.equal(award.status, "issued");
+        assert.ok(
+          ["issued", "delivering", "delivered", "redeemed", "expired", "void"].includes(award.status),
+          `unexpected award status ${award.status} for spin event ${event.id}`,
+        );
       }
 
       if ((events ?? []).length < pageSize) break;

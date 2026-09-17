@@ -47,6 +47,16 @@ test(
     let secondId = null;
 
     try {
+      const { data: activeCampaigns, error: activeCampaignsError } = await db
+        .from("campaigns")
+        .select("id")
+        .eq("status", "active");
+      assert.ifError(activeCampaignsError);
+      if (activeCampaigns?.length) {
+        t.skip("an active campaign already exists; leaving Supabase campaign states unchanged");
+        return;
+      }
+
       // Create two draft campaigns
       const { data: cmp1, error: err1 } = await db
         .from("campaigns")
@@ -68,9 +78,6 @@ test(
         .single();
       assert.ifError(err2);
       secondId = cmp2.id;
-
-      // Pause any pre-existing active campaign in test DB to isolate test run
-      await db.from("campaigns").update({ status: "paused" }).eq("status", "active");
 
       // 1. Activate first campaign
       const { data: active1, error: actErr1 } = await db.rpc("transition_campaign", {

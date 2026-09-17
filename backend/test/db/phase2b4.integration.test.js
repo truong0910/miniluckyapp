@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
+import { prepareAssignedRewardSpin } from "./assigned-spin-fixture.js";
 
 const migrationPath = path.resolve(
   process.cwd(),
@@ -47,38 +48,26 @@ test(
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const testTag = `phase2b4-test-${Date.now()}`;
+    const testTag = `phase2b4-test-${Date.now()}-${process.pid}`;
     const customerId = `KH_${testTag}`;
     const idempotencyKey = `idempotency-${testTag}`;
 
     try {
-      // 1. Create test customer
-      const { error: customerError } = await db.from("customers").insert({
-        id: customerId,
-        name: "Phase 2B4 Test Customer",
-        phone: "09000002b4",
-        sex: "male",
-        job: "worker",
-        total_spins: 1,
+      // Use a spin beyond the active campaign's configured default rules so
+      // the RPC test cannot consume its live reward inventory.
+      const fixture = await prepareAssignedRewardSpin({
+        db,
+        t,
+        customerId,
+        fixtureTag: testTag,
+        customerName: "Phase 2B4 Test Customer",
+        rewardTitle: "Test Voucher 2B4",
+        rewardValue: 200000,
+        rewardDescription: "Voucher test 2B4",
       });
-      if (customerError?.code === "PGRST303" || customerError?.message?.includes("future")) {
-        t.skip("remote Supabase clock skew (JWT issued at future)");
-        return;
-      }
-      assert.ifError(customerError);
+      if (!fixture) return;
 
-      // 2. Assign reward to customer
-      const { error: rewardError } = await db.from("customer_rewards").insert({
-        customer_id: customerId,
-        code: `CODE_${testTag}`,
-        title: "Test Voucher 2B4",
-        value: 200000,
-        description: "Voucher test 2B4",
-        wheel_label: "200k",
-      });
-      assert.ifError(rewardError);
-
-      // 3. Execute spin_once via RPC
+      // Execute spin_once via RPC.
       const { data: spinResult, error: spinError } = await db.rpc("spin_once", {
         p_customer_id: customerId,
         p_idempotency_key: idempotencyKey,
@@ -86,7 +75,7 @@ test(
       assert.ifError(spinError);
       assert.equal(spinResult.outcome, "reward");
 
-      // 4. Assert an award record was automatically created if migration 0005 is applied on test DB
+      // Assert an award record was automatically created if migration 0005 is applied on test DB.
       const { data: awards, error: awardsError } = await db
         .from("awards")
         .select("spin_event_id,customer_id,code,title_snapshot,value_snapshot,status")
@@ -101,7 +90,7 @@ test(
       assert.equal(awards?.length, 1);
       const [award] = awards;
       assert.equal(award.customer_id, customerId);
-      assert.equal(award.code, `CODE_${testTag}`);
+      assert.equal(award.code, fixture.rewardCode);
       assert.equal(award.title_snapshot, "Test Voucher 2B4");
       assert.equal(award.value_snapshot, 200000);
       assert.equal(award.status, "issued");
@@ -111,6 +100,7 @@ test(
       await db.from("deliveries").delete().eq("customer_id", customerId);
       await db.from("spin_events").delete().eq("customer_id", customerId);
       await db.from("customer_rewards").delete().eq("customer_id", customerId);
+      await db.from("campaign_participants").delete().eq("customer_id", customerId);
       await db.from("customers").delete().eq("id", customerId);
     }
   },

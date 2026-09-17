@@ -218,10 +218,14 @@ export default function SlotMachine() {
         </p>
         <Button
           size="medium"
+          fullWidth
           className="bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl"
-          onClick={() => navigate(PATHS.REGISTER)}
+          onClick={() => {
+            participantService.clearSession();
+            navigate(PATHS.REGISTER);
+          }}
         >
-          Nhập số điện thoại
+          Đổi số điện thoại
         </Button>
       </div>
     );

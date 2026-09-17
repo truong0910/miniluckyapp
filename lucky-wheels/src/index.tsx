@@ -12,12 +12,6 @@ import { configureRuntime } from "@/platform/runtime-config";
 
 configureRuntime();
 
-console.log("[LuckyWheels Web Init]", {
-  API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
-  BUILD_MODE: import.meta.env.MODE,
-  URL: window.location.href,
-});
-
 // Global error logger
 window.addEventListener("error", (event) => {
   console.error("[Web Global Error]", event.error || event.message);

@@ -76,23 +76,26 @@ test("legacy campaign defaults are applied to fixture rewards and spin events", 
     assert.ifError(rewardLookupError);
     assert.equal(rewardRow.campaign_id, legacyId);
 
-    const { error: spinError } = await db.rpc("spin_once", {
-      p_customer_id: fixtureId,
-      p_idempotency_key: idempotencyKey,
-      p_source: "phase2a-integration-test",
-    });
-    assert.ifError(spinError);
-
-    const { data: eventRow, error: eventLookupError } = await db
+    // Test the database default directly. Calling the live spin RPC here can
+    // consume a reward from the currently active campaign's real inventory.
+    const { data: eventRow, error: eventInsertError } = await db
       .from("spin_events")
+      .insert({
+        customer_id: fixtureId,
+        spin_number: 1,
+        outcome: "better_luck",
+        idempotency_key: idempotencyKey,
+        metadata: { source: "phase2a-integration-test" },
+      })
       .select("campaign_id")
-      .eq("customer_id", fixtureId)
-      .eq("idempotency_key", idempotencyKey)
       .single();
-    assert.ifError(eventLookupError);
+    assert.ifError(eventInsertError);
     assert.equal(eventRow.campaign_id, legacyId);
   } finally {
+    await db.from("awards").delete().eq("customer_id", fixtureId);
+    await db.from("deliveries").delete().eq("customer_id", fixtureId);
     await db.from("spin_events").delete().eq("customer_id", fixtureId);
+    await db.from("customer_rewards").delete().eq("customer_id", fixtureId);
     await db.from("customers").delete().eq("id", fixtureId);
   }
 });

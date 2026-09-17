@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, auth, downloadFile, fileToDataUrl, login, logout, setUnauthorizedHandler } from "./api.js";
 import { parseCsvToRows, parseWorkbookToRows } from "./import-parser.js";
-import EventWorkspace from "./features/operator/EventWorkspace.jsx";
-import EventWizard from "./features/operator/EventWizard.jsx";
 import UiAlert from "./components/common/UiAlert.jsx";
 import ConfirmModal from "./components/common/ConfirmModal.jsx";
 import LogoImg from "./assets/logo.png";
@@ -75,6 +73,7 @@ function Shell({ tab, setTab, onLogout, children }) {
             ["awards", "Kho Voucher"],
             ["campaign", "Luật quay"],
             ["rules", "Thể lệ"],
+            ["googleSheets", "Google Sheets"],
             // ["settings", "Môi trường (Env)"],
           ].map(([id, label]) => (
             <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>
@@ -232,18 +231,16 @@ const PAGE_HELP_DATA = {
       </div>
     ),
   },
-  settings: {
-    title: "Cấu hình Môi trường (System & Env)",
+  googleSheets: {
+    title: "Cấu hình Google Sheets",
     content: (
       <div>
         <p style={{ fontSize: "13px", color: "#475569", lineHeight: "1.6" }}>
-          Quản lý cấu hình biến môi trường kết nối hệ thống Backend, Zalo Mini App và dịch vụ bên thứ ba:
+          Dán URL Web App `/exec` của Google Apps Script đã gắn với bảng tính đích. Lượt quay mới sẽ được đồng bộ theo cấu hình này.
         </p>
-        <ul style={{ fontSize: "12px", color: "#1e293b", lineHeight: "1.7", margin: "8px 0", paddingLeft: "20px" }}>
-          <li><strong>Môi trường:</strong> Chuyển đổi giữa <code>development</code> (local test) và <code>production</code>.</li>
-          <li><strong>Zalo Mini App & ZBS:</strong> Khai báo App Secret và mẫu tin ZBS gửi quà khi trúng thưởng.</li>
-          <li><strong>Google Sheets:</strong> Dán URL Web App `/exec` của Apps Script đã gắn với bảng tính đích, sau đó bấm <strong>Lưu Google Sheets</strong>.</li>
-        </ul>
+        <p style={{ fontSize: "12px", color: "#1e293b", lineHeight: "1.7" }}>
+          Để tắt đồng bộ, xóa URL rồi bấm <strong>Lưu Google Sheets</strong>.
+        </p>
       </div>
     ),
   },
@@ -3710,24 +3707,7 @@ function CustomerGroups() {
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(Boolean(auth.token));
-  const [campaigns, setCampaigns] = useState([]);
-  const [selectedCampaignId, setSelectedCampaignId] = useState("");
-  const [viewMode, setViewMode] = useState("advanced"); // Default to clean Advanced Console mode
-  const [operatorStep, setOperatorStep] = useState("overview");
   const [tab, setTab] = useState("overview");
-
-  const loadCampaigns = async () => {
-    try {
-      const res = await api("/admin/campaigns?includeArchived=true");
-      const list = res.items || [];
-      setCampaigns(list);
-      if (!selectedCampaignId && list.length > 0) {
-        setSelectedCampaignId(list[0].id);
-      }
-    } catch (e) {
-      console.error("Unable to load campaigns", e);
-    }
-  };
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
@@ -3735,347 +3715,84 @@ export default function App() {
     });
   }, []);
 
-  useEffect(() => {
-    if (loggedIn) {
-      loadCampaigns();
-    }
-  }, [loggedIn]);
-
-  const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId) || campaigns[0] || null;
-
-  const handleTransitionStatus = async (campaignId, status) => {
-    try {
-      await api(`/admin/campaigns/${campaignId}/status`, {
-        method: "POST",
-        body: JSON.stringify({ status }),
-      });
-      await loadCampaigns();
-    } catch (e) {
-      alert(`Lỗi chuyển trạng thái: ${e.message}`);
-    }
-  };
-
-  const handleCloneCampaign = (c) => {
-    setOperatorStep("setup");
-    setViewMode("operator");
-  };
-
-
-
-  function SystemSettings() {
-    const [configData, setConfigData] = useState({
-      appEnv: "development",
-      adminAuthMode: "development",
-      apiBaseUrl: "http://localhost:8787/api/v1",
-      zaloAppSecret: "",
-      zbsApiKey: "",
-      zbsTemplateId: "",
-      googleSheetsWebhookUrl: "",
-      allowUnlisted: false,
-      unlistedSpinQuota: 1,
-    });
-
+  function GoogleSheetsSettings() {
+    const [googleSheetsWebhookUrl, setGoogleSheetsWebhookUrl] = useState("");
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [savingGoogleSheets, setSavingGoogleSheets] = useState(false);
     const [error, setError] = useState("");
     const [successMsg, setSuccessMsg] = useState("");
-    const [copiedKey, setCopiedKey] = useState("");
-
-    const loadConfig = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const data = await api("/admin/system-config");
-        setConfigData(data);
-      } catch (e) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
-      }
-    };
 
     useEffect(() => {
-      loadConfig();
+      let active = true;
+      api("/admin/system-config")
+        .then((data) => {
+          if (active) setGoogleSheetsWebhookUrl(data.googleSheetsWebhookUrl || "");
+        })
+        .catch((cause) => {
+          if (active) setError(cause.message);
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+      return () => { active = false; };
     }, []);
 
-    const handleSave = async (e) => {
-      e.preventDefault();
+    const handleSave = async () => {
       setSaving(true);
-      setError("");
-      setSuccessMsg("");
-      try {
-        await api("/admin/system-config", {
-          method: "PUT",
-          body: JSON.stringify(configData),
-        });
-        setSuccessMsg("Đã lưu cấu hình môi trường hệ thống thành công!");
-        await loadConfig();
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setSaving(false);
-      }
-    };
-
-    const handleSaveGoogleSheets = async () => {
-      setSavingGoogleSheets(true);
       setError("");
       setSuccessMsg("");
       try {
         const result = await api("/admin/system-config/google-sheets", {
           method: "PUT",
-          body: JSON.stringify({ googleSheetsWebhookUrl: configData.googleSheetsWebhookUrl }),
+          body: JSON.stringify({ googleSheetsWebhookUrl }),
         });
-        setConfigData((current) => ({ ...current, googleSheetsWebhookUrl: result.googleSheetsWebhookUrl }));
+        setGoogleSheetsWebhookUrl(result.googleSheetsWebhookUrl);
         setSuccessMsg("Đã lưu URL Google Sheets. Lượt quay mới sẽ đồng bộ vào bảng tính này.");
-      } catch (err) {
-        setError(err.message);
+      } catch (cause) {
+        setError(cause.message);
       } finally {
-        setSavingGoogleSheets(false);
+        setSaving(false);
       }
     };
 
-    const copyToClipboard = (text, key) => {
-      navigator.clipboard.writeText(text);
-      setCopiedKey(key);
-      setTimeout(() => setCopiedKey(""), 2000);
-    };
-
-    const backendEnvContent = `PORT=8787
-APP_ENV=${configData.appEnv}
-ADMIN_AUTH_MODE=${configData.adminAuthMode}
-ZALO_APP_SECRET=${configData.zaloAppSecret === "*****" ? "" : configData.zaloAppSecret}
-ZBS_API_KEY=${configData.zbsApiKey === "*****" ? "" : configData.zbsApiKey}
-ZBS_TEMPLATE_ID=${configData.zbsTemplateId}
-# Google Sheets URL is managed in Admin System Settings`;
-
-    const miniAppEnvContent = `VITE_API_BASE_URL=${configData.apiBaseUrl}
-# Build the browser version with: npm run build
-# Build the Zalo Mini App version with: npm run build:miniapp`;
-
-    const adminEnvContent = `VITE_API_BASE_URL=${configData.apiBaseUrl}`;
-
-    if (loading) return <div className="card">Đang tải cấu hình môi trường...</div>;
+    if (loading) return <div className="card">Đang tải cấu hình Google Sheets...</div>;
 
     return (
       <section>
         <Header
-          helpTopic="settings"
-          title="⚙️ Cấu hình Môi trường (System & Env)"
-          subtitle="Quản lý Backend, Zalo Mini App, ZBS và đồng bộ Google Sheets"
+          helpTopic="googleSheets"
+          title="Google Sheets"
+          subtitle="Cấu hình bảng tính nhận dữ liệu lượt quay"
         />
-
-        <p style={{ margin: "0 0 16px", padding: "12px 14px", border: "1px solid #bfdbfe", borderRadius: "10px", background: "#eff6ff", color: "#1e3a8a", fontSize: "13px" }}>
-          Zalo và ZBS credentials được backend áp dụng cho đăng nhập Mini App, danh sách template và worker gửi tin. Không đưa các khóa này vào Web hoặc Mini App.
-        </p>
-
         <UiAlert message={error} type="error" onClose={() => setError("")} />
         <UiAlert message={successMsg} type="success" onClose={() => setSuccessMsg("")} />
-
-        <form onSubmit={handleSave} style={{ display: "grid", gap: "20px" }}>
-          {/* Card 1: Backend & API Base URL */}
-          <div className="card">
-            <h2>🌐 Cấu hình Server Backend & API Domain</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "12px" }}>
-              <label>
-                <strong>Môi trường Chạy (APP_ENV)</strong>
-                <select
-                  value={configData.appEnv}
-                  onChange={(e) => setConfigData({ ...configData, appEnv: e.target.value })}
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
-                >
-                  <option value="development">🛠️ Development (Thử nghiệm Local)</option>
-                  <option value="production">🚀 Production (Vận hành Thực tế)</option>
-                </select>
-              </label>
-
-              <label>
-                <strong>Xác thực Quản trị Admin (ADMIN_AUTH_MODE)</strong>
-                <select
-                  value={configData.adminAuthMode}
-                  onChange={(e) => setConfigData({ ...configData, adminAuthMode: e.target.value })}
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
-                >
-                  <option value="development">🔑 Development (Tài khoản local admin@example.com)</option>
-                  <option value="supabase">🛡️ Supabase Auth (Tài khoản bảo mật Supabase)</option>
-                </select>
-              </label>
-
-              <label>
-                <strong>API Base URL (VITE_API_BASE_URL)</strong>
-                <input
-                  type="text"
-                  value={configData.apiBaseUrl}
-                  onChange={(e) => setConfigData({ ...configData, apiBaseUrl: e.target.value })}
-                  placeholder="http://localhost:8787/api/v1"
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
-                />
-              </label>
-            </div>
-          </div>
-
-          {/* Card 2: Mini App, ZBS and Google Sheets integration */}
-          <div className="card">
-            <h2>🔑 Cấu hình Zalo Mini App, ZBS và Google Sheets</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "12px" }}>
-              <label>
-                <strong>Zalo App Secret Key (ZALO_APP_SECRET)</strong>
-                <input
-                  type="password"
-                  value={configData.zaloAppSecret}
-                  onChange={(e) => setConfigData({ ...configData, zaloAppSecret: e.target.value })}
-                  placeholder="Khóa bí mật Zalo App"
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
-                />
-              </label>
-
-              <label>
-                <strong>ZBS API Key (Tự động gửi tin qua Zalo)</strong>
-                <input
-                  type="password"
-                  value={configData.zbsApiKey}
-                  onChange={(e) => setConfigData({ ...configData, zbsApiKey: e.target.value })}
-                  placeholder="ZBS API Key"
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
-                />
-              </label>
-
-              <label>
-                <strong>ZBS Template ID (Mẫu tin gửi Voucher)</strong>
-                <input
-                  type="text"
-                  value={configData.zbsTemplateId}
-                  onChange={(e) => setConfigData({ ...configData, zbsTemplateId: e.target.value })}
-                  placeholder="ID Mẫu tin ZBS"
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
-                />
-              </label>
-
-              <label style={{ gridColumn: "span 2" }}>
-                <strong>Google Sheets Apps Script Web App URL</strong>
-                <input
-                  type="url"
-                  value={configData.googleSheetsWebhookUrl}
-                  onChange={(e) => setConfigData({ ...configData, googleSheetsWebhookUrl: e.target.value })}
-                  placeholder="https://script.google.com/macros/s/.../exec"
-                  style={{ width: "100%", padding: "8px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
-                />
-                <small style={{ display: "block", color: "#64748b", marginTop: "6px" }}>
-                  Dán URL Web App `/exec` của Apps Script đã gắn với Google Sheet đích. Để trống rồi lưu để tắt đồng bộ.
-                </small>
-              </label>
-              <div style={{ gridColumn: "span 2" }}>
-                <button
-                  type="button"
-                  className="primary"
-                  disabled={savingGoogleSheets}
-                  onClick={handleSaveGoogleSheets}
-                  style={{ padding: "9px 16px" }}
-                >
-                  {savingGoogleSheets ? "Đang lưu Google Sheets..." : "Lưu Google Sheets"}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 3: Mini App Guest Policy Settings */}
-          <div className="card">
-            <h2>🎮 Cấu hình Chính sách Tham gia Mini App</h2>
-            <div style={{ display: "grid", gap: "12px", marginTop: "12px" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={configData.allowUnlisted}
-                  onChange={(e) => setConfigData({ ...configData, allowUnlisted: e.target.checked })}
-                />
-                <span><strong>Cho phép Khách vãng lai (ngoài danh sách) tham gia quay thưởng</strong></span>
-              </label>
-
-              {configData.allowUnlisted && (
-                <label style={{ width: "280px" }}>
-                  <strong>Số lượt quay cấp mặc định cho Khách vãng lai:</strong>
-                  <input
-                    type="number"
-                    min="1"
-                    value={configData.unlistedSpinQuota}
-                    onChange={(e) => setConfigData({ ...configData, unlistedSpinQuota: e.target.value })}
-                    style={{ width: "100%", padding: "6px 10px", borderRadius: "6px", border: "1px solid #ccc", marginTop: "4px" }}
-                  />
-                </label>
-              )}
-
-            </div>
-          </div>
-
-          <button className="primary" disabled={saving} style={{ padding: "12px 24px", fontSize: "15px", width: "fit-content" }}>
-            {saving ? "Đang lưu cấu hình..." : "💾 Lưu Cấu hình Môi trường"}
+        <div className="card">
+          <h2>🔗 Kết nối Google Sheets</h2>
+          <p style={{ color: "#475569", fontSize: "13px", lineHeight: "1.6" }}>
+            Dán URL Web App `/exec` của Google Apps Script đã gắn với bảng tính đích. Đây là cấu hình riêng trong Admin, không cần sửa file `.env`.
+          </p>
+          <label style={{ display: "grid", gap: "6px", marginTop: "16px" }}>
+            <strong>Google Apps Script Web App URL</strong>
+            <input
+              type="url"
+              value={googleSheetsWebhookUrl}
+              onChange={(event) => setGoogleSheetsWebhookUrl(event.target.value)}
+              placeholder="https://script.google.com/macros/s/.../exec"
+              style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid #cbd5e1" }}
+            />
+            <small style={{ color: "#64748b" }}>
+              Để trống URL rồi lưu để tắt đồng bộ.
+            </small>
+          </label>
+          <button
+            type="button"
+            className="primary"
+            disabled={saving}
+            onClick={handleSave}
+            style={{ padding: "9px 16px", marginTop: "14px" }}
+          >
+            {saving ? "Đang lưu Google Sheets..." : "Lưu Google Sheets"}
           </button>
-        </form>
-
-        {/* Card 4: Quick Copy .env snippets */}
-        <div className="card" style={{ marginTop: "24px" }}>
-          <h2>📋 Bộ sinh file `.env` nhanh cho Deploy</h2>
-          <p style={{ color: "#64748b", fontSize: "13px" }}>Sao chép nội dung `.env` chuẩn để dán vào file môi trường Server/MiniApp khi deploy.</p>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", marginTop: "16px" }}>
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                <strong>🖥️ backend/.env</strong>
-                <button
-                  type="button"
-                  className="secondary"
-                  style={{ padding: "3px 8px", fontSize: "11px" }}
-                  onClick={() => copyToClipboard(backendEnvContent, "be")}
-                >
-                  {copiedKey === "be" ? "✓ Đã copy!" : "📋 Copy"}
-                </button>
-              </div>
-              <textarea
-                readOnly
-                value={backendEnvContent}
-                style={{ width: "100%", height: "140px", fontSize: "11px", fontFamily: "monospace", padding: "8px", background: "#f8fafc", borderRadius: "6px", border: "1px solid #cbd5e1" }}
-              />
-            </div>
-
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                <strong>📱 lucky-wheels/.env</strong>
-                <button
-                  type="button"
-                  className="secondary"
-                  style={{ padding: "3px 8px", fontSize: "11px" }}
-                  onClick={() => copyToClipboard(miniAppEnvContent, "mini")}
-                >
-                  {copiedKey === "mini" ? "✓ Đã copy!" : "📋 Copy"}
-                </button>
-              </div>
-              <textarea
-                readOnly
-                value={miniAppEnvContent}
-                style={{ width: "100%", height: "140px", fontSize: "11px", fontFamily: "monospace", padding: "8px", background: "#f8fafc", borderRadius: "6px", border: "1px solid #cbd5e1" }}
-              />
-            </div>
-
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                <strong>🌐 admin-web/.env</strong>
-                <button
-                  type="button"
-                  className="secondary"
-                  style={{ padding: "3px 8px", fontSize: "11px" }}
-                  onClick={() => copyToClipboard(adminEnvContent, "admin")}
-                >
-                  {copiedKey === "admin" ? "✓ Đã copy!" : "📋 Copy"}
-                </button>
-              </div>
-              <textarea
-                readOnly
-                value={adminEnvContent}
-                style={{ width: "100%", height: "140px", fontSize: "11px", fontFamily: "monospace", padding: "8px", background: "#f8fafc", borderRadius: "6px", border: "1px solid #cbd5e1" }}
-              />
-            </div>
-          </div>
         </div>
       </section>
     );
@@ -4092,44 +3809,14 @@ ZBS_TEMPLATE_ID=${configData.zbsTemplateId}
     awards: <Awards />,
     rules: <Rules />,
     campaign: <CampaignRules />,
-    settings: <SystemSettings />,
+    googleSheets: <GoogleSheetsSettings />,
   }[tab]), [tab]);
 
   if (!loggedIn) return <Login onLogin={() => setLoggedIn(true)} />;
 
   return (
-    <div className="admin-root-shell">
-      {viewMode === "operator" ? (
-        <>
-          <EventWorkspace
-            campaigns={campaigns}
-            selectedCampaignId={selectedCampaignId}
-            onSelectCampaign={setSelectedCampaignId}
-            mode={viewMode}
-            onToggleMode={setViewMode}
-            onNavigateStep={setOperatorStep}
-            onTransitionStatus={handleTransitionStatus}
-            onCloneCampaign={handleCloneCampaign}
-          />
-          <EventWizard
-            activeStep={operatorStep}
-            onSelectStep={setOperatorStep}
-            campaign={selectedCampaign}
-            campaigns={campaigns}
-            onSelectCampaign={setSelectedCampaignId}
-            onCampaignSaved={(newCamp) => {
-              loadCampaigns();
-              if (newCamp?.id) setSelectedCampaignId(newCamp.id);
-            }}
-            onTransitionStatus={handleTransitionStatus}
-            renderAwardsTab={() => <Awards />}
-          />
-        </>
-      ) : (
-        <Shell tab={tab} setTab={setTab} onLogout={() => { logout(); setLoggedIn(false); }}>
-          {advancedPage}
-        </Shell>
-      )}
-    </div>
+    <Shell tab={tab} setTab={setTab} onLogout={() => { logout(); setLoggedIn(false); }}>
+      {advancedPage}
+    </Shell>
   );
 }

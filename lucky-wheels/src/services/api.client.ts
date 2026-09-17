@@ -4,8 +4,6 @@ const API_BASE_URL = String(
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8787/api/v1"
 ).replace(/\/$/, "");
 
-console.log("[LuckyWheels API Client] Initialized API_BASE_URL:", API_BASE_URL);
-
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers || {});
   const token = participantSession.getToken();
@@ -15,12 +13,10 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   }
 
   const url = `${API_BASE_URL}${path}`;
-  console.log(`[API Request] ${options.method || "GET"} ${url}`);
 
   try {
     const response = await fetch(url, { ...options, headers });
     const payload = await response.json().catch(() => ({}));
-    console.log(`[API Response] ${response.status} ${url}`, { ok: response.ok, payload });
 
     if (!response.ok) {
       if (response.status === 401) participantSession.clear();
