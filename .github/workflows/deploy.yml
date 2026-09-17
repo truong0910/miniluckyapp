@@ -112,6 +112,8 @@ jobs:
 
             echo ">>> 4. Khởi chạy Docker Compose (Build & Reload)..."
             export VITE_API_BASE_URL="${{ vars.VITE_API_BASE_URL }}"
+            export VITE_PARTICIPANT_AUTH_MODE="${{ vars.PARTICIPANT_AUTH_MODE || 'preview' }}"
+            export VITE_ZALO_OA_ID="${{ vars.VITE_ZALO_OA_ID || '1872524082920628490' }}"
             docker compose pull || true
             docker compose up -d --build --remove-orphans
 

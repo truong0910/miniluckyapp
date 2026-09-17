@@ -88,9 +88,9 @@ Giả định tên miền của bạn là `wifim.vn` (thay thế bằng tên mi�
 
 ---
 
-### Site 2: Admin Web Dashboard (`admin.lucky.wifim.vn`)
+### Site 2: Admin Web Dashboard (`admin.lucky.wifim.vn` hoặc `luckyadmin.wiai.vn`)
 1. Vào menu **Website** > Bấm **Add site**:
-   - Domain: `admin.lucky.wifim.vn`
+   - Domain: `luckyadmin.wiai.vn`
    - PHP Version: `Pure Python/Static`.
    - Bấm **Submit**.
 2. **Cài SSL (HTTPS)**:
@@ -99,6 +99,22 @@ Giả định tên miền của bạn là `wifim.vn` (thay thế bằng tên mi�
    - Vào menu **Reverse Proxy** > Bấm **Add reverse proxy**:
      - **Proxy Name**: `admin_web`
      - **Target URL**: `http://127.0.0.1:5174`
+     - **Sent Domain**: `$host`
+     - Bấm **Submit**.
+
+---
+
+### Site 3: Vòng Quay Web (`luckywheel.wiai.vn` hoặc `lucky.wiai.vn`)
+1. Vào menu **Website** > Bấm **Add site**:
+   - Domain: `luckywheel.wiai.vn` (hoặc tên miền bạn chọn cho người chơi web)
+   - PHP Version: `Pure Python/Static`.
+   - Bấm **Submit**.
+2. **Cài SSL (HTTPS)**:
+   - Vào mục **SSL** > Tab **Let's Encrypt** > Bấm **Apply** > Bật **Force HTTPS**.
+3. **Cài Reverse Proxy về Docker Vòng Quay**:
+   - Vào menu **Reverse Proxy** > Bấm **Add reverse proxy**:
+     - **Proxy Name**: `lucky_wheels_web`
+     - **Target URL**: `http://127.0.0.1:5175`
      - **Sent Domain**: `$host`
      - Bấm **Submit**.
 
