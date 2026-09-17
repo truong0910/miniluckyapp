@@ -2,4 +2,5 @@
 .env.local
 node_modules
 dist
+www
 npm-debug.log

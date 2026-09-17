@@ -10,6 +10,7 @@ COPY package*.json ./
 RUN npm ci || npm install
 
 COPY . .
+RUN rm -f .env .env.local
 RUN npm run build
 
 FROM nginx:alpine AS runner

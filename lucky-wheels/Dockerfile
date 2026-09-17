@@ -15,6 +15,7 @@ COPY package*.json ./
 RUN (npm ci || npm install) && npm cache clean --force
 
 COPY . .
+RUN rm -f .env .env.local
 RUN npm run build && ( [ -d dist ] && cp -r dist /app/output || cp -r www /app/output )
 
 FROM nginx:alpine AS runner
