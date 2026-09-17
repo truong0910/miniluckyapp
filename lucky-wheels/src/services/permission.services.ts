@@ -1,4 +1,11 @@
-import * as zmp from "zmp-sdk/apis";
+function isZaloAuthMode() {
+  return String(import.meta.env.VITE_PARTICIPANT_AUTH_MODE || "").toLowerCase() === "zalo";
+}
+
+async function getZmpApis() {
+  if (!isZaloAuthMode()) return null;
+  return await import("zmp-sdk/apis").catch(() => null);
+}
 
 export interface PhoneResult {
   token?: string;
@@ -34,18 +41,23 @@ function isUserInfoPermissionDeniedError(error: unknown) {
 
 export const permissionService = {
   async request() {
+    const zmp = await getZmpApis();
+    if (!zmp) return {};
     return zmp.authorize({
       scopes: ["scope.userInfo", "scope.userPhonenumber"],
-    });
+    }).catch(() => ({}));
   },
 
   async check() {
-    return await zmp.getSetting();
+    const zmp = await getZmpApis();
+    if (!zmp) return {};
+    return await zmp.getSetting().catch(() => ({}));
   },
 
   async getUserProfile(): Promise<ZaloUserProfile | null> {
-    const isZaloMode = String(import.meta.env.VITE_PARTICIPANT_AUTH_MODE || "").toLowerCase() === "zalo";
-    if (!isZaloMode) return null;
+    if (!isZaloAuthMode()) return null;
+    const zmp = await getZmpApis();
+    if (!zmp) return null;
     if (cachedUserProfile !== undefined) return cachedUserProfile;
     if (userProfileRequest) return userProfileRequest;
 
@@ -98,13 +110,14 @@ export const permissionService = {
   },
 
   async getPhoneNumber(): Promise<PhoneResult> {
+    if (!isZaloAuthMode()) return { error: "Xác minh SĐT Zalo không được hỗ trợ trong chế độ Web." };
+    const zmp = await getZmpApis();
+    if (!zmp) return { error: "Không thể nạp Zalo SDK." };
     try {
-      // 1. Xin quyền scope.userPhonenumber trước
       await zmp.authorize({
         scopes: ["scope.userPhonenumber"],
       });
 
-      // 2. Gọi SDK lấy phone token; số điện thoại thật chỉ được giải mã ở backend.
       const response = (await zmp.getPhoneNumber({})) as {
         token?: string;
       };

@@ -6,7 +6,6 @@ import {
 import { oaService } from "@/services/oa.services";
 import { permissionService } from "@/services/permission.services";
 import { useEffect, useState } from "react";
-import { getAccessToken, showOAWidget } from "zmp-sdk/apis";
 import { Button, useNavigate, useSnackbar } from "zmp-ui";
 import Divider from "./divider";
 
@@ -69,8 +68,13 @@ export default function RegisterForm() {
     let cancelled = false;
     const oaId = import.meta.env.VITE_ZALO_OA_ID?.trim();
 
-    const timer = setTimeout(() => {
+    const timer = setTimeout(async () => {
       if (cancelled) return;
+      const { showOAWidget } = await import("zmp-sdk/apis").catch(() => ({ showOAWidget: null }));
+      if (!showOAWidget) {
+        setShowMockButton(true);
+        return;
+      }
       showOAWidget({
         id: "registrationOaWidget",
         ...(oaId ? { oaId } : {}),
@@ -180,8 +184,10 @@ export default function RegisterForm() {
 
       setCustomer(null);
       const profile = await permissionService.getUserProfile();
+      const { getAccessToken } = await import("zmp-sdk/apis");
+      const accessToken = await getAccessToken();
       const found = await participantService.startWithZalo(
-        await getAccessToken(),
+        accessToken,
         res.token,
         profile?.name,
       );

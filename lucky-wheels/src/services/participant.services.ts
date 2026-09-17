@@ -3,7 +3,6 @@ import type { WheelSegment } from "./campaign.types";
 import { apiRequest } from "./api.client";
 import { participantSession } from "./participant-session";
 import { permissionService } from "./permission.services";
-import { getAccessToken } from "zmp-sdk/apis";
 
 const PARTICIPANT_AUTH_MODE = String(
   import.meta.env.VITE_PARTICIPANT_AUTH_MODE || "preview"
@@ -99,6 +98,7 @@ export const participantService = {
     if (!phoneResult.token) {
       throw new Error(phoneResult.error || "Zalo phone verification is required");
     }
+    const { getAccessToken } = await import("zmp-sdk/apis");
     const accessToken = await getAccessToken();
     return this.startWithZalo(accessToken, phoneResult.token, options.zaloName);
   },
