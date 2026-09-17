@@ -44,6 +44,8 @@ export const permissionService = {
   },
 
   async getUserProfile(): Promise<ZaloUserProfile | null> {
+    const isZaloMode = String(import.meta.env.VITE_PARTICIPANT_AUTH_MODE || "").toLowerCase() === "zalo";
+    if (!isZaloMode) return null;
     if (cachedUserProfile !== undefined) return cachedUserProfile;
     if (userProfileRequest) return userProfileRequest;
 

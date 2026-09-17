@@ -61,6 +61,11 @@ export default function RegisterForm() {
   useEffect(() => {
     if (isLoadingProfile) return;
 
+    if (!participantService.isZaloMode()) {
+      setShowMockButton(true);
+      return;
+    }
+
     let cancelled = false;
     const oaId = import.meta.env.VITE_ZALO_OA_ID?.trim();
 

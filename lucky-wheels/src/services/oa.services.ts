@@ -14,8 +14,11 @@ function parseFollowStatus(status: unknown): boolean {
 
 export const oaService = {
   isFollowed() {
+    const isZaloMode = String(import.meta.env.VITE_PARTICIPANT_AUTH_MODE || "").toLowerCase() === "zalo";
+    if (!isZaloMode) {
+      return true;
+    }
     const oaId = import.meta.env.VITE_ZALO_OA_ID?.trim();
-    // If no OA ID is configured in .env, automatically auto-pass and consider as followed!
     if (!oaId) {
       return true;
     }
